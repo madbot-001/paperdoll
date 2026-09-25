@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Paperdoll.App/Paperdoll.App.csproj" />
+    <Project Path="src/Paperdoll.Core/Paperdoll.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Paperdoll.Core.Tests/Paperdoll.Core.Tests.csproj" />
+  </Folder>
+</Solution>

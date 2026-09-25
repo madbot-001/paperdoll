@@ -1,5 +1,15 @@
-node_modules/
+# Build output
+bin/
+obj/
+TestResults/
+publish/
+*.user
+.vs/
+.idea/
+
 # Game content synced from fork repositories
 cache/
 # Characters saved while testing
 exports/
+# The user's own exported characters, used by tests when present. Never commit them.
+tests/private/
