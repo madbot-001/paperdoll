@@ -1,0 +1,5 @@
+node_modules/
+# Game content synced from fork repositories
+cache/
+# Characters saved while testing
+exports/
