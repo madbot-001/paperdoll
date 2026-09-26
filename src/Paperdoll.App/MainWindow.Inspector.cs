@@ -398,7 +398,9 @@ public partial class MainWindow
                 RefreshAll();
             }
         };
-        AddRow("Shown as", jobs, "The lobby shows the High priority job; pick another to try its clothes.");
+        AddRow("Shown as", jobs, session.PreviewEntity() is { } body
+            ? $"The lobby shows this job as its own body ({session.EntityName(body)}), not the character."
+            : "The lobby shows the High priority job; pick another to try its clothes.");
         if (job == null)
             return;
 

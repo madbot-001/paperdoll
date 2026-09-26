@@ -62,6 +62,9 @@ public sealed class ForkContent
         // Clothing folders come from the items' prototypes; whether a sprite has a species version
         // is only known once its meta.json is here, so no meta is needed to list them.
         var folders = new HashSet<string>(characters.SpriteFolders(), StringComparer.Ordinal);
+        // Jobs the lobby shows as their own body, such as a borg.
+        foreach (var job in outfits.Jobs.Values.Where(j => j.PreviewEntity != null))
+            folders.UnionWith(Rendering.EntitySprite.SpriteFolders(prototypes, job.PreviewEntity!));
         var clothing = new ClothingResolver(prototypes, _ => null);
         foreach (var entity in outfits.AllGearEntities())
             folders.UnionWith(clothing.SpriteFolders(entity));

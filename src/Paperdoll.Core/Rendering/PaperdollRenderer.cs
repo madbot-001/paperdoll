@@ -186,10 +186,20 @@ public sealed class PaperdollRenderer
     /// <summary>The character as an image, one frame, facing the given way.</summary>
     /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
     /// <param name="seconds">How far into their animations animated sprites are, as they loop in the game.</param>
-    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null, double seconds = 0)
+    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null, double seconds = 0) =>
+        Compose(Layers(look, outfit), direction, seconds);
+
+    /// <summary>A plain entity, such as a borg, drawn from its sprite's layers.</summary>
+    public SKBitmap RenderEntity(string entityId, Direction direction = Direction.South, double seconds = 0) =>
+        Compose(EntitySprite.Layers(prototypes, entityId), direction, seconds);
+
+    public bool IsEntityAnimated(string entityId, Direction direction) =>
+        EntitySprite.Layers(prototypes, entityId).Any(layer => State(layer.Sprite)?.IsAnimated(direction) == true);
+
+    private SKBitmap Compose(IReadOnlyList<DrawnLayer> layers, Direction direction, double seconds)
     {
         var frames = new List<(Pixels Frame, Rgba Color)>();
-        foreach (var layer in Layers(look, outfit))
+        foreach (var layer in layers)
         {
             var index = FrameIndex(layer.Sprite, direction, seconds);
             if (LoadFrame(layer.Sprite, direction, index) is not { } frame)

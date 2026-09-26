@@ -241,6 +241,9 @@ public sealed class EditorSession : IAsyncDisposable
     /// <summary>How much the character is scaled on screen, across and up.</summary>
     public (float X, float Y) SpriteScale()
     {
+        // A job's own body, such as a borg, is drawn at its sprite's size.
+        if (PreviewEntity() != null)
+            return (1, 1);
         var species = RequireContent().Characters.Species[Look!.Species];
         return CharacterSize.SpriteScale(Fork!, species, RequireFile());
     }
@@ -449,11 +452,21 @@ public sealed class EditorSession : IAsyncDisposable
         Species = look.Species, Sex = look.Sex, SkinColor = look.SkinColor, EyeColor = color, Markings = look.Markings,
     });
 
-    public SKBitmap Render(Direction direction = Direction.South, double seconds = 0) => Renderer!.Render(Look!, direction, Outfit(), seconds);
+    /// <summary>
+    /// The entity the lobby shows instead of the character for the job being dressed for, such as a
+    /// borg's body (the job's <c>jobPreviewEntity</c> or <c>jobEntity</c>); null for most jobs.
+    /// </summary>
+    public string? PreviewEntity() =>
+        ShowClothes && DressedJob() is { } job && RequireContent().Outfits.Jobs.TryGetValue(job, out var info) ? info.PreviewEntity : null;
+
+    public SKBitmap Render(Direction direction = Direction.South, double seconds = 0) =>
+        PreviewEntity() is { } entity ? Renderer!.RenderEntity(entity, direction, seconds) : Renderer!.Render(Look!, direction, Outfit(), seconds);
 
     /// <summary>Whether anything on the character moves, facing any way (animated markings or clothes).</summary>
     public bool IsAnimated()
     {
+        if (PreviewEntity() is { } entity)
+            return Enum.GetValues<Direction>().Any(d => Renderer!.IsEntityAnimated(entity, d));
         var outfit = Outfit();
         return Enum.GetValues<Direction>().Any(d => Renderer!.IsAnimated(Look!, d, outfit));
     }
@@ -463,14 +476,14 @@ public sealed class EditorSession : IAsyncDisposable
     {
         if (Renderer == null || Look == null)
             return [];
-        return Renderer.Layers(Look, Outfit())
+        var layers = PreviewEntity() is { } entity ? EntitySprite.Layers(Content!.Prototypes, entity) : Renderer.Layers(Look, Outfit());
+        return layers
             .Select(l => l.Sprite.Rsi)
             .Distinct(StringComparer.Ordinal)
             .Select(rsi => Renderer.Meta(rsi) is { } meta ? new CreditLine(rsi, meta.License, meta.Copyright) : new CreditLine(rsi, null, null))
             .ToList();
     }
 
-    /// <summary>A random name for the species and pronouns, as the game makes them.</summary>
     /// <summary>A random name for the species, already in the form the game's name rule leaves it (so "Vish'ra" is "Vish'Ra").</summary>
     public string RandomName(SpeciesInfo species, string? gender) =>
         CharacterRules.CheckName(new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender), Fork!.NameRule);
