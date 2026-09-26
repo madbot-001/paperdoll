@@ -83,6 +83,9 @@ public sealed class OutfitCatalog
     public required IReadOnlyDictionary<string, LoadoutInfo> Loadouts { get; init; }
     public IReadOnlyDictionary<string, AntagInfo> Antags { get; init; } = new Dictionary<string, AntagInfo>();
 
+    /// <summary>Roles whose players may name what they spawn as (<c>canCustomizeName</c>), such as borgs, with the dataset random names come from.</summary>
+    public IReadOnlyDictionary<string, string?> NamedRoles { get; init; } = new Dictionary<string, string?>();
+
     public static OutfitCatalog Build(PrototypeIndex index)
     {
         var gear = index.OfKind("startingGear").Where(p => !p.Abstract)
@@ -106,12 +109,17 @@ public sealed class OutfitCatalog
                 .ToDictionary(p => p.Id, p => Contents(index.Resolve("startingGear", p.Id)!), StringComparer.Ordinal),
             RoleLoadouts = index.OfKind("roleLoadout")
                 .ToDictionary(p => p.Id, p => (IReadOnlyList<string>)Strings(index.Resolve("roleLoadout", p.Id)!, "groups"), StringComparer.Ordinal),
+            NamedRoles = index.OfKind("roleLoadout")
+                .Select(p => index.Resolve("roleLoadout", p.Id)!)
+                .Where(n => Str(n, "canCustomizeName") is "true" or "True")
+                .ToDictionary(n => Str(n, "id")!, n => Str(n, "nameDataset"), StringComparer.Ordinal),
             Groups = index.OfKind("loadoutGroup").Where(p => !p.Abstract).ToDictionary(p => p.Id, p =>
             {
                 var node = index.Resolve("loadoutGroup", p.Id)!;
                 return new LoadoutGroupInfo(p.Id, Str(node, "name") ?? p.Id,
                     Int(node, "minLimit") ?? 1, Int(node, "maxLimit") ?? 1, Int(node, "defaultSelected") ?? 0,
-                    Str(node, "hidden") is "true" or "True", Strings(node, "loadouts"));
+                    // Euphoria keeps these in a set, so a loadout a parent repeats counts once.
+                    Str(node, "hidden") is "true" or "True", Strings(node, "loadouts").Distinct().ToList());
             }, StringComparer.Ordinal),
             Loadouts = index.OfKind("loadout").ToDictionary(p => p.Id, p =>
             {

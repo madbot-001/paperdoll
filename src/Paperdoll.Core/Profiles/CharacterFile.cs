@@ -1,6 +1,7 @@
 using System.Globalization;
 using Paperdoll.Core.Characters;
 using Paperdoll.Core.Rendering;
+using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Profiles;
@@ -163,11 +164,7 @@ public sealed class CharacterFile
     /// </summary>
     public void SetLoadoutGroup(string role, string group, IReadOnlyList<string> loadoutIds)
     {
-        var loadoutsKey = new YamlScalarNode("_loadouts");
-        if (!Profile.Children.TryGetValue(loadoutsKey, out var node) || node is not YamlMappingNode roles)
-            Profile.Children[loadoutsKey] = roles = new YamlMappingNode();
-        if (!roles.Children.TryGetValue(new YamlScalarNode(role), out var roleNode) || roleNode is not YamlMappingNode roleMap)
-            roles.Children[new YamlScalarNode(role)] = roleMap = new YamlMappingNode();
+        var roleMap = RoleLoadout(role, create: true)!;
         if (!roleMap.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected) || selected is not YamlMappingNode groups)
             roleMap.Children[new YamlScalarNode("selectedLoadouts")] = groups = new YamlMappingNode();
 
@@ -178,6 +175,49 @@ public sealed class CharacterFile
         groups.Children[new YamlScalarNode(group)] = new YamlSequenceNode(loadoutIds.Select(id =>
             (YamlNode)(existing.TryGetValue(id, out var kept) ? kept : new YamlMappingNode { { "prototype", id } })));
     }
+
+    /// <summary>
+    /// A job's saved loadout, made if asked for as the game writes one: <c>entityName</c>,
+    /// <c>selectedLoadouts</c> and <c>role</c>, in that order.
+    /// </summary>
+    public YamlMappingNode? RoleLoadout(string role, bool create)
+    {
+        var loadoutsKey = new YamlScalarNode("_loadouts");
+        if (!Profile.Children.TryGetValue(loadoutsKey, out var node) || node is not YamlMappingNode roles)
+        {
+            if (!create)
+                return null;
+            Profile.Children[loadoutsKey] = roles = new YamlMappingNode();
+        }
+        if (roles.Children.TryGetValue(new YamlScalarNode(role), out var roleNode) && roleNode is YamlMappingNode existing)
+            return existing;
+        if (!create)
+            return null;
+        var made = new YamlMappingNode
+        {
+            { "entityName", Null() },
+            { "selectedLoadouts", new YamlMappingNode() },
+            { "role", role },
+        };
+        roles.Children[new YamlScalarNode(role)] = made;
+        return made;
+    }
+
+    /// <summary>The name the character takes in a role that allows one, such as a borg's; null for none.</summary>
+    public string? RoleName(string role) => RoleLoadout(role, create: false) is { } map ? NullableScalar(map, "entityName") : null;
+
+    public void SetRoleName(string role, string? name) =>
+        RoleLoadout(role, create: true)!.Children[new YamlScalarNode("entityName")] = name == null ? Null() : Text(name);
+
+    /// <summary>A written <c>null</c>, as the game saves an empty value.</summary>
+    internal static YamlScalarNode Null() => new("null");
+
+    /// <summary>A scalar that may be written as a bare <c>null</c>; quoted "null" stays text.</summary>
+    internal static string? NullableScalar(YamlMappingNode node, string key) =>
+        node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar
+        && !(scalar.Style is ScalarStyle.Plain or ScalarStyle.Any && scalar.Value is "null" or "~")
+            ? scalar.Value
+            : null;
 
     /// <summary>Any single value in the profile by key, such as a fork's own <c>height</c>.</summary>
     public string? GetValue(string key) => Scalar(Profile, key);

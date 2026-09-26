@@ -29,6 +29,11 @@ public static class Inheritance
     {
         ["entity"] = ["components"],
         ["markingsGroup"] = ["limits", "appearances"],
+        // Euphoria lets role loadouts have parents and adds a parent's groups after the child's
+        // (its RoleLoadoutPrototype.Groups is [AlwaysPushInheritance]). Upstream's have no parents.
+        ["roleLoadout"] = ["groups"],
+        // A loadout group adds its parents' loadouts after its own (LoadoutGroupPrototype.Loadouts).
+        ["loadoutGroup"] = ["loadouts"],
     };
 
     /// <summary>Component fields that merge with the parent's value (by component type).</summary>

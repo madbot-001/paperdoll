@@ -442,3 +442,150 @@ public class SpawnGearTests
         Assert.Equal(["Flash"], gear.Stored["back"].Select(i => i.Entity));
     }
 }
+
+public class LoadoutRulesTests
+{
+    private const string Yaml = """
+        - type: job
+          id: Borg
+        - type: job
+          id: Janitor
+        - type: roleLoadout
+          id: JobBase
+          abstract: true
+          groups: [ Trinkets ]
+        - type: roleLoadout
+          id: JobJanitor
+          parent: JobBase
+          groups: [ JanitorHat, JanitorSuit ]
+        - type: roleLoadout
+          id: JobBorg
+          canCustomizeName: true
+          groups: []
+        - type: loadoutGroup
+          id: BaseHats
+          abstract: true
+          loadouts: [ Beret, Cap ]
+        - type: loadoutGroup
+          id: JanitorHat
+          parent: BaseHats
+          minLimit: 0
+          loadouts: [ PurpleCap, Cap ]
+        - type: loadoutGroup
+          id: JanitorSuit
+          loadouts: [ VeteranSuit, JanitorSuit ]
+        - type: loadoutGroup
+          id: Trinkets
+          minLimit: 0
+          maxLimit: 2
+          loadouts: [ Lighter, Coin, Ring ]
+        - type: loadout
+          id: Beret
+        - type: loadout
+          id: Cap
+        - type: loadout
+          id: PurpleCap
+        - type: loadout
+          id: VeteranSuit
+          effects:
+          - !type:JobRequirementLoadoutEffect {}
+        - type: loadout
+          id: JanitorSuit
+        - type: loadout
+          id: Lighter
+        - type: loadout
+          id: Coin
+        - type: loadout
+          id: Ring
+        - type: species
+          id: Human
+          name: x
+          roundStart: true
+          dollPrototype: D
+        - type: entity
+          id: D
+        """;
+
+    private static readonly PrototypeIndex Index = PrototypeIndex.Load([new PrototypeSource("l.yml", Encoding.UTF8.GetBytes(Yaml))]);
+    private static readonly OutfitCatalog Outfits = OutfitCatalog.Build(Index);
+    private static readonly Characters.CharacterCatalog Catalog = Characters.CharacterCatalog.Build(Index);
+    private static readonly Forks.ForkInfo Fork = new("t", "T", "o/r", "main", Forks.AppearanceModel.New, false, []);
+
+    private static Profiles.CharacterFile File(string loadouts) => Profiles.CharacterFile.Parse(
+        "version: 2\nprofile:\n  name: Test Person\n  species: Human\n  age: 30\n  sex: Male\n  gender: Male\n"
+        + "  appearance:\n    skinColor: '#FFFFFFFF'\n    eyeColor: '#000000FF'\n    markings: {}\n" + loadouts + "forkId: t\n");
+
+    [Fact]
+    public void Groups_and_role_loadouts_add_their_parents_after_their_own()
+    {
+        Assert.Equal(["PurpleCap", "Cap", "Beret"], Outfits.Groups["JanitorHat"].Loadouts);
+        Assert.Equal(["JanitorHat", "JanitorSuit", "Trinkets"], Outfits.RoleLoadouts["JobJanitor"]);
+        Assert.False(Outfits.Groups.ContainsKey("BaseHats"));
+    }
+
+    [Fact]
+    public void Loadouts_are_checked_as_the_game_checks_them()
+    {
+        var file = File("""
+              _loadouts:
+                JobJanitor:
+                  selectedLoadouts:
+                    JanitorHat:
+                    - prototype: Beret
+                    - prototype: Cap
+                    Trinkets:
+                    - prototype: Lighter
+                    - prototype: Coin
+                    - prototype: Ring
+                    Pets:
+                    - prototype: Cat
+                JobBorg:
+                  entityName: '  a very long borg name that goes on and on and on  '
+                  selectedLoadouts: {}
+                  role: JobBorg
+                JobWizard:
+                  selectedLoadouts: {}
+
+            """);
+
+        var fixes = Profiles.CharacterRules.EnsureValid(file, Catalog, Fork, outfits: Outfits);
+        var saved = file.Loadouts["JobJanitor"];
+
+        // Over the limit the last go; a missing required group gets the first loadout that needs no playtime.
+        Assert.Equal(["Beret"], saved["JanitorHat"]);
+        Assert.Equal(["Lighter", "Coin"], saved["Trinkets"]);
+        Assert.Equal(["JanitorSuit"], saved["JanitorSuit"]);
+        Assert.False(saved.ContainsKey("Pets"));
+        Assert.False(file.Loadouts.ContainsKey("JobWizard"));
+        Assert.Contains("role: JobJanitor", file.ToYaml());
+        // As the game does it: trimmed, then cut, which can leave a space at the end.
+        Assert.Equal("a very long borg name that goes ", file.RoleName("JobBorg"));
+        Assert.Contains(fixes, f => f.Field == "loadouts");
+    }
+
+    [Fact]
+    public void A_new_jobs_loadout_is_written_as_the_game_writes_it()
+    {
+        var file = File("");
+        file.SetLoadoutGroup("JobJanitor", "JanitorHat", ["Cap"]);
+        Profiles.CharacterRules.EnsureValid(file, Catalog, Fork, outfits: Outfits);
+
+        Assert.Contains("""
+              _loadouts:
+                JobJanitor:
+                  entityName: null
+                  selectedLoadouts:
+                    JanitorHat:
+                    - prototype: Cap
+                    JanitorSuit:
+                    - prototype: JanitorSuit
+                    Trinkets: []
+                  role: JobJanitor
+            """.ReplaceLineEndings("\n"), file.ToYaml());
+
+        // Checked again, nothing changes.
+        var again = Profiles.CharacterFile.Parse(file.ToYaml());
+        Assert.Empty(Profiles.CharacterRules.EnsureValid(again, Catalog, Fork, outfits: Outfits));
+        Assert.Equal(file.ToYaml(), again.ToYaml());
+    }
+}
