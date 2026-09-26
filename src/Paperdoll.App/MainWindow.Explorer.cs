@@ -18,6 +18,8 @@ public partial class MainWindow
         Marking,
         Outfit,
         LoadoutGroup,
+        Traits,
+        TraitCategory,
     }
 
     /// <summary>
@@ -32,8 +34,9 @@ public partial class MainWindow
         {
             NodeKind.Marking => new Node(NodeKind.Layer, Organ, Layer),
             NodeKind.Layer => new Node(NodeKind.Organ, Organ),
-            NodeKind.Organ or NodeKind.Outfit => new Node(NodeKind.Character),
+            NodeKind.Organ or NodeKind.Outfit or NodeKind.Traits => new Node(NodeKind.Character),
             NodeKind.LoadoutGroup => new Node(NodeKind.Outfit),
+            NodeKind.TraitCategory => new Node(NodeKind.Traits),
             _ => null,
         };
     }
@@ -73,6 +76,23 @@ public partial class MainWindow
                 outfitItem.Items.Add(groupItem);
             }
             root.Items.Add(outfitItem);
+        }
+
+        var traitCatalog = session.Content.Traits;
+        if (traitCatalog.Traits.Count > 0)
+        {
+            var picked = session.SelectedTraits();
+            var traitsItem = Item(new Node(NodeKind.Traits), HeaderFor("Traits", $"{picked.Count} picked"), false, items);
+            foreach (var category in traitCatalog.Categories.Values.OrderBy(c => c.Priority).ThenBy(c => session.Content.Strings.Get(c.NameKey), StringComparer.CurrentCulture))
+            {
+                var inCategory = picked.Where(id => traitCatalog.Traits.TryGetValue(id, out var t) && t.Category == category.Id).ToList();
+                var detail = category.MaxTraits is { } maxTraits ? $"{inCategory.Count}/{maxTraits}" : inCategory.Count.ToString();
+                var categoryItem = Item(new Node(NodeKind.TraitCategory, Group: category.Id), HeaderFor(session.Content.Strings.Get(category.NameKey), detail), false, items);
+                foreach (var id in inCategory)
+                    categoryItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = session.Content.Strings.Get(traitCatalog.Traits[id].NameKey) }, Tag = new Node(NodeKind.TraitCategory, Group: category.Id), Focusable = false });
+                traitsItem.Items.Add(categoryItem);
+            }
+            root.Items.Add(traitsItem);
         }
 
         foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
@@ -197,6 +217,10 @@ public partial class MainWindow
         };
         if (_selected.Kind is NodeKind.Outfit or NodeKind.LoadoutGroup)
             steps.Add(("Outfit", new Node(NodeKind.Outfit)));
+        if (_selected.Kind is NodeKind.Traits or NodeKind.TraitCategory)
+            steps.Add(("Traits", new Node(NodeKind.Traits)));
+        if (_selected is { Kind: NodeKind.TraitCategory, Group: { } categoryId } && session.Content.Traits.Categories.TryGetValue(categoryId, out var shownCategory))
+            steps.Add((session.Content.Strings.Get(shownCategory.NameKey), _selected));
         if (_selected is { Kind: NodeKind.LoadoutGroup, Group: { } groupId } && session.Content.Outfits.Groups.TryGetValue(groupId, out var shownGroup))
             steps.Add((session.Content.Strings.Get(shownGroup.NameKey), _selected));
         if (_selected.Organ != null)
@@ -238,7 +262,8 @@ public partial class MainWindow
     public void ShowPart(string path, int tab)
     {
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var node = parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
+        var node = parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
+            : parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
         {
             0 => new Node(NodeKind.Character),
             1 => new Node(NodeKind.Organ, parts[0]),

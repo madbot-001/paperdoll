@@ -41,6 +41,12 @@ public partial class MainWindow
             case NodeKind.LoadoutGroup when _selected.Group != null && _session.Content.Outfits.Groups.ContainsKey(_selected.Group):
                 InspectLoadoutGroup(_selected.Group);
                 break;
+            case NodeKind.Traits:
+                InspectTraits();
+                break;
+            case NodeKind.TraitCategory when _selected.Group != null && _session.Content.Traits.Categories.ContainsKey(_selected.Group):
+                InspectTraitCategory(_selected.Group);
+                break;
             default:
                 InspectCharacter(species);
                 break;
@@ -378,6 +384,80 @@ public partial class MainWindow
                 stack.Children.Add(new TextBlock { Text = note, Classes = { "hint", check == Core.Outfits.LoadoutCheck.ServerChecks ? "warning" : "muted" }, Margin = new Thickness(28, 0, 4, 2) });
                 AddWide(stack);
             }
+        }
+    }
+
+    private void InspectTraits()
+    {
+        var session = _session!;
+        var catalog = session.Content!.Traits;
+        var rules = session.Fork!.TraitRules;
+        var picked = session.SelectedTraits().Where(catalog.Traits.ContainsKey).Select(id => catalog.Traits[id]).ToList();
+        var context = session.TraitContext();
+        InspectorTitle.Text = "Traits";
+
+        AddCategory("Totals");
+        AddRow("Picked", Text(rules.MaxCount is { } maxCount ? $"{picked.Count(t => t.UsesSlots)} of {maxCount}" : $"{picked.Count}"));
+        if (rules.MaxPoints is { } maxPoints)
+            AddRow("Points", Text($"{picked.Sum(t => t.Cost)} of {maxPoints}"), "Some traits give points back.");
+        AddRow("Checked as", Text($"{session.DisplayName(session.Content.Characters.Species[context.Species])}"
+            + (context.Job != null ? $", {context.Job}" : "") + (context.Department != null ? $" ({context.Department})" : "")),
+            "Conditions on job or department use the job shown in the preview.");
+
+        AddCategory("Categories");
+        foreach (var category in catalog.Categories.Values.OrderBy(c => c.Priority).ThenBy(c => session.Content.Strings.Get(c.NameKey), StringComparer.CurrentCulture))
+        {
+            var inCategory = picked.Where(t => t.Category == category.Id).ToList();
+            var open = new Button { Classes = { "crumb" }, Content = session.Content.Strings.Get(category.NameKey), HorizontalAlignment = HorizontalAlignment.Left };
+            var target = new Node(NodeKind.TraitCategory, Group: category.Id);
+            open.Click += (_, _) => Select(target);
+            var limits = new List<string> { inCategory.Count == 0 ? "none picked" : string.Join(", ", inCategory.Select(t => session.Content.Strings.Get(t.NameKey))) };
+            if (category.MaxTraits is { } maxTraits)
+                limits.Add($"up to {maxTraits}");
+            if (category.MaxPoints is { } categoryPoints)
+                limits.Add($"{inCategory.Sum(t => t.Cost)} of {categoryPoints} points");
+            AddRow("", open, string.Join("; ", limits));
+        }
+    }
+
+    private void InspectTraitCategory(string categoryId)
+    {
+        var session = _session!;
+        var strings = session.Content!.Strings;
+        var catalog = session.Content.Traits;
+        var category = catalog.Categories[categoryId];
+        var picked = session.SelectedTraits();
+        var context = session.TraitContext();
+        InspectorTitle.Text = $"Traits: {strings.Get(category.NameKey)}";
+
+        AddCategory("Category");
+        var inCategory = picked.Where(id => catalog.Traits.TryGetValue(id, out var t) && t.Category == categoryId).Select(id => catalog.Traits[id]).ToList();
+        AddRow("Traits", Text(category.MaxTraits is { } maxTraits ? $"{inCategory.Count(t => t.UsesSlots)} of {maxTraits}" : $"{inCategory.Count}, no limit"));
+        if (category.MaxPoints is { } maxPoints)
+            AddRow("Points", Text($"{inCategory.Sum(t => t.Cost)} of {maxPoints}"));
+
+        AddCategory("Pick");
+        foreach (var trait in catalog.Traits.Values.Where(t => t.Category == categoryId).OrderBy(t => strings.Get(t.NameKey), StringComparer.CurrentCulture))
+        {
+            var isPicked = picked.Contains(trait.Id);
+            var status = catalog.Evaluate(trait, context);
+            var whyNot = isPicked ? null : catalog.WhyNot(trait, context, session.Fork!.TraitRules);
+            var cost = trait.Cost == 0 ? "" : trait.Cost > 0 ? $"  ({trait.Cost} pt)" : $"  (gives {-trait.Cost} pt)";
+            var box = new CheckBox { Content = strings.Get(trait.NameKey) + cost, IsChecked = isPicked, IsEnabled = isPicked || whyNot == null, Margin = new Thickness(6, 2, 4, 0) };
+            ToolTip.SetTip(box, trait.Id);
+            box.IsCheckedChanged += (_, _) =>
+            {
+                if (!_refreshing && (box.IsChecked == true) != isPicked)
+                    Apply(s => s.ToggleTrait(trait.Id));
+            };
+            var stack = new StackPanel();
+            stack.Children.Add(box);
+            if (trait.DescriptionKey != null)
+                stack.Children.Add(new TextBlock { Text = strings.Get(trait.DescriptionKey), Classes = { "hint" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(28, 0, 6, 2) });
+            var note = whyNot ?? (status.Availability == Core.Traits.TraitAvailability.Depends ? $"This trait {status.Reason}." : null);
+            if (note != null)
+                stack.Children.Add(new TextBlock { Text = note, Classes = { "hint", "warning" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(28, 0, 6, 3) });
+            AddWide(stack);
         }
     }
 

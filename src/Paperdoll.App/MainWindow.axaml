@@ -21,9 +21,10 @@
         <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+1" HotKey="Ctrl+1" />
         <MenuItem Header="_Markings" Click="OnShowTab" Tag="1" InputGesture="Ctrl+2" HotKey="Ctrl+2" />
         <MenuItem Header="_Jobs" Click="OnShowTab" Tag="2" InputGesture="Ctrl+3" HotKey="Ctrl+3" />
-        <MenuItem Header="_Credits" Click="OnShowTab" Tag="3" InputGesture="Ctrl+4" HotKey="Ctrl+4" />
-        <MenuItem Header="M_essages" Click="OnShowTab" Tag="4" InputGesture="Ctrl+5" HotKey="Ctrl+5" />
-        <MenuItem Header="S_ource" Click="OnShowTab" Tag="5" InputGesture="Ctrl+6" HotKey="Ctrl+6" />
+        <MenuItem Header="_Traits" Click="OnShowTab" Tag="3" InputGesture="Ctrl+4" HotKey="Ctrl+4" />
+        <MenuItem Header="_Credits" Click="OnShowTab" Tag="4" InputGesture="Ctrl+5" HotKey="Ctrl+5" />
+        <MenuItem Header="M_essages" Click="OnShowTab" Tag="5" InputGesture="Ctrl+6" HotKey="Ctrl+6" />
+        <MenuItem Header="S_ource" Click="OnShowTab" Tag="6" InputGesture="Ctrl+7" HotKey="Ctrl+7" />
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_About Paperdoll" Click="OnAbout" />
@@ -189,6 +190,30 @@
                   <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80" />
                   <DataGridTextColumn Header="Loadout groups" Binding="{Binding Groups}" Width="110" />
                   <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </DockPanel>
+          </TabItem>
+          <TabItem Header="Traits" Name="TraitsTab">
+            <DockPanel>
+              <Border Classes="filterbar" DockPanel.Dock="Top">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Classes="small" Content="Pick / remove" Click="OnToggleTrait" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox Name="TraitFilter" Width="200" PlaceholderText="Filter traits" MinHeight="20" />
+                    <TextBlock Name="TraitTotals" Classes="hint" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <DataGrid Name="TraitGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:TraitRow" DoubleTapped="OnTraitDoubleTapped">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Picked" Binding="{Binding Picked}" Width="56" />
+                  <DataGridTextColumn Header="Trait" Binding="{Binding Name}" Width="180" />
+                  <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="120" />
+                  <DataGridTextColumn Header="Cost" Binding="{Binding Cost}" Width="50" />
+                  <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="300" />
+                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="160" FontFamily="{StaticResource MonoFont}" />
+                  <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
                 </DataGrid.Columns>
               </DataGrid>
             </DockPanel>

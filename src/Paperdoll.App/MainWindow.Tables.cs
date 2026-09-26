@@ -17,6 +17,58 @@ public partial class MainWindow
         SpeciesFilter.TextChanged += (_, _) => FilterSpecies();
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
         JobFilter.TextChanged += (_, _) => FilterJobs();
+        TraitFilter.TextChanged += (_, _) => FilterTraits();
+    }
+
+    private List<TraitRow> _traitRows = [];
+
+    private void BuildTraitTable()
+    {
+        var session = _session!;
+        var strings = session.Content!.Strings;
+        var catalog = session.Content.Traits;
+        var picked = session.SelectedTraits();
+        var context = session.TraitContext();
+        var rules = session.Fork!.TraitRules;
+        _traitRows = catalog.Traits.Values.Select(t =>
+        {
+            var isPicked = picked.Contains(t.Id);
+            var status = catalog.Evaluate(t, context);
+            var text = isPicked ? "" : catalog.WhyNot(t, context, rules)
+                ?? (status.Availability == Core.Traits.TraitAvailability.Depends ? char.ToUpperInvariant(status.Reason![0]) + status.Reason[1..] + "." : "");
+            var category = t.Category != null && catalog.Categories.TryGetValue(t.Category, out var c) ? strings.Get(c.NameKey) : "";
+            return new TraitRow(t.Id, strings.Get(t.NameKey), category, t.Cost, isPicked ? "Yes" : "", text, t.Source);
+        })
+        .OrderBy(r => r.Picked == "Yes" ? 0 : 1).ThenBy(r => r.Category, StringComparer.CurrentCulture).ThenBy(r => r.Name, StringComparer.CurrentCulture)
+        .ToList();
+
+        var used = picked.Where(catalog.Traits.ContainsKey).Select(id => catalog.Traits[id]).ToList();
+        TraitTotals.Text = $"{used.Count} picked" + (rules.MaxCount is { } maxCount ? $" of {maxCount}" : "")
+            + (rules.MaxPoints is { } maxPoints ? $", {used.Sum(t => t.Cost)} of {maxPoints} points" : "");
+        TraitsTab.Header = used.Count == 0 ? "Traits" : $"Traits ({used.Count})";
+        FilterTraits();
+    }
+
+    private void FilterTraits()
+    {
+        var filter = TraitFilter.Text?.Trim() ?? "";
+        var selected = (TraitGrid.SelectedItem as TraitRow)?.Id;
+        var rows = _traitRows.Where(r => filter.Length == 0
+            || r.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || r.Category.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || r.Id.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+        TraitGrid.ItemsSource = rows;
+        TraitGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == selected);
+    }
+
+    private void OnToggleTrait(object? sender, RoutedEventArgs e) => ToggleSelectedTrait();
+
+    private void OnTraitDoubleTapped(object? sender, TappedEventArgs e) => ToggleSelectedTrait();
+
+    private void ToggleSelectedTrait()
+    {
+        if (TraitGrid.SelectedItem is TraitRow row)
+            Apply(s => s.ToggleTrait(row.Id));
     }
 
     private void BuildJobTable()
@@ -80,6 +132,7 @@ public partial class MainWindow
         BuildSpeciesTable();
         RefreshMarkingTable();
         BuildJobTable();
+        BuildTraitTable();
         CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
 
         var fixes = session.LastFixes;

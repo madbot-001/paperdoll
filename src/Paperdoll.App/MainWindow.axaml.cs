@@ -240,6 +240,9 @@ public sealed record CreditRow(string Rsi, string LicenseText, string Copyright)
 /// <summary>A species table row.</summary>
 public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string Sexes, string Ages, string SkinRule, int Layers, string Size, string Source);
 
+/// <summary>A traits table row.</summary>
+public sealed record TraitRow(string Id, string Name, string Category, int Cost, string Picked, string Status, string Source);
+
 /// <summary>A jobs table row.</summary>
 public sealed record JobRow(string Id, string Name, string Department, string Priority, int Groups);
 
