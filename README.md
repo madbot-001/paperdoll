@@ -6,7 +6,9 @@ A character editor for Space Station 14 that runs on your own computer. Make and
 without joining a server, see them drawn as the game draws them, and save them as the `.yml` file
 the lobby's character editor imports.
 
-- **No server needed.** Nothing is sent anywhere, and no player slot is taken while you work.
+- **No server needed.** No player slot is taken while you work.
+- **Your characters stay on your computer.** Paperdoll only downloads game data from GitHub. It
+  never uploads, shares or collects character files, and it never reads other players' characters.
 - **Knows your fork.** Species, markings, colours and loadouts come from the fork's own files on
   GitHub, so the options match what the game offers. Delta-V first, then upstream.
 - **Uses the game's own format.** Export a character here, then use **Import** in the lobby editor.
