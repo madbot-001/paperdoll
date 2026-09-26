@@ -76,6 +76,15 @@ public sealed class CharacterCatalog
         return Species.Values.Where(s => s.RoundStart && !hide.Contains(s.Id)).OrderBy(s => s.Id, StringComparer.Ordinal);
     }
 
+    /// <summary>The species' skin colour rule; any colour if the species names none.</summary>
+    public SkinColoration SkinRuleFor(SpeciesInfo species) =>
+        SkinColoration.Read(species.SkinColoration != null && SkinColorations.TryGetValue(species.SkinColoration, out var node)
+            ? node
+            : new YamlMappingNode());
+
+    /// <summary>A new character's skin colour for the species, as the game picks it.</summary>
+    public Rendering.Rgba DefaultSkin(SpeciesInfo species) => SkinColoration.DefaultFor(species, SkinRuleFor(species));
+
     /// <summary>Every RSI folder the species' organs and the markings draw from.</summary>
     public IReadOnlySet<string> SpriteFolders()
     {
@@ -152,11 +161,12 @@ public sealed class CharacterCatalog
         var result = new List<OrganInfo>();
         foreach (var (categoryNode, organNode) in organs.Children)
         {
-            var category = ((YamlScalarNode)categoryNode).Value!;
             var organId = ((YamlScalarNode)organNode).Value!;
             var organ = index.Resolve("entity", organId);
             if (organ == null)
                 continue;
+            // Saved markings are keyed by the organ's own category, which normally matches the slot.
+            var category = Str(Component(organ, "Organ"), "category") ?? ((YamlScalarNode)categoryNode).Value!;
 
             var visual = Component(organ, "VisualOrgan");
             var marks = Component(organ, "VisualOrganMarkings");

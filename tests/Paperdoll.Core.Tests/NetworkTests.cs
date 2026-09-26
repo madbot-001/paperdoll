@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text;
 using Paperdoll.Core.Forks;
 using Paperdoll.Core.Characters;
+using Paperdoll.Core.Rendering;
+using SkiaSharp;
 using Paperdoll.Core.Store;
 
 namespace Paperdoll.Core.Tests;
@@ -85,6 +87,51 @@ public sealed class NetworkTests : IDisposable
         var content = await ForkContent.LoadAsync(store, fork, ct: ct);
 
         Assert.Contains("RArmExtension", content.Characters.Species["Harpy"].Organs.SelectMany(o => o.MarkingLayers));
+    }
+
+    /// <summary>
+    /// Draws Delta-V species with their default markings. Set PAPERDOLL_RENDER_OUT to a folder to
+    /// keep the pictures (eight times size) for a look.
+    /// </summary>
+    [Fact]
+    public async Task Delta_v_species_render()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("PAPERDOLL_NETWORK_TESTS") == "1",
+            "Set PAPERDOLL_NETWORK_TESTS=1 to run tests that use the network.");
+        var ct = TestContext.Current.CancellationToken;
+        var store = new GitForkStore(Path.Combine(_root, "store.git"));
+        await store.InitializeAsync(ct);
+        var fork = KnownForks.Find("deltav")!;
+        await store.SyncAsync(fork, ct);
+        var content = await ForkContent.LoadAsync(store, fork, ct: ct);
+        await using var reader = store.OpenReader();
+        var textures = await MemoryTextures.LoadAsync(content, reader, ct);
+        var renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
+        var output = Environment.GetEnvironmentVariable("PAPERDOLL_RENDER_OUT");
+
+        foreach (var species in content.Characters.Selectable(fork.HiddenSpecies))
+        {
+            var skin = content.Characters.DefaultSkin(species);
+            Assert.True(content.Characters.SkinRuleFor(species).IsValid(skin), $"{species.Id}'s default skin breaks its own rule.");
+            var look = LookDefaults.Create(content.Characters, species.Id, species.Sexes[0], skin, Rgba.Parse("#2F6FA8"));
+            if (species.Id == "Human")
+                look.Markings["Head"] = new() { ["Hair"] = [new MarkingEntry("HumanHairBedhead", [Rgba.Parse("#5A3A22")])] };
+
+            using var image = renderer.Render(look);
+            var opaque = 0;
+            for (var y = 0; y < image.Height; y++)
+            for (var x = 0; x < image.Width; x++)
+                if (image.GetPixel(x, y).Alpha > 0) opaque++;
+            Assert.True(opaque > 50, $"{species.Id} drew only {opaque} pixels.");
+
+            if (output != null)
+            {
+                Directory.CreateDirectory(output);
+                using var big = image.Resize(new SKImageInfo(image.Width * 8, image.Height * 8), SKSamplingOptions.Default);
+                using var png = big.Encode(SKEncodedImageFormat.Png, 100);
+                await File.WriteAllBytesAsync(Path.Combine(output, species.Id + ".png"), png.ToArray(), ct);
+            }
+        }
     }
 
     [Fact]

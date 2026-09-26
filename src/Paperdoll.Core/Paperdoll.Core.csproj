@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 </Project>
