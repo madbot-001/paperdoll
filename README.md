@@ -9,8 +9,14 @@ the lobby's character editor imports.
   GitHub, so the options match what the game offers. Delta-V first, then upstream.
 - **Uses the game's own format.** Export a character here, then use **Import** in the lobby editor.
 
-Status: early, not usable yet. See [docs/PLAN.md](docs/PLAN.md) and
+Status: early. Delta-V and upstream (and other forks on the new appearance model) can be
+downloaded, drawn facing any way, edited and exported. See [docs/PLAN.md](docs/PLAN.md) and
 [docs/RESEARCH.md](docs/RESEARCH.md).
+
+The first start opens Fork > Forks: pick a fork and press Download. Fork files are kept in
+your local application data folder (`~/.local/share/Paperdoll/store` on Linux), about 10 to 30 MB
+per fork, and files forks share are kept once. With git 2.45 or newer installed Paperdoll uses it;
+otherwise it downloads through the GitHub API, which allows only 60 requests an hour.
 
 ## Building
 
@@ -28,7 +34,10 @@ dotnet run --project src/Paperdoll.App
   character rules, import and export).
 - `src/Paperdoll.App`: the desktop program (Avalonia).
 - `tests/Paperdoll.Core.Tests`: tests. Tests that need private character files look in
-  `tests/private/`, which git ignores, and are skipped when the files are missing.
+  `tests/private/`, which git ignores, and are skipped when the files are missing. Tests that
+  download from GitHub run only with `PAPERDOLL_NETWORK_TESTS=1`.
+- `tests/Paperdoll.App.Tests`: a headless screenshot of the window, taken when
+  `PAPERDOLL_SCREENSHOT_OUT` names a folder.
 - `docs/`: the plan and research notes.
 
 ## Licence
