@@ -328,16 +328,28 @@ public sealed class EditorSession : IAsyncDisposable
             && group.Limits.TryGetValue(layer, out var limit) ? limit.Limit : null;
     }
 
-    /// <summary>Adds a marking with its default colours.</summary>
+    /// <summary>
+    /// Adds a marking with its default colours, as the lobby's picker does
+    /// (upstream <c>MarkingsViewModel.TrySelectMarking</c>, MIT): on a layer that takes one marking
+    /// and has it, the new one replaces it; a full layer that takes more refuses.
+    /// </summary>
     public IReadOnlyList<RuleFix> AddMarking(string organ, string layer, string markingId) => EditLook(look =>
     {
-        var marking = RequireContent().Characters.Markings[markingId];
+        var catalog = RequireContent().Characters;
+        var marking = catalog.Markings[markingId];
         var markings = Copy(look.Markings);
         if (!markings.TryGetValue(organ, out var byLayer))
             markings[organ] = byLayer = [];
         if (!byLayer.TryGetValue(layer, out var list))
             byLayer[layer] = list = [];
-        list.Add(new MarkingEntry(markingId, MarkingColoring.LayerColors(marking, look.SkinColor, look.EyeColor, list)));
+        // Colours are worked out before any replacement, from the markings already there.
+        var colors = MarkingColoring.LayerColors(marking, look.SkinColor, look.EyeColor, list);
+        var limit = catalog.Species[look.Species].Organs.FirstOrDefault(o => o.Category == organ) is { } info ? LayerLimit(info, layer) : null;
+        if (limit == 1 && list.Count == 1)
+            list.Clear();
+        else if (limit is { } max && list.Count >= max)
+            throw new InvalidOperationException($"This layer already holds {max}; remove one first.");
+        list.Add(new MarkingEntry(markingId, colors));
         return With(look, markings);
     });
 

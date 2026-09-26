@@ -249,15 +249,20 @@ public partial class MainWindow
             return;
         var session = _session!;
         var organ = session.Content!.Characters.Species[session.Look!.Species].Organs.First(o => o.Category == row.OrganCategory);
-        var count = Applied(session.Look, row.OrganCategory, row.LayerKey).Count;
-        if (session.LayerLimit(organ, row.LayerKey) is { } limit && count >= limit)
+        var applied = Applied(session.Look, row.OrganCategory, row.LayerKey);
+        var limit = session.LayerLimit(organ, row.LayerKey);
+        if (limit is { } max && applied.Count >= max && max != 1)
         {
-            SetStatus($"{Words(row.OrganCategory)} › {row.Layer} already holds {limit}; remove one first.");
+            SetStatus($"{Words(row.OrganCategory)} › {row.Layer} already holds {max}; remove one first.");
             return;
         }
-        _selected = new Node(NodeKind.Marking, row.OrganCategory, row.LayerKey, count);
+        // A layer that takes one marking swaps it, as the game's picker does.
+        var replaced = limit == 1 && applied.Count == 1 ? session.MarkingName(applied[0].Id) : null;
+        _selected = new Node(NodeKind.Marking, row.OrganCategory, row.LayerKey, replaced != null ? 0 : applied.Count);
         Apply(s => s.AddMarking(row.OrganCategory, row.LayerKey, row.Id));
-        SetStatus($"Added {row.Name} to {Words(row.OrganCategory)} › {row.Layer}.");
+        SetStatus(replaced != null
+            ? $"Replaced {replaced} with {row.Name} on {Words(row.OrganCategory)} › {row.Layer}."
+            : $"Added {row.Name} to {Words(row.OrganCategory)} › {row.Layer}.");
     }
 
     // How a marking is coloured by default, from its coloring block.

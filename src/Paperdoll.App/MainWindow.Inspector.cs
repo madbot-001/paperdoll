@@ -269,7 +269,10 @@ public partial class MainWindow
             AddWide(MarkingLine(organ.Category, layer, i, applied[i], applied.Count));
 
         var add = new Button { Classes = { "small" }, Content = "Add a marking...", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(8, 4) };
-        add.IsEnabled = limit == null || applied.Count < limit.Limit;
+        // A one-marking layer stays open: picking another swaps it.
+        add.IsEnabled = limit == null || limit.Limit == 1 || applied.Count < limit.Limit;
+        if (limit is { Limit: 1 } && applied.Count == 1)
+            add.Content = "Swap for another...";
         add.Click += (_, _) => BottomTabs.SelectedIndex = 1;
         AddWide(add);
     }

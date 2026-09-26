@@ -30,6 +30,11 @@ public sealed class EditorSessionTests : IDisposable
         var head = session.Content!.Characters.Species["Harpy"].Organs.First(o => o.MarkingLayers.Contains("Hair"));
         var hair = session.AvailableMarkings(head, "Hair").First();
         session.AddMarking(head.Category, "Hair", hair.Id);
+        // Hair takes one marking, so picking another swaps it, as the lobby does.
+        var otherHair = session.AvailableMarkings(head, "Hair").First(m => m.Id != hair.Id);
+        session.AddMarking(head.Category, "Hair", otherHair.Id);
+        Assert.Equal(otherHair.Id, Assert.Single(session.Look!.Markings[head.Category]["Hair"]).Id);
+        session.AddMarking(head.Category, "Hair", hair.Id);
         session.SetMarkingColor(head.Category, "Hair", 0, 0, Rgba.Parse("#123456"));
 
         var exported = CharacterFile.Parse(session.Export());
