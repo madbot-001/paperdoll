@@ -495,6 +495,11 @@ public class LoadoutRulesTests
           id: JobBorg
           canCustomizeName: true
           groups: []
+        - type: job
+          id: Mime
+        - type: roleLoadout
+          id: JobMime
+          groups: [ BaseHats, JanitorSuit ]
         - type: loadoutGroup
           id: BaseHats
           abstract: true
@@ -554,6 +559,27 @@ public class LoadoutRulesTests
         Assert.Equal(["PurpleCap", "Cap", "Beret"], Outfits.Groups["JanitorHat"].Loadouts);
         Assert.Equal(["JanitorHat", "JanitorSuit", "Trinkets"], Outfits.RoleLoadouts["JobJanitor"]);
         Assert.False(Outfits.Groups.ContainsKey("BaseHats"));
+    }
+
+    [Fact]
+    public void A_role_listing_an_abstract_group_needs_no_fix()
+    {
+        const string loadouts = """
+              _loadouts:
+                JobMime:
+                  role: JobMime
+                  entityName: null
+                  selectedLoadouts:
+                    JanitorSuit:
+                    - prototype: JanitorSuit
+
+            """;
+        var file = File(loadouts);
+
+        var fixes = Profiles.CharacterRules.EnsureValid(file, Catalog, Fork, outfits: Outfits);
+
+        Assert.DoesNotContain(fixes, f => f.Field == "loadouts");
+        Assert.Contains(loadouts.TrimEnd(), file.ToYaml());
     }
 
     [Fact]

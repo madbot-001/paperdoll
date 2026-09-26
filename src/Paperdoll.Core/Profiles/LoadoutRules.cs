@@ -101,7 +101,8 @@ internal static class LoadoutRules
             role.Children[new YamlScalarNode("selectedLoadouts")] = selected = new YamlMappingNode();
 
         // The game adds any of the role's groups that are missing.
-        foreach (var groupId in groupIds.Where(g => !selected.Children.ContainsKey(new YamlScalarNode(g))))
+        var added = groupIds.Where(g => !selected.Children.ContainsKey(new YamlScalarNode(g))).ToHashSet(StringComparer.Ordinal);
+        foreach (var groupId in added)
             selected.Children[new YamlScalarNode(groupId)] = new YamlSequenceNode();
 
         foreach (var (key, value) in selected.Children.ToList())
@@ -109,8 +110,11 @@ internal static class LoadoutRules
             var groupId = ((YamlScalarNode)key).Value!;
             if (!groupIds.Contains(groupId) || !outfits.Groups.TryGetValue(groupId, out var group))
             {
+                // A role may list a group the game cannot use (Euphoria's Mime lists an abstract
+                // one); it is added and dropped again, which only matters if the file had it.
                 selected.Children.Remove(key);
-                notes.Add($"{roleId} has no group {groupId}");
+                if (!added.Contains(groupId))
+                    notes.Add($"{roleId} has no group {groupId}");
                 continue;
             }
 
