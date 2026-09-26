@@ -18,7 +18,12 @@ yet. So far it has only been run on Linux.
 
 ## Running it
 
-You need the .NET 10 SDK.
+From a build: unpack it and run `Paperdoll` (Linux, macOS) or `Paperdoll.exe` (Windows). Nothing
+else needs installing. The Windows and macOS builds haven't been tried on those systems yet, and
+macOS may refuse to open an unsigned program downloaded from the internet until you allow it in
+System Settings, Privacy & Security.
+
+From source, with the .NET 10 SDK:
 
 ```sh
 dotnet run --project src/Paperdoll.App
@@ -36,6 +41,8 @@ its files and how much room they take, and can clean up what old fork versions l
 dotnet build
 dotnet test
 ```
+
+`tools/publish.sh` makes the builds above in `publish/`, one per system.
 
 Some tests are skipped unless you ask for them. `PAPERDOLL_NETWORK_TESTS=1` runs the ones that
 download from GitHub. Exported characters you put in `tests/private/` (ignored by git) are opened

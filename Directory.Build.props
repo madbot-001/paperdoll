@@ -6,5 +6,6 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <IsPackable>false</IsPackable>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>

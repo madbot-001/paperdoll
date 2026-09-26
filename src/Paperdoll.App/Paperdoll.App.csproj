@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>Paperdoll</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

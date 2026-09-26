@@ -11,7 +11,7 @@
           Stroke="{StaticResource TextBrush}" StrokeThickness="2.5" StrokeJoin="Round"
           Data="M29 17.9 A7.5 7.5 0 1 1 35 17.9 L35 21 L53 24 L53 31 L41 29 L44 60 L35 60 L32 55 L29 60 L20 60 L23 29 L11 31 L11 24 L29 21 Z" />
     <StackPanel Spacing="6">
-      <TextBlock Text="Paperdoll" FontWeight="Bold" FontSize="14" />
+      <TextBlock Name="TitleText" Text="Paperdoll" FontWeight="Bold" FontSize="14" />
       <TextBlock TextWrapping="Wrap" Text="A character editor for Space Station 14. Make and edit characters without joining a server, and export them for the lobby's Import button." />
       <TextBlock TextWrapping="Wrap" Text="Your characters stay on your computer. Paperdoll only downloads game data; it never uploads or shares character files." />
       <TextBlock TextWrapping="Wrap" Text="Free software under the MIT licence. Parts are ported from Space Station 14 and its engine (MIT); see THIRD-PARTY-NOTICES.md." />
