@@ -258,6 +258,29 @@ public sealed class EditorSession : IAsyncDisposable
 
     public IReadOnlyList<RuleFix> SetVoice(string voice) => Edit(f => f.Voice = voice);
 
+    public IReadOnlyList<RuleFix> SetCustomSpeciesName(string name) => Edit(f => f.SetValue(CustomSpeciesName.Key, name));
+
+    public IReadOnlyList<RuleFix> SetRecordText(string key, string value) => Edit(f => CharacterRecords.SetText(f, key, value));
+
+    public IReadOnlyList<RuleFix> SetRecordNumber(string key, int value) => Edit(f => CharacterRecords.SetNumber(f, key, value));
+
+    public IReadOnlyList<RuleFix> SetWorkAuthorization(bool value) => Edit(f => CharacterRecords.SetWorkAuthorization(f, value));
+
+    public IReadOnlyList<RuleFix> SetRecordEntries(string list, IReadOnlyList<RecordEntry> entries) => Edit(f => CharacterRecords.SetEntries(f, list, entries));
+
+    public IReadOnlyList<RuleFix> SetAllergies(IEnumerable<(string Reagent, float Amount)> allergies) => Edit(f => Allergies.Write(f, allergies));
+
+    private (ForkContent Content, IReadOnlyList<ReagentInfo> List)? _reagents;
+
+    /// <summary>Every reagent of the loaded fork, for the allergy picker.</summary>
+    public IReadOnlyList<ReagentInfo> Reagents()
+    {
+        var content = RequireContent();
+        if (_reagents is not { } cached || cached.Content != content)
+            _reagents = cached = (content, Allergies.Reagents(content.Prototypes));
+        return cached.List;
+    }
+
     /// <summary>Adds or removes an antagonist the character is willing to be.</summary>
     public IReadOnlyList<RuleFix> ToggleAntag(string antagId) => Edit(f =>
     {

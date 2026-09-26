@@ -51,6 +51,15 @@ public partial class MainWindow
             case NodeKind.Antags:
                 InspectAntags();
                 break;
+            case NodeKind.Records when _session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.Records):
+                InspectRecords();
+                break;
+            case NodeKind.RecordList when _selected.Group != null && _session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.Records):
+                InspectRecordList(_selected.Group);
+                break;
+            case NodeKind.Allergies when _session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.Allergies):
+                InspectAllergies();
+                break;
             default:
                 InspectCharacter(species);
                 break;
@@ -83,6 +92,22 @@ public partial class MainWindow
         speciesRow.Children.Add(change);
         speciesRow.Children.Add(Text(session.DisplayName(species)));
         AddRow("Species", speciesRow);
+
+        // Euphoria: a name shown in place of the species' own.
+        if (session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.CustomSpeciesName))
+        {
+            var custom = new TextBox
+            {
+                Text = file.GetValue(CustomSpeciesName.Key) ?? "",
+                PlaceholderText = session.DisplayName(species),
+                MaxLength = CharacterRules.MaxNameLength,
+                IsEnabled = species.CustomName,
+            };
+            CommitOnEnterOrLeave(custom, text => Apply(s => s.SetCustomSpeciesName(text)));
+            AddRow("Species name", custom, species.CustomName
+                ? "Shown instead of the species' name. Leave it empty to use that."
+                : $"{session.DisplayName(species)} cannot have a custom species name.");
+        }
 
         var sex = new ComboBox { ItemsSource = species.Sexes, SelectedItem = file.Sex, HorizontalAlignment = HorizontalAlignment.Stretch };
         sex.SelectionChanged += (_, _) =>

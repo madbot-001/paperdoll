@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Paperdoll.Core.Characters;
+using Paperdoll.Core.Forks;
+using Paperdoll.Core.Profiles;
 using Paperdoll.Core.Rendering;
 
 namespace Paperdoll.App;
@@ -21,6 +23,9 @@ public partial class MainWindow
         Traits,
         TraitCategory,
         Antags,
+        Records,
+        RecordList,
+        Allergies,
     }
 
     /// <summary>
@@ -35,7 +40,8 @@ public partial class MainWindow
         {
             NodeKind.Marking => new Node(NodeKind.Layer, Organ, Layer),
             NodeKind.Layer => new Node(NodeKind.Organ, Organ),
-            NodeKind.Organ or NodeKind.Outfit or NodeKind.Traits or NodeKind.Antags => new Node(NodeKind.Character),
+            NodeKind.Organ or NodeKind.Outfit or NodeKind.Traits or NodeKind.Antags or NodeKind.Records or NodeKind.Allergies => new Node(NodeKind.Character),
+            NodeKind.RecordList => new Node(NodeKind.Records),
             NodeKind.LoadoutGroup => new Node(NodeKind.Outfit),
             NodeKind.TraitCategory => new Node(NodeKind.Traits),
             _ => null,
@@ -108,6 +114,20 @@ public partial class MainWindow
             }
             root.Items.Add(antagsItem);
         }
+
+        var extras = session.Fork!.Extras;
+        if (extras.HasFlag(ProfileExtras.Records))
+        {
+            var recordsItem = Item(new Node(NodeKind.Records), HeaderFor("Records", null), false, items);
+            foreach (var list in CharacterRecords.EntryLists)
+            {
+                var count = CharacterRecords.Entries(session.File!, list).Count;
+                recordsItem.Items.Add(Item(new Node(NodeKind.RecordList, Group: list), HeaderFor(RecordListName(list), count.ToString()), false, items));
+            }
+            root.Items.Add(recordsItem);
+        }
+        if (extras.HasFlag(ProfileExtras.Allergies))
+            root.Items.Add(Item(new Node(NodeKind.Allergies), HeaderFor("Allergies", Allergies.Read(session.File!).Count.ToString()), false, items));
 
         foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
         {
@@ -235,6 +255,12 @@ public partial class MainWindow
             steps.Add(("Traits", new Node(NodeKind.Traits)));
         if (_selected.Kind is NodeKind.Antags)
             steps.Add(("Antagonists", new Node(NodeKind.Antags)));
+        if (_selected.Kind is NodeKind.Records or NodeKind.RecordList)
+            steps.Add(("Records", new Node(NodeKind.Records)));
+        if (_selected is { Kind: NodeKind.RecordList, Group: { } recordList })
+            steps.Add((RecordListName(recordList), _selected));
+        if (_selected.Kind is NodeKind.Allergies)
+            steps.Add(("Allergies", _selected));
         if (_selected is { Kind: NodeKind.TraitCategory, Group: { } categoryId } && session.Content.Traits.Categories.TryGetValue(categoryId, out var shownCategory))
             steps.Add((session.Content.Strings.Get(shownCategory.NameKey), _selected));
         if (_selected is { Kind: NodeKind.LoadoutGroup, Group: { } groupId } && session.Content.Outfits.Groups.TryGetValue(groupId, out var shownGroup))
@@ -279,6 +305,8 @@ public partial class MainWindow
     {
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var node = parts is ["Antagonists"] ? new Node(NodeKind.Antags)
+            : parts is ["Allergies"] ? new Node(NodeKind.Allergies)
+            : parts is ["Records", ..] ? parts.Length > 1 ? new Node(NodeKind.RecordList, Group: parts[1]) : new Node(NodeKind.Records)
             : parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
             : parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
         {
