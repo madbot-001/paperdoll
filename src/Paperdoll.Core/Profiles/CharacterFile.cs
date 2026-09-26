@@ -33,22 +33,21 @@ public sealed class CharacterFile
         return new CharacterFile(root);
     }
 
-    /// <summary>A new, empty version 2 file.</summary>
+    /// <summary>A new, empty version 2 file, its keys in the order the game writes them.</summary>
     public static CharacterFile CreateNew(string forkId) =>
         new(new YamlMappingNode
         {
-            { "forkId", forkId },
             { "version", "2" },
             { "profile", new YamlMappingNode { { "appearance", new YamlMappingNode() } } },
+            { "forkId", forkId },
         });
 
     public string ToYaml()
     {
         var writer = new StringWriter(CultureInfo.InvariantCulture);
+        // The game saves with the same library, so this also ends with "...", as its exports do.
         new YamlStream(new YamlDocument(_root)).Save(writer, assignAnchors: false);
-        // YamlDotNet ends each document with "...", which the game's reader does not need.
-        var text = writer.ToString();
-        return text.EndsWith("...\n", StringComparison.Ordinal) ? text[..^4] : text.TrimEnd('.', '\n', '\r') + "\n";
+        return writer.ToString();
     }
 
     public string? ForkId { get => Scalar(_root, "forkId"); set => SetScalar(_root, "forkId", value); }
@@ -265,12 +264,12 @@ public sealed class CharacterFile
                     continue;
                 layers.Add(layer, new YamlSequenceNode(markings.Select(m => (YamlNode)new YamlMappingNode
                 {
-                    { "markingId", m.Id },
                     { "markingColor", new YamlSequenceNode(m.Colors.Select(c => (YamlNode)new YamlScalarNode(c.ToHex()))) },
+                    { "markingId", m.Id },
                 })));
             }
-            if (layers.Children.Count > 0)
-                organs.Add(organ, layers);
+            // Organs with no markings are written as {}, as the game does.
+            organs.Add(organ, layers);
         }
         appearance.Children[new YamlScalarNode("markings")] = organs;
         Version = "2";

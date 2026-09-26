@@ -51,6 +51,20 @@ public sealed record SpeciesInfo(
     public IReadOnlyDictionary<string, DisplacementRef> MaleClothingDisplacements { get; init; } = new Dictionary<string, DisplacementRef>();
     public IReadOnlyDictionary<string, DisplacementRef> FemaleClothingDisplacements { get; init; } = new Dictionary<string, DisplacementRef>();
 
+    /// <summary>Voices a player can pick (upstream's <c>voices</c>); empty where the fork has no voice choice.</summary>
+    public IReadOnlyList<string> Voices { get; init; } = [];
+
+    /// <summary>The default voice for Male, Female and Unsexed, in that order (<c>defaultSoundsBySex</c>).</summary>
+    public IReadOnlyList<string> DefaultVoices { get; init; } = [];
+
+    /// <summary>The voice a character of this sex gets by default.</summary>
+    public string? DefaultVoice(string sex) => DefaultVoices.Count < 3 ? null : DefaultVoices[sex switch
+    {
+        "Female" => 1,
+        "Unsexed" => 2,
+        _ => 0,
+    }];
+
     /// <summary>The map fitting clothing in a slot to this body and sex, as the game picks it.</summary>
     public DisplacementRef? ClothingDisplacement(string slot, string sex) => sex switch
     {
@@ -73,6 +87,9 @@ public sealed record OrganInfo(
     IReadOnlyList<string> MarkingLayers,
     string? MarkingGroup)
 {
+    /// <summary>Whether the organ has marking data at all (<c>VisualOrganMarkings</c>); the game saves an entry for each such organ.</summary>
+    public bool TakesMarkings { get; init; }
+
     /// <summary>The map reshaping the organ's own layer, if any.</summary>
     public DisplacementRef? Displacement { get; init; }
 
@@ -120,6 +137,14 @@ public sealed class CharacterCatalog
     public required IReadOnlyDictionary<string, MarkingInfo> Markings { get; init; }
     public required IReadOnlyDictionary<string, YamlMappingNode> SkinColorations { get; init; }
 
+    /// <summary>
+    /// Whether characters pick a voice (upstream since 2026-06-30, space-wizards/space-station-14
+    /// #40593; Delta-V and Euphoria do not have it). Voice ids map to the locale key of their name
+    /// in the lobby.
+    /// </summary>
+    public bool HasVoices => VoiceNames.Count > 0;
+    public IReadOnlyDictionary<string, string> VoiceNames { get; init; } = new Dictionary<string, string>();
+
     /// <summary>Species a player can pick: round-start and not hidden by the fork.</summary>
     public IEnumerable<SpeciesInfo> Selectable(IEnumerable<string> hidden)
     {
@@ -162,12 +187,19 @@ public sealed class CharacterCatalog
 
     public static CharacterCatalog Build(PrototypeIndex index)
     {
+        // A fork has voices when any species names them; the rest then get the game's defaults.
+        var hasVoices = index.OfKind("species").Any(p =>
+            index.Resolve("species", p.Id) is { } node && (Get(node, "voices") != null || Get(node, "defaultSoundsBySex") != null));
         var species = new Dictionary<string, SpeciesInfo>(StringComparer.Ordinal);
         foreach (var proto in index.OfKind("species"))
         {
             var node = index.Resolve("species", proto.Id)!;
-            species[proto.Id] = ReadSpecies(index, proto.Id, node);
+            species[proto.Id] = ReadSpecies(index, proto.Id, node, hasVoices);
         }
+        var voiceNames = hasVoices
+            ? index.OfKind("emoteSounds").Where(p => !p.Abstract).ToDictionary(p => p.Id,
+                p => Str(index.Resolve("emoteSounds", p.Id), "voiceSelectorName") ?? "humanoid-profile-editor-voice-none", StringComparer.Ordinal)
+            : new Dictionary<string, string>();
 
         var groups = new Dictionary<string, MarkingsGroupInfo>(StringComparer.Ordinal);
         foreach (var proto in index.OfKind("markingsGroup").Where(p => !p.Abstract))
@@ -186,10 +218,11 @@ public sealed class CharacterCatalog
             MarkingsGroups = groups,
             Markings = markings,
             SkinColorations = colorations,
+            VoiceNames = voiceNames,
         };
     }
 
-    private static SpeciesInfo ReadSpecies(PrototypeIndex index, string id, YamlMappingNode node)
+    private static SpeciesInfo ReadSpecies(PrototypeIndex index, string id, YamlMappingNode node, bool hasVoices)
     {
         var doll = Str(node, "dollPrototype");
         // Old-model species name base sprites under "sprites" and have no organs.
@@ -221,6 +254,9 @@ public sealed class CharacterCatalog
             ClothingDisplacements = Displacements(inventory, "displacements"),
             MaleClothingDisplacements = Displacements(inventory, "maleDisplacements"),
             FemaleClothingDisplacements = Displacements(inventory, "femaleDisplacements"),
+            // The game's defaults when a species names no voices.
+            Voices = hasVoices ? Strings(node, "voices") ?? ["MaleHuman", "FemaleHuman"] : [],
+            DefaultVoices = hasVoices ? Strings(node, "defaultSoundsBySex") ?? ["MaleHuman", "FemaleHuman", "MaleHuman"] : [],
         };
     }
 
@@ -311,6 +347,7 @@ public sealed class CharacterCatalog
                 (markingData != null ? Strings(markingData, "layers") : null)?.Select(l => Layer(l)!).ToList() ?? [],
                 markingData != null ? Str(markingData, "group") : null)
             {
+                TakesMarkings = marks != null,
                 Displacement = displacement,
                 MarkingsDisplacement = markingsDisplacement,
                 HideableLayers = (marks != null ? Strings(marks, "hideableLayers") : null)?.Select(l => Layer(l)!).ToList() ?? [],

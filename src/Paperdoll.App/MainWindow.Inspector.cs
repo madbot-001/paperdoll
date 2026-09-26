@@ -84,7 +84,7 @@ public partial class MainWindow
         sex.SelectionChanged += (_, _) =>
         {
             if (sex.SelectedItem is string value && value != session.File?.Sex)
-                Apply(s => s.Edit(f => f.Sex = value));
+                Apply(s => s.SetSex(value));
         };
         AddRow("Sex", sex);
 
@@ -100,6 +100,26 @@ public partial class MainWindow
                 Apply(s => s.Edit(f => f.Gender = Pronouns[pronouns.SelectedIndex].Value));
         };
         AddRow("Pronouns", pronouns);
+
+        // Forks with upstream's voice choice (emote sounds) list the species' voices.
+        if (session.Content!.Characters.HasVoices && species.Voices.Count > 0)
+        {
+            var voices = species.Voices.ToList();
+            var voice = new ComboBox
+            {
+                ItemsSource = voices.Select(session.VoiceName).ToList(),
+                SelectedIndex = voices.IndexOf(file.Voice ?? ""),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                IsEnabled = voices.Count > 1,
+            };
+            voice.SelectionChanged += (_, _) =>
+            {
+                if (voice.SelectedIndex >= 0 && voices[voice.SelectedIndex] != session.File?.Voice)
+                    Apply(s => s.SetVoice(voices[voice.SelectedIndex]));
+            };
+            ToolTip.SetTip(voice, file.Voice);
+            AddRow("Voice", voice);
+        }
 
         var age = new NumericUpDown
         {

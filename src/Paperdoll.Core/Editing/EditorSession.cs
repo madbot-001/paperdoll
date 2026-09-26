@@ -110,6 +110,9 @@ public sealed class EditorSession : IAsyncDisposable
         file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")));
         if (CharacterSize.HasHeight(Fork))
             CharacterSize.WriteHeight(file, CharacterSize.CheckHeight(species.DefaultHeight, species));
+        // The game starts every profile on MaleHuman; its rules then give species that cannot use it their default.
+        if (catalog.HasVoices)
+            file.Voice = species.Voices.Contains(CharacterRules.DefaultVoice) ? CharacterRules.DefaultVoice : species.DefaultVoice(species.Sexes[0]);
         File = file;
         ApplyRules();
     }
@@ -234,6 +237,24 @@ public sealed class EditorSession : IAsyncDisposable
 
     /// <summary>Sets the character's height (forks with a height setting only).</summary>
     public IReadOnlyList<RuleFix> SetHeight(float height) => Edit(f => CharacterSize.WriteHeight(f, height));
+
+    /// <summary>
+    /// Changes the sex as the lobby does: pronouns follow it (Male, Female, else Epicene), and
+    /// where the fork has voices, the voice becomes the species' default for that sex.
+    /// </summary>
+    public IReadOnlyList<RuleFix> SetSex(string sex) => Edit(f =>
+    {
+        f.Sex = sex;
+        f.Gender = sex switch { "Male" => "Male", "Female" => "Female", _ => "Epicene" };
+        if (RequireContent().Characters.Species.TryGetValue(f.Species ?? "", out var species) && species.DefaultVoice(sex) is { } voice)
+            f.Voice = voice;
+    });
+
+    public IReadOnlyList<RuleFix> SetVoice(string voice) => Edit(f => f.Voice = voice);
+
+    /// <summary>A voice's name as the lobby shows it (Masculine, Feminine, Neutral).</summary>
+    public string VoiceName(string voice) =>
+        Content?.Characters.VoiceNames.TryGetValue(voice, out var key) == true ? Content.Strings[key] ?? voice : voice;
 
     /// <summary>Opens an exported character and fits it to the loaded fork.</summary>
     public IReadOnlyList<RuleFix> Open(string yaml)

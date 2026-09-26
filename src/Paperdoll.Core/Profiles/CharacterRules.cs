@@ -27,6 +27,9 @@ public static partial class CharacterRules
     private static readonly string[] Sexes = ["Male", "Female", "Unsexed"];
     private static readonly string[] Genders = ["Epicene", "Female", "Male", "Neuter"];
 
+    /// <summary>The voice a profile has when none is saved (<c>HumanoidCharacterProfile.DefaultVoice</c>).</summary>
+    public const string DefaultVoice = "MaleHuman";
+
     /// <summary>Applies the game's rules to the file in place and lists what changed.</summary>
     /// <param name="randomName">
     /// Makes a random name for a species and pronouns, used when the name is empty, as the game
@@ -54,6 +57,23 @@ public static partial class CharacterRules
         }
 
         var sex = Sexes.Contains(file.Sex) ? file.Sex! : "Male";
+
+        // The voice is checked before the sex is fitted to the species, as the game does. A file
+        // with no voice reads as the game's default, MaleHuman.
+        if (catalog.HasVoices)
+        {
+            var voice = file.Voice ?? DefaultVoice;
+            if (!species.Voices.Contains(voice) && species.DefaultVoice(sex) is { } fallback)
+                voice = fallback;
+            if (voice != file.Voice)
+            {
+                fixes.Add(new("voice", file.Voice == null
+                    ? $"No voice was saved; set to {voice}."
+                    : $"{species.Id} can use {string.Join(", ", species.Voices)}; set to {voice}."));
+                file.Voice = voice;
+            }
+        }
+
         if (!species.Sexes.Contains(sex))
             sex = species.Sexes[0];
         if (sex != file.Sex)
@@ -198,17 +218,21 @@ public static partial class CharacterRules
         var eyes = new Rgba(Round(look.EyeColor.R), Round(look.EyeColor.G), Round(look.EyeColor.B));
 
         var result = new Dictionary<string, Dictionary<string, List<MarkingEntry>>>();
-        var organs = species.Organs.Where(o => o.MarkingGroup != null).ToDictionary(o => o.Category);
+        var organs = species.Organs.Where(o => o.TakesMarkings).ToDictionary(o => o.Category);
 
         foreach (var organ in look.Markings.Keys.Where(k => !organs.ContainsKey(k)))
             fixes?.Add(new("markings", $"{species.Id} has no {organ} for markings; they are removed."));
 
-        foreach (var (category, organ) in organs)
+        // Every organ with marking data gets an entry, empty or not: the ones already saved keep
+        // their order, and the rest follow in the body's order.
+        var order = look.Markings.Keys.Where(organs.ContainsKey).Concat(organs.Keys.Where(k => !look.Markings.ContainsKey(k)));
+        foreach (var category in order)
         {
+            var organ = organs[category];
             var sets = look.Markings.TryGetValue(category, out var existing)
                 ? existing.ToDictionary(kv => kv.Key, kv => kv.Value.ToList())
                 : new Dictionary<string, List<MarkingEntry>>();
-            catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup!, out var group);
+            var group = organ.MarkingGroup != null ? catalog.MarkingsGroups.GetValueOrDefault(organ.MarkingGroup) : null;
             var before = Count(sets);
 
             ValidColors(sets, catalog);
@@ -218,8 +242,7 @@ public static partial class CharacterRules
 
             if (Count(sets) < before)
                 fixes?.Add(new("markings", $"Some {category} markings are not allowed for {species.Id} or are over a layer's limit; they are removed."));
-            if (sets.Count > 0)
-                result[category] = sets;
+            result[category] = sets;
         }
 
         return new CharacterLook { Species = look.Species, Sex = look.Sex, SkinColor = skin, EyeColor = eyes, Markings = result };

@@ -11,7 +11,7 @@ public class CharacterFileTests
 {
     // Human: a head (Hair, FacialHair) and a torso (Chest, Tail), Hair limited to one marking,
     // Tail required with a default.
-    private const string Yaml = """
+    internal const string Yaml = """
         - type: species
           id: Human
           name: species-name-human
@@ -172,6 +172,32 @@ public class CharacterFileTests
         // The required tail gets its default.
         Assert.Equal("HumanTail", look.Markings["Torso"]["Tail"][0].Id);
         Assert.Contains(fixes, f => f.Field == "name");
+    }
+
+    [Fact]
+    public void Exports_are_laid_out_as_the_game_writes_them()
+    {
+        var file = CharacterFile.Parse(OldFile);
+        CharacterRules.EnsureValid(file, Catalog, Fork);
+        var yaml = file.ToYaml();
+
+        Assert.Contains("- markingColor:", yaml);
+        Assert.DoesNotContain("- markingId:", yaml);
+        Assert.EndsWith("...\n", yaml);
+
+        var created = CharacterFile.CreateNew("wizards").ToYaml();
+        Assert.True(created.IndexOf("version:", StringComparison.Ordinal) < created.IndexOf("profile:", StringComparison.Ordinal));
+        Assert.True(created.IndexOf("profile:", StringComparison.Ordinal) < created.IndexOf("forkId:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Organs_that_take_markings_are_written_even_when_empty()
+    {
+        var file = CharacterFile.Parse(OldFile.Replace("hair: HairShort", "hair: HairNone").Replace("facialHair: Beard", "facialHair: None"));
+
+        CharacterRules.EnsureValid(file, Catalog, Fork);
+
+        Assert.Contains("Head: {}", file.ToYaml());
     }
 
     [Fact]
@@ -400,5 +426,122 @@ public class NameGeneratorTests
 
         Assert.Equal("Scales Hisses", file.Name);
         Assert.Contains(fixes, f => f.Field == "name");
+    }
+}
+
+public class VoiceTests
+{
+    // The test species plus upstream's voices: Human names none (so gets the game's defaults), Moth
+    // has one, and Slime has a different default for each sex.
+    private const string Voices = """
+        - type: species
+          id: Moth
+          name: species-name-moth
+          roundStart: true
+          dollPrototype: AppearanceHuman
+          defaultSoundsBySex: [ UnisexMoth, UnisexMoth, UnisexMoth ]
+          voices: [ UnisexMoth ]
+        - type: species
+          id: Slime
+          name: species-name-slime
+          roundStart: true
+          dollPrototype: AppearanceHuman
+          sexes: [ Male, Female ]
+          defaultSoundsBySex: [ SlimeMale, SlimeFemale, SlimeUnsexed ]
+          voices: [ SlimeMale, SlimeFemale, SlimeUnsexed ]
+        - type: emoteSounds
+          id: MaleHuman
+          voiceSelectorName: humanoid-profile-editor-voice-masculine
+        - type: emoteSounds
+          id: UnisexMoth
+          voiceSelectorName: humanoid-profile-editor-voice-neutral
+        """;
+
+    private static readonly CharacterCatalog Catalog = CharacterCatalog.Build(PrototypeIndex.Load(
+        [new PrototypeSource("h.yml", Encoding.UTF8.GetBytes(CharacterFileTests.Yaml + "\n" + Voices))]));
+
+    private static readonly ForkInfo Fork = new("test", "Test", "o/r", "main", AppearanceModel.New, false, []);
+
+    private static CharacterFile File(string species, string sex, string? voice) => CharacterFile.Parse($"""
+        version: 2
+        profile:
+          name: Test Person
+          species: {species}
+          sex: {sex}
+          gender: Male
+          age: 30
+        {(voice == null ? "" : $"  voice: {voice}")}
+          appearance:
+            skinColor: '#FFDA93FF'
+            eyeColor: '#000000FF'
+            markings: {"{}"}
+        forkId: wizards-testing
+        """);
+
+    [Fact]
+    public void Species_without_voices_get_the_game_defaults()
+    {
+        var human = Catalog.Species["Human"];
+
+        Assert.True(Catalog.HasVoices);
+        Assert.Equal(["MaleHuman", "FemaleHuman"], human.Voices);
+        Assert.Equal("FemaleHuman", human.DefaultVoice("Female"));
+        Assert.Equal("humanoid-profile-editor-voice-neutral", Catalog.VoiceNames["UnisexMoth"]);
+    }
+
+    [Fact]
+    public void A_voice_the_species_cannot_use_becomes_its_default()
+    {
+        var file = File("Moth", "Male", "MaleHuman");
+
+        var fixes = CharacterRules.EnsureValid(file, Catalog, Fork);
+
+        Assert.Equal("UnisexMoth", file.Voice);
+        Assert.Contains(fixes, f => f.Field == "voice");
+    }
+
+    [Fact]
+    public void A_saved_voice_the_species_can_use_is_kept()
+    {
+        var file = File("Moth", "Male", "UnisexMoth");
+
+        var fixes = CharacterRules.EnsureValid(file, Catalog, Fork);
+
+        Assert.Equal("UnisexMoth", file.Voice);
+        Assert.DoesNotContain(fixes, f => f.Field == "voice");
+    }
+
+    [Fact]
+    public void A_file_with_no_voice_reads_as_MaleHuman()
+    {
+        var female = File("Human", "Female", null);
+
+        CharacterRules.EnsureValid(female, Catalog, Fork);
+
+        // MaleHuman is a human voice, so it stays, even for a female character.
+        Assert.Equal("MaleHuman", female.Voice);
+    }
+
+    [Fact]
+    public void The_voice_follows_the_sex_as_written_before_the_sex_is_fixed()
+    {
+        var file = File("Slime", "Unsexed", "UnisexMoth");
+
+        CharacterRules.EnsureValid(file, Catalog, Fork);
+
+        Assert.Equal("Male", file.Sex);
+        Assert.Equal("SlimeUnsexed", file.Voice);
+    }
+
+    [Fact]
+    public void Forks_without_voices_leave_the_file_alone()
+    {
+        var catalog = CharacterCatalog.Build(PrototypeIndex.Load([new PrototypeSource("h.yml", Encoding.UTF8.GetBytes(CharacterFileTests.Yaml))]));
+        var file = File("Human", "Male", null);
+
+        CharacterRules.EnsureValid(file, catalog, Fork);
+
+        Assert.False(catalog.HasVoices);
+        Assert.Null(file.Voice);
     }
 }

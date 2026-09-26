@@ -7,7 +7,7 @@ public static class KnownForks
 {
     public static IReadOnlyList<ForkInfo> All { get; } =
     [
-        new("upstream", "Wizard's Den (upstream)", "space-wizards/space-station-14", "master", AppearanceModel.New, false, ["wizards"]),
+        new("upstream", "Wizard's Den (upstream)", "space-wizards/space-station-14", "master", AppearanceModel.New, false, ["wizards", "wizards-testing"]),
         new("deltav", "Delta-V", "DeltaV-Station/Delta-v", "master", AppearanceModel.New, false, ["delta-v"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin, SizeRule = SizeRule.SpeciesScaleTimesHeight, TraitRules = Traits.TraitRules.DeltaV },
         new("euphoria", "Euphoria", "Floof-Station/Panta-Rhei", "master", AppearanceModel.New, false, ["euphoria"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin, SizeRule = SizeRule.SpeciesScaleTimesHeight, TraitRules = Traits.TraitRules.DeltaV },
         new("trauma", "Trauma", "Trauma-Station/Trauma-Station", "master", AppearanceModel.New, false, ["Trauma"]),

@@ -30,6 +30,8 @@ public class KnownForksTests
     [InlineData("euphoria", "euphoria")]
     [InlineData("floof-station-nova", "floof")]
     [InlineData("delta-v", "deltav")]
+    [InlineData("wizards-testing", "upstream")]
+    [InlineData("GoobLRP", "goob")]
     public void Export_files_map_to_forks_by_fork_id(string forkId, string expected)
     {
         Assert.Equal(expected, KnownForks.FindByServerForkId(forkId)?.Id);

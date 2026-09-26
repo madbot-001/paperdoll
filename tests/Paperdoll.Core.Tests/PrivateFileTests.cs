@@ -53,7 +53,8 @@ public sealed class PrivateFileTests : IDisposable
 
         foreach (var path in files)
         {
-            var file = CharacterFile.Parse(await File.ReadAllTextAsync(path, ct));
+            var original = await File.ReadAllTextAsync(path, ct);
+            var file = CharacterFile.Parse(original);
             var fork = KnownForks.FindByServerForkId(file.ForkId ?? "") ?? KnownForks.Find("deltav")!;
             if (!loaded.TryGetValue(fork.Id, out var fork_))
             {
@@ -64,7 +65,8 @@ public sealed class PrivateFileTests : IDisposable
             }
 
             var markingsBefore = file.IsOldModel;
-            var fixes = CharacterRules.EnsureValid(file, fork_.Content.Characters, fork);
+            var fixes = CharacterRules.EnsureValid(file, fork_.Content.Characters, fork,
+                outfits: fork_.Content.Outfits, traits: fork_.Content.Traits);
             var again = CharacterFile.Parse(file.ToYaml());
             var look = again.ReadLook(fork_.Content.Characters);
 
@@ -72,6 +74,9 @@ public sealed class PrivateFileTests : IDisposable
                 $"{Path.GetFileName(path)} -> {fork.Name}: {look.Species}, old model {markingsBefore}, " +
                 $"{look.Markings.Values.Sum(l => l.Values.Sum(m => m.Count))} markings; " +
                 string.Join(" | ", fixes.Select(f => $"{f.Field}: {f.Message}")));
+            // A new-model file the game wrote, needing no fixes, exports exactly as it came in.
+            if (!markingsBefore && fixes.Count == 0)
+                Assert.Equal(original, file.ToYaml());
             Assert.False(again.IsOldModel);
             Assert.Equal("2", again.Version);
 
@@ -83,6 +88,7 @@ public sealed class PrivateFileTests : IDisposable
                 using var big = image.Resize(new SKImageInfo(image.Width * 8, image.Height * 8), SKSamplingOptions.Default);
                 using var png = big.Encode(SKEncodedImageFormat.Png, 100);
                 await File.WriteAllBytesAsync(Path.Combine(output, Path.GetFileNameWithoutExtension(path) + ".png"), png.ToArray(), ct);
+                await File.WriteAllTextAsync(Path.Combine(output, Path.GetFileNameWithoutExtension(path) + ".export.yml"), file.ToYaml(), ct);
                 await File.WriteAllTextAsync(Path.Combine(output, Path.GetFileNameWithoutExtension(path) + ".fixes.txt"),
                     $"{fork.Name}, species {look.Species}\n" + string.Join("\n", fixes.Select(f => $"{f.Field}: {f.Message}")) + "\n", ct);
             }
