@@ -151,6 +151,13 @@ public static partial class CharacterRules
                 CharacterSize.WriteHeight(file, height);
         }
 
+        if (fork.Extras.HasFlag(ProfileExtras.CustomSpeciesName))
+            CustomSpeciesName.Check(file, species, fixes);
+        if (fork.Extras.HasFlag(ProfileExtras.Records))
+            CharacterRecords.Check(file, fixes);
+        if (fork.Extras.HasFlag(ProfileExtras.Allergies))
+            Allergies.Check(file);
+
         if (outfits != null)
         {
             CheckJobPriorities(file, outfits, fixes);
@@ -396,7 +403,7 @@ public static partial class CharacterRules
     }
 
     // Removes [tag], [tag=value] and [/tag] markup, keeping escaped brackets' text.
-    private static string RemoveMarkup(string text) => Markup().Replace(text, string.Empty);
+    internal static string RemoveMarkup(string text) => Markup().Replace(text, string.Empty);
 
     [GeneratedRegex(@"(?<!\\)\[/?[A-Za-z][^\]]*\]")]
     private static partial Regex Markup();

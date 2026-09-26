@@ -336,6 +336,10 @@ public sealed class CharacterFile
         if (value == null)
             node.Children.Remove(new YamlScalarNode(key));
         else
-            node.Children[new YamlScalarNode(key)] = new YamlScalarNode(value);
+            node.Children[new YamlScalarNode(key)] = Text(value);
     }
+
+    /// <summary>A text value as the game writes it: an empty one as <c>""</c>, others as the writer sees fit.</summary>
+    internal static YamlScalarNode Text(string value) =>
+        value.Length == 0 ? new YamlScalarNode(value) { Style = YamlDotNet.Core.ScalarStyle.DoubleQuoted } : new YamlScalarNode(value);
 }
