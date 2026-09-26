@@ -461,50 +461,141 @@ public partial class MainWindow
         else if (group.MaxLimit == 1)
         {
             // An optional pick-one group can be emptied, which a radio button alone cannot do.
-            var nothing = new RadioButton { Content = "Nothing", IsChecked = chosen.Count == 0, GroupName = "loadout-" + groupId, Margin = new Thickness(6, 1) };
+            var nothing = new RadioButton { Content = "Nothing", IsChecked = chosen.Count == 0, GroupName = "loadout-" + groupId };
             nothing.IsCheckedChanged += (_, _) =>
             {
                 if (!_refreshing && nothing.IsChecked == true && chosen.Count > 0)
                     Apply(s => s.ToggleLoadout(job, groupId, chosen[0]));
             };
-            AddWide(nothing);
+            AddWide(LoadoutRow(nothing, null, 0));
         }
-        foreach (var loadoutId in group.Loadouts)
+
+        // As in the lobby, loadouts sharing a groupBy key are one entry: the chosen one (or the
+        // first) with a button that opens the rest below it.
+        var subLists = group.Loadouts
+            .Where(outfits.Loadouts.ContainsKey)
+            .GroupBy(id => outfits.Loadouts[id].GroupBy ?? id, StringComparer.Ordinal);
+        foreach (var subList in subLists)
         {
-            if (!outfits.Loadouts.TryGetValue(loadoutId, out var loadout))
+            var ids = subList.ToList();
+            if (ids.Count == 1)
+            {
+                AddLoadoutChoice(job, groupId, group, ids[0], chosen, null, 0, null);
                 continue;
-            var check = outfits.Check(loadout, session.Look!.Species);
-            var name = session.LoadoutName(loadoutId);
-            Control choice = group.MaxLimit == 1
-                ? new RadioButton { Content = name, IsChecked = chosen.Contains(loadoutId), GroupName = "loadout-" + groupId }
-                : new CheckBox { Content = name, IsChecked = chosen.Contains(loadoutId) };
-            choice.IsEnabled = check != Core.Outfits.LoadoutCheck.WrongSpecies;
-            choice.Margin = new Thickness(6, 1);
-            ToolTip.SetTip(choice, loadoutId);
-            ((Avalonia.Controls.Primitives.ToggleButton)choice).IsCheckedChanged += (_, _) =>
-            {
-                var isChecked = ((Avalonia.Controls.Primitives.ToggleButton)choice).IsChecked == true;
-                if (!_refreshing && isChecked != chosen.Contains(loadoutId))
-                    Apply(s => s.ToggleLoadout(job, groupId, loadoutId));
-            };
-            var note = check switch
-            {
-                Core.Outfits.LoadoutCheck.WrongSpecies => $"Not for {session.DisplayName(session.Content.Characters.Species[session.Look!.Species])}",
-                Core.Outfits.LoadoutCheck.ServerChecks => "Needs playtime; the server checks",
-                _ => null,
-            };
-            if (note == null)
-                AddWide(choice);
-            else
-            {
-                var stack = new StackPanel();
-                stack.Children.Add(choice);
-                stack.Children.Add(new TextBlock { Text = note, Classes = { "hint", check == Core.Outfits.LoadoutCheck.ServerChecks ? "warning" : "muted" }, Margin = new Thickness(28, 0, 4, 2) });
-                AddWide(stack);
             }
-            if (session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.ItemCustomization) && session.CustomizationOf(job, groupId, loadoutId) is { } entry)
-                AddCustomization(job, groupId, loadout, entry);
+            var first = ids.FirstOrDefault(chosen.Contains) ?? ids[0];
+            var others = ids.Where(id => id != first).ToList();
+            var key = $"{groupId}/{subList.Key}";
+            var open = _openLoadoutSubLists.Contains(key);
+            var toggle = new Button { Classes = { "small" }, Content = open ? "▼" : "▶", Width = 18, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
+            ToolTip.SetTip(toggle, open ? "Hide the others" : $"Show {others.Count} more like this");
+            toggle.Click += (_, _) =>
+            {
+                if (!_openLoadoutSubLists.Remove(key))
+                    _openLoadoutSubLists.Add(key);
+                Select(_selected);
+            };
+            // "and 2 other items" when some of the rest are chosen too (loadouts-count-items-in-group).
+            var alsoChosen = others.Count(chosen.Contains);
+            var label = alsoChosen == 0 ? null : $"{session.LoadoutName(first)} and {alsoChosen} other {(alsoChosen == 1 ? "item" : "items")}";
+            AddLoadoutChoice(job, groupId, group, first, chosen, toggle, 0, label);
+            if (open)
+            {
+                foreach (var id in others)
+                    AddLoadoutChoice(job, groupId, group, id, chosen, null, 1, null);
+            }
         }
+    }
+
+    // Sub-lists opened on loadout pages, by group and key, kept while the inspector redraws.
+    private readonly HashSet<string> _openLoadoutSubLists = [];
+
+    private void AddLoadoutChoice(string job, string groupId, Core.Outfits.LoadoutGroupInfo group, string loadoutId, IReadOnlyList<string> chosen,
+        Button? toggle, int depth, string? label)
+    {
+        var session = _session!;
+        var outfits = session.Content!.Outfits;
+        var loadout = outfits.Loadouts[loadoutId];
+        var check = outfits.Check(loadout, session.Look!.Species);
+
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        content.Children.Add(new Border
+        {
+            Width = 32,
+            Height = 32,
+            Child = LoadoutPicture(loadoutId) is { } picture
+                ? new Image { Source = picture, Stretch = Stretch.Uniform }
+                : null,
+        });
+        content.Children.Add(new TextBlock { Text = label ?? session.LoadoutName(loadoutId), VerticalAlignment = VerticalAlignment.Center });
+        Avalonia.Controls.Primitives.ToggleButton choice = group.MaxLimit == 1
+            ? new RadioButton { Content = content, IsChecked = chosen.Contains(loadoutId), GroupName = "loadout-" + groupId }
+            : new CheckBox { Content = content, IsChecked = chosen.Contains(loadoutId) };
+        choice.IsEnabled = check != Core.Outfits.LoadoutCheck.WrongSpecies;
+        ToolTip.SetTip(choice, loadoutId);
+        choice.IsCheckedChanged += (_, _) =>
+        {
+            if (!_refreshing && (choice.IsChecked == true) != chosen.Contains(loadoutId))
+                Apply(s => s.ToggleLoadout(job, groupId, loadoutId));
+        };
+
+        var note = check switch
+        {
+            Core.Outfits.LoadoutCheck.WrongSpecies => $"Not for {session.DisplayName(session.Content.Characters.Species[session.Look!.Species])}",
+            Core.Outfits.LoadoutCheck.ServerChecks => "Needs playtime; the server checks",
+            _ => null,
+        };
+        AddWide(LoadoutRow(choice, toggle, depth));
+        if (note != null)
+            AddWide(new TextBlock { Text = note, Classes = { "hint", check == Core.Outfits.LoadoutCheck.ServerChecks ? "warning" : "muted" }, Margin = new Thickness(LoadoutIndent(depth) + 60, 0, 4, 2) });
+        if (session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.ItemCustomization) && session.CustomizationOf(job, groupId, loadoutId) is { } entry)
+            AddCustomization(job, groupId, loadout, entry);
+    }
+
+    // A choice with room on its left for a sub-list's open button, so every choice lines up.
+    private static DockPanel LoadoutRow(Control choice, Button? toggle, int depth)
+    {
+        var row = new DockPanel { Margin = new Thickness(LoadoutIndent(depth), 1, 4, 1) };
+        Control left = toggle is null ? new Border { Width = 18 } : toggle;
+        left.Margin = new Thickness(0, 0, 4, 0);
+        DockPanel.SetDock(left, Dock.Left);
+        row.Children.Add(left);
+        row.Children.Add(choice);
+        return row;
+    }
+
+    private static double LoadoutIndent(int depth) => 4 + depth * 22;
+
+    // Loadout pictures by loadout id, drawn once per fork; null for one with no picture.
+    private readonly Dictionary<string, Avalonia.Media.Imaging.Bitmap?> _loadoutPictures = [];
+
+    private void ClearLoadoutPictures()
+    {
+        foreach (var picture in _loadoutPictures.Values)
+            picture?.Dispose();
+        _loadoutPictures.Clear();
+    }
+
+    private Avalonia.Media.Imaging.Bitmap? LoadoutPicture(string loadoutId)
+    {
+        if (_loadoutPictures.TryGetValue(loadoutId, out var cached))
+            return cached;
+        Avalonia.Media.Imaging.Bitmap? picture = null;
+        try
+        {
+            using var sprite = _session!.LoadoutPicture(loadoutId);
+            if (sprite != null)
+            {
+                using var icon = Preview.ItemIcon.Fit(sprite, 32);
+                picture = Preview.FloorCanvas.ToAvalonia(icon);
+            }
+        }
+        catch (Exception)
+        {
+            // A loadout whose item cannot be drawn simply has no picture.
+        }
+        _loadoutPictures[loadoutId] = picture;
+        return picture;
     }
 
     /// <summary>Euphoria's custom name, description and colour tint for a loadout item. Only single-item loadouts can be customised.</summary>

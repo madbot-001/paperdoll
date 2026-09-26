@@ -132,6 +132,7 @@ public partial class MainWindow : Window
             session.PreviewJob = null;
         BuildJobList();
         BuildPortraits();
+        ClearLoadoutPictures();
         _selected = new Node(NodeKind.Character);
         RefreshAll();
         var changes = session.LastFixes.Count;

@@ -1,7 +1,8 @@
 // The outfit rules follow Space Station 14's lobby preview
 // (Content.Client/Lobby/UI/ProfileEditorControls/ProfilePreviewSpriteView.Humanoid.cs),
-// RoleLoadout.SetDefault and SharedStationSpawningSystem.EquipStartingGear,
-// Copyright (c) 2017-2026 Space Wizards Federation, MIT licence. See THIRD-PARTY-NOTICES.md.
+// RoleLoadout.SetDefault, SharedStationSpawningSystem.EquipStartingGear and
+// LoadoutSystem.GetFirstOrNull, Copyright (c) 2017-2026 Space Wizards Federation, MIT licence.
+// See THIRD-PARTY-NOTICES.md.
 
 using Paperdoll.Core.Prototypes;
 using YamlDotNet.RepresentationModel;
@@ -26,6 +27,15 @@ public sealed record LoadoutInfo(string Id, string? StartingGear, IReadOnlyDicti
 {
     /// <summary>Items it puts in the hands and into the item in a slot (usually the backpack).</summary>
     public GearContents Contents { get; init; } = GearContents.Empty;
+
+    /// <summary>
+    /// The lobby lists loadouts with the same key as one entry that opens to show them all
+    /// (<c>groupBy</c>), such as one item in several colours.
+    /// </summary>
+    public string? GroupBy { get; init; }
+
+    /// <summary>The entity the lobby shows for the loadout, if not its item (<c>dummyEntity</c>).</summary>
+    public string? DummyEntity { get; init; }
 }
 
 /// <summary>What a set of gear carries besides what it wears: items for the hands, and items put into the item in a slot.</summary>
@@ -127,7 +137,12 @@ public sealed class OutfitCatalog
             Loadouts = index.OfKind("loadout").ToDictionary(p => p.Id, p =>
             {
                 var node = index.Resolve("loadout", p.Id)!;
-                return new LoadoutInfo(p.Id, Str(node, "startingGear"), Equipment(node), node) { Contents = Contents(node) };
+                return new LoadoutInfo(p.Id, Str(node, "startingGear"), Equipment(node), node)
+                {
+                    Contents = Contents(node),
+                    GroupBy = Str(node, "groupBy") is { Length: > 0 } key ? key : null,
+                    DummyEntity = Str(node, "dummyEntity"),
+                };
             }, StringComparer.Ordinal),
             Antags = index.OfKind("antag").ToDictionary(p => p.Id, p =>
             {
@@ -143,6 +158,33 @@ public sealed class OutfitCatalog
 
     /// <summary>Jobs a player can put a preference on, by department order then id.</summary>
     public IEnumerable<JobInfo> SelectableJobs() => Jobs.Values.Where(j => j.SetPreference && !j.Hidden).OrderBy(j => j.Id, StringComparer.Ordinal);
+
+    /// <summary>
+    /// The entity the lobby pictures beside a loadout (<c>LoadoutSystem.GetFirstOrNull</c>): its
+    /// dummy entity, else the one item its starting gear gives, else the one item it gives itself;
+    /// none when it gives several.
+    /// </summary>
+    public string? PictureOf(LoadoutInfo loadout) =>
+        loadout.DummyEntity ?? StartingGearItem(loadout) ?? OnlyItem(loadout.Equipment, loadout.Contents);
+
+    /// <summary>
+    /// The entity the lobby names a loadout after (<c>LoadoutSystem.GetName</c>): as for its
+    /// picture, except that a loadout with starting gear is named from that gear alone.
+    /// </summary>
+    public string? NamedAfter(LoadoutInfo loadout) =>
+        loadout.DummyEntity ?? (loadout.StartingGear != null && StartingGear.ContainsKey(loadout.StartingGear)
+            ? StartingGearItem(loadout)
+            : OnlyItem(loadout.Equipment, loadout.Contents));
+
+    private string? StartingGearItem(LoadoutInfo loadout) =>
+        loadout.StartingGear != null && StartingGear.TryGetValue(loadout.StartingGear, out var gear)
+            ? OnlyItem(gear, StartingGearContents.GetValueOrDefault(loadout.StartingGear) ?? GearContents.Empty)
+            : null;
+
+    // The item a set of gear gives when it gives exactly one: worn first, then in hand, then stored.
+    private static string? OnlyItem(IReadOnlyDictionary<string, string> worn, GearContents contents) =>
+        worn.Count + contents.InHand.Count + contents.Storage.Values.Sum(items => items.Count) != 1 ? null
+        : worn.Values.FirstOrDefault() ?? contents.InHand.FirstOrDefault() ?? contents.Storage.Values.SelectMany(items => items).First();
 
     /// <summary>
     /// What a loadout puts on, slot by slot: its starting gear's items, then its own, each only

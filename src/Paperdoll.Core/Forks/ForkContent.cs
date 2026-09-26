@@ -68,6 +68,12 @@ public sealed class ForkContent
         var clothing = new ClothingResolver(prototypes, _ => null);
         foreach (var entity in outfits.AllGearEntities())
             folders.UnionWith(clothing.SpriteFolders(entity));
+        // The pictures beside loadouts, including items that are carried rather than worn.
+        foreach (var loadout in outfits.Loadouts.Values)
+        {
+            if (outfits.PictureOf(loadout) is { } picture)
+                folders.UnionWith(Rendering.EntitySprite.SpriteFolders(prototypes, picture));
+        }
 
         progress?.Report("Downloading character and clothing sprites");
         var textures = await FetchSpritesAsync(store, fork.Id, folders, ct);

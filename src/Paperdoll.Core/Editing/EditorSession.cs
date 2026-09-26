@@ -244,16 +244,25 @@ public sealed class EditorSession : IAsyncDisposable
         return Edit(f => f.SetLoadoutGroup(OutfitCatalog.RoleFor(jobId), groupId, current));
     }
 
-    /// <summary>Display name: the dummy entity's, or the single item's.</summary>
+    /// <summary>
+    /// Display name, as the lobby gives it: the dummy entity's, or the single item's, worn, held or
+    /// stored. Where the lobby would say "Unknown" (several items), the loadout's id.
+    /// </summary>
     public string LoadoutName(string loadoutId)
     {
         var outfits = RequireContent().Outfits;
-        if (!outfits.Loadouts.TryGetValue(loadoutId, out var loadout))
-            return loadoutId;
-        if (Scalar(loadout.Node, "dummyEntity") is { } dummy)
-            return EntityName(dummy);
-        var gear = outfits.GearOf(loadout);
-        return gear.Count == 1 ? EntityName(gear.Values.First()) : loadoutId;
+        return outfits.Loadouts.TryGetValue(loadoutId, out var loadout) && outfits.NamedAfter(loadout) is { } entity
+            ? EntityName(entity)
+            : loadoutId;
+    }
+
+    /// <summary>The picture the lobby shows beside a loadout, facing south; null when it has none.</summary>
+    public SKBitmap? LoadoutPicture(string loadoutId)
+    {
+        var outfits = RequireContent().Outfits;
+        return outfits.Loadouts.TryGetValue(loadoutId, out var loadout) && outfits.PictureOf(loadout) is { } entity
+            ? Renderer!.RenderEntity(entity)
+            : null;
     }
 
     /// <summary>An entity's name: its translation if the fork has one, else the prototype's name.</summary>

@@ -364,6 +364,21 @@ public class SpawnGearTests
           inhand: [ Mop, Bucket, Sign ]
           storage:
             head: [ Coin ]
+        - type: loadout
+          id: Plushie
+          inhand: [ PlushieLizard ]
+          groupBy: plushies
+        - type: loadout
+          id: Placard
+          dummyEntity: PlacardSign
+          equipment: { head: Cap }
+        - type: startingGear
+          id: TwoItemGear
+          equipment: { head: Cap, neck: Scarf }
+        - type: loadout
+          id: CapOverGear
+          startingGear: TwoItemGear
+          equipment: { eyes: Glasses }
         - type: entity
           id: ClothingBackpack
           components:
@@ -419,6 +434,24 @@ public class SpawnGearTests
         Assert.Equal(["Mop", "Bucket"], gear.InHand.Select(i => i.Entity));
         Assert.False(gear.Stored.ContainsKey("head"));
         Assert.Equal([new FillItem("OxygenTank", 1, 1f), new FillItem("Glowstick", 2, 0.5f)], Outfits.FillOf("BoxSurvival"));
+    }
+
+    [Fact]
+    public void Loadouts_are_pictured_and_named_after_their_one_item_as_the_lobby_does()
+    {
+        string? Picture(string id) => Outfits.PictureOf(Outfits.Loadouts[id]);
+        string? Named(string id) => Outfits.NamedAfter(Outfits.Loadouts[id]);
+
+        Assert.Equal("ClothingBackpack", Picture("CommonBackpack"));
+        Assert.Equal("BoxSurvival", Picture("EmergencyOxygen"));
+        Assert.Equal("PlushieLizard", Named("Plushie"));
+        Assert.Equal("PlacardSign", Named("Placard"));
+        Assert.Null(Picture("JanitorHat"));
+        // Starting gear with two items: the picture falls back to the loadout's own item, the name does not.
+        Assert.Equal("Glasses", Picture("CapOverGear"));
+        Assert.Null(Named("CapOverGear"));
+        Assert.Equal("plushies", Outfits.Loadouts["Plushie"].GroupBy);
+        Assert.Null(Outfits.Loadouts["Placard"].GroupBy);
     }
 
     [Fact]
