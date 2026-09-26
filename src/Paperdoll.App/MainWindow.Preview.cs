@@ -65,14 +65,15 @@ public partial class MainWindow
         if (width < 16 || height < 16)
             (width, height) = (640, 420);
 
+        var scale = _session.SpriteScale();
         using (var sprite = _session.Render(_direction))
-        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite))
+        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale))
             Replace(PreviewImage, FloorCanvas.ToAvalonia(canvas));
 
         for (var i = 0; i < 4; i++)
         {
             using var sprite = _session.Render((Direction)i);
-            using var canvas = FloorCanvas.Compose(72, 72, 2, sprite);
+            using var canvas = FloorCanvas.Compose(72, 72, 2, sprite, scale);
             Replace(_facingImages[i], FloorCanvas.ToAvalonia(canvas));
             _facingCells[i].Classes.Set("chosen", (Direction)i == _direction);
         }
@@ -92,7 +93,8 @@ public partial class MainWindow
             {
                 var look = LookDefaults.Create(catalog, species.Id, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000"));
                 using var sprite = _session.Renderer!.Render(look);
-                using var canvas = FloorCanvas.Compose(36, 36, 1, sprite);
+                var scale = Core.Profiles.CharacterSize.HasHeight(_session.Fork!) ? species.BaseScale : (1f, 1f);
+                using var canvas = FloorCanvas.Compose(36, 36, 1, sprite, scale);
                 _portraits[species.Id] = FloorCanvas.ToAvalonia(canvas);
             }
             catch (Exception)

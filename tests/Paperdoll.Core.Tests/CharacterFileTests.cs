@@ -239,3 +239,90 @@ public class CharacterFileTests
         Assert.Throws<FormatException>(() => CharacterFile.Parse("{ not: [ yaml"));
     }
 }
+
+public class CharacterSizeTests
+{
+    private const string Yaml = """
+        - type: species
+          id: Human
+          name: species-name-human
+          roundStart: true
+          dollPrototype: Doll
+        - type: species
+          id: Small
+          name: species-name-small
+          roundStart: true
+          dollPrototype: Doll
+          baseScale: 0.8, 0.8
+          minHeight: 0.9
+          maxHeight: 1.1
+        - type: entity
+          id: Doll
+        """;
+
+    private static readonly CharacterCatalog Catalog =
+        CharacterCatalog.Build(PrototypeIndex.Load([new PrototypeSource("s.yml", Encoding.UTF8.GetBytes(Yaml))]));
+
+    private static readonly ForkInfo DeltaVLike = new("dv", "DV", "o/r", "main", AppearanceModel.New, false, [])
+    {
+        SizeRule = SizeRule.SpeciesScaleTimesHeight,
+    };
+
+    private static readonly ForkInfo Upstream = new("up", "Up", "o/r", "main", AppearanceModel.New, false, []);
+
+    private static CharacterFile File(string species, string? height) => CharacterFile.Parse(
+        $"forkId: x\nversion: 2\nprofile:\n  name: Ann Bee\n  species: {species}\n  age: 30\n  sex: Male\n  gender: Male\n"
+        + (height != null ? $"  cosmaticDriftCharacterHeight: {height}\n" : "")
+        + "  appearance:\n    skinColor: '#FFFFFFFF'\n    eyeColor: '#000000FF'\n    markings: {}\n");
+
+    [Fact]
+    public void Reads_species_scale_and_height_range()
+    {
+        var small = Catalog.Species["Small"];
+
+        Assert.Equal((0.8f, 0.8f), small.BaseScale);
+        Assert.Equal(0.9f, small.MinHeight);
+        Assert.Equal(1.2f, Catalog.Species["Human"].MaxHeight);
+    }
+
+    [Fact]
+    public void Scale_is_species_scale_times_height_where_the_fork_has_heights()
+    {
+        var file = File("Small", "1.05");
+
+        Assert.Equal(0.84f, CharacterSize.SpriteScale(DeltaVLike, Catalog.Species["Small"], file).X, 3);
+        Assert.Equal((1f, 1f), CharacterSize.SpriteScale(Upstream, Catalog.Species["Small"], file));
+    }
+
+    [Fact]
+    public void Height_is_rounded_and_kept_in_range()
+    {
+        var file = File("Small", "1.3456");
+
+        var fixes = CharacterRules.EnsureValid(file, Catalog, DeltaVLike);
+
+        Assert.Equal("1.1", file.GetValue(CharacterSize.HeightKey));
+        Assert.Contains(fixes, f => f.Field == "height");
+    }
+
+    [Fact]
+    public void A_missing_height_is_written_as_1_without_a_message()
+    {
+        var file = File("Human", null);
+
+        var fixes = CharacterRules.EnsureValid(file, Catalog, DeltaVLike);
+
+        Assert.Equal("1", file.GetValue(CharacterSize.HeightKey));
+        Assert.DoesNotContain(fixes, f => f.Field == "height");
+    }
+
+    [Fact]
+    public void Forks_without_heights_leave_the_key_alone()
+    {
+        var file = File("Human", "5");
+
+        CharacterRules.EnsureValid(file, Catalog, Upstream);
+
+        Assert.Equal("5", file.GetValue(CharacterSize.HeightKey));
+    }
+}

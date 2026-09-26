@@ -222,7 +222,7 @@ public sealed record CreditRow(string Rsi, string LicenseText, string Copyright)
 }
 
 /// <summary>A species table row.</summary>
-public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string Sexes, string Ages, string SkinRule, int Layers, string Source);
+public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string Sexes, string Ages, string SkinRule, int Layers, string Size, string Source);
 
 /// <summary>A markings table row, with where the marking would go.</summary>
 public sealed record MarkingRow(string Id, string Name, string Layer, int Sprites, string Coloring, string Restriction,

@@ -15,9 +15,13 @@ public static class FloorCanvas
     private static readonly SKColor Seam = new(0x2A, 0x2F, 0x35);
     private const int Tile = 32;
 
-    /// <summary>A canvas of the given size with the sprite, scaled by <paramref name="zoom"/>, in the middle.</summary>
-    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite)
+    /// <summary>
+    /// A canvas of the given size with the sprite in the middle, scaled by <paramref name="zoom"/>
+    /// and by the character's own scale (species size and height), as the game scales it.
+    /// </summary>
+    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null)
     {
+        var (scaleX, scaleY) = scale ?? (1f, 1f);
         width = Math.Max(width, 1);
         height = Math.Max(height, 1);
         var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -46,8 +50,8 @@ public static class FloorCanvas
             }
         }
 
-        var w = sprite.Width * zoom;
-        var h = sprite.Height * zoom;
+        var w = sprite.Width * zoom * scaleX;
+        var h = sprite.Height * zoom * scaleY;
         var destination = SKRect.Create(width / 2f - w / 2f, height / 2f - h / 2f, w, h);
         using var image = SKImage.FromBitmap(sprite);
         canvas.DrawImage(image, destination, new SKSamplingOptions(SKFilterMode.Nearest), null);

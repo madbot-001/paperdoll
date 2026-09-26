@@ -37,4 +37,21 @@ public sealed record ForkInfo(
 
     /// <summary>Which characters names may contain.</summary>
     public Profiles.NameRule NameRule { get; init; } = Profiles.NameRule.Upstream;
+
+    /// <summary>How the fork sizes characters.</summary>
+    public SizeRule SizeRule { get; init; } = SizeRule.None;
+}
+
+/// <summary>How a fork sizes characters on screen.</summary>
+public enum SizeRule
+{
+    /// <summary>Everyone is drawn at the sprite's own size (upstream).</summary>
+    None,
+
+    /// <summary>
+    /// Delta-V and forks built on it: drawn at the species' <c>baseScale</c> times the character's
+    /// height (<c>cosmaticDriftCharacterHeight</c>), which is clamped to the species'
+    /// <c>minHeight</c> to <c>maxHeight</c> and rounded to two decimals.
+    /// </summary>
+    SpeciesScaleTimesHeight,
 }

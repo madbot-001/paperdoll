@@ -128,6 +128,7 @@
                   <DataGridTextColumn Header="Ages" Binding="{Binding Ages}" Width="70" />
                   <DataGridTextColumn Header="Skin rule" Binding="{Binding SkinRule}" Width="140" />
                   <DataGridTextColumn Header="Marking layers" Binding="{Binding Layers}" Width="100" />
+                  <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="50" />
                   <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="110" FontFamily="{StaticResource MonoFont}" />
                   <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
                 </DataGrid.Columns>

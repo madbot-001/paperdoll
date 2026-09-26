@@ -33,6 +33,8 @@ public class ScreenshotTests
         await editor.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
         if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_FILE") is { } path)
             editor.Open(await File.ReadAllTextAsync(path, ct));
+        if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_SPECIES") is { } species)
+            editor.ChangeSpecies(species);
 
         using var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
         await session.Dispatch(() =>

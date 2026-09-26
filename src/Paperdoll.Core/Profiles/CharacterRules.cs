@@ -86,6 +86,16 @@ public static partial class CharacterRules
             file.FlavorText = cleanFlavor;
         }
 
+        if (CharacterSize.HasHeight(fork))
+        {
+            var written = CharacterSize.ReadHeight(file);
+            var height = CharacterSize.CheckHeight(written ?? 1f, species);
+            if (written != null && written != height)
+                fixes.Add(new("height", $"{species.Id} heights run from {species.MinHeight:0.##} to {species.MaxHeight:0.##}, in steps of 0.01; set to {height:0.##}."));
+            if (written != height)
+                CharacterSize.WriteHeight(file, height);
+        }
+
         var checkedLook = EnsureValidLook(look, species, catalog, fixes);
         file.WriteLook(new CharacterLook
         {

@@ -101,6 +101,42 @@ public partial class MainWindow
         };
         AddRow("Age", age, $"{species.MinAge} to {species.MaxAge}");
 
+        if (Core.Profiles.CharacterSize.HasHeight(session.Fork!))
+        {
+            var current = Core.Profiles.CharacterSize.CheckHeight(Core.Profiles.CharacterSize.ReadHeight(file) ?? 1f, species);
+            var value = new TextBlock { Text = current.ToString("0.00"), Classes = { "mono" }, Width = 34, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0) };
+            var slider = new Slider
+            {
+                Minimum = species.MinHeight,
+                Maximum = species.MaxHeight,
+                Value = current,
+                SmallChange = 0.01,
+                LargeChange = 0.05,
+                TickFrequency = 0.01,
+                IsSnapToTickEnabled = true,
+                MinHeight = 18,
+            };
+            var panel = new DockPanel();
+            DockPanel.SetDock(value, Dock.Right);
+            panel.Children.Add(value);
+            panel.Children.Add(slider);
+            var note = new TextBlock { Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap };
+            void Describe(float h) => note.Text = $"{species.MinHeight:0.00} to {species.MaxHeight:0.00}; drawn at {species.BaseScale.Y * h:0.00}x"
+                + (species.BaseScale.Y != 1 ? $" (species {species.BaseScale.Y:0.##}x)" : "");
+            Describe(current);
+            slider.ValueChanged += (_, e) =>
+            {
+                var height = (float)Math.Round(e.NewValue, 2);
+                value.Text = height.ToString("0.00");
+                Describe(height);
+                Apply(s => s.SetHeight(height), keepInspector: true);
+            };
+            var stack = new StackPanel();
+            stack.Children.Add(panel);
+            stack.Children.Add(note);
+            AddRow("Height", stack);
+        }
+
         AddCategory("Colours");
         var rule = session.Content!.Characters.SkinRuleFor(species);
         if (rule.IsUnary)

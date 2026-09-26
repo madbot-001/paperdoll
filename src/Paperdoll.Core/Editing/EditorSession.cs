@@ -107,9 +107,21 @@ public sealed class EditorSession : IAsyncDisposable
         file.Age = Math.Max(species.MinAge, Math.Min(species.YoungAge, species.MaxAge));
         file.Gender = "Epicene";
         file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")));
+        if (CharacterSize.HasHeight(Fork))
+            CharacterSize.WriteHeight(file, CharacterSize.CheckHeight(species.DefaultHeight, species));
         File = file;
         ApplyRules();
     }
+
+    /// <summary>How much the character is scaled on screen, across and up.</summary>
+    public (float X, float Y) SpriteScale()
+    {
+        var species = RequireContent().Characters.Species[Look!.Species];
+        return CharacterSize.SpriteScale(Fork!, species, RequireFile());
+    }
+
+    /// <summary>Sets the character's height (forks with a height setting only).</summary>
+    public IReadOnlyList<RuleFix> SetHeight(float height) => Edit(f => CharacterSize.WriteHeight(f, height));
 
     /// <summary>Opens an exported character and fits it to the loaded fork.</summary>
     public IReadOnlyList<RuleFix> Open(string yaml)

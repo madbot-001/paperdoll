@@ -44,6 +44,7 @@ public partial class MainWindow
             $"{s.MinAge} to {s.MaxAge}",
             s.SkinColoration ?? "",
             s.Organs.Sum(o => o.MarkingLayers.Count),
+            Core.Profiles.CharacterSize.HasHeight(session.Fork!) ? $"{s.BaseScale.Y:0.##}x" : "1x",
             session.SourceOf("species", s.Id) ?? "")).ToList();
         FilterSpecies();
     }

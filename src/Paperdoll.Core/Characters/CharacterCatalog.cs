@@ -33,7 +33,16 @@ public sealed record SpeciesInfo(
     int OldAge,
     int MaxAge,
     IReadOnlyList<OrganInfo> Organs,
-    YamlMappingNode Node);
+    YamlMappingNode Node)
+{
+    /// <summary>The species' fixed sprite scale (Delta-V's <c>baseScale</c>); 1 by 1 elsewhere.</summary>
+    public (float X, float Y) BaseScale { get; init; } = (1, 1);
+
+    /// <summary>Allowed character heights (Delta-V's <c>minHeight</c> and <c>maxHeight</c>, 0.8 to 1.2 by default).</summary>
+    public float MinHeight { get; init; } = 0.8f;
+    public float MaxHeight { get; init; } = 1.2f;
+    public float DefaultHeight { get; init; } = 1f;
+}
 
 /// <summary>
 /// A body organ from a species' doll, as it is drawn: its own layer and sprite, and the marking
@@ -176,8 +185,28 @@ public sealed class CharacterCatalog
             Int(node, "oldAge") ?? 60,
             Int(node, "maxAge") ?? 120,
             organs,
-            node);
+            node)
+        {
+            BaseScale = Pair(Str(node, "baseScale")) ?? (1, 1),
+            MinHeight = Float(node, "minHeight") ?? 0.8f,
+            MaxHeight = Float(node, "maxHeight") ?? 1.2f,
+            DefaultHeight = Float(node, "defaultHeight") ?? 1f,
+        };
     }
+
+    // "1.1, 1.1" as the game writes a two-number vector.
+    private static (float, float)? Pair(string? text)
+    {
+        var parts = text?.Split(',', StringSplitOptions.TrimEntries);
+        if (parts is not { Length: 2 }
+            || !float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+            || !float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y))
+            return null;
+        return (x, y);
+    }
+
+    private static float? Float(YamlMappingNode node, string key) =>
+        float.TryParse(Str(node, key), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : null;
 
     private static List<OrganInfo> ReadOrgans(PrototypeIndex index, string dollId)
     {
