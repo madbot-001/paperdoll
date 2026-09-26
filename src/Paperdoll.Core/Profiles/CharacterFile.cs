@@ -114,6 +114,52 @@ public sealed class CharacterFile
         }
     }
 
+    /// <summary>
+    /// Sets a job's priority (High, Medium, Low), or removes it for Never. Setting High moves any
+    /// other High job to Medium, as the lobby does.
+    /// </summary>
+    public void SetJobPriority(string jobId, string priority)
+    {
+        var key = new YamlScalarNode("_jobPriorities");
+        if (!Profile.Children.TryGetValue(key, out var node) || node is not YamlMappingNode map)
+            Profile.Children[key] = map = new YamlMappingNode();
+
+        if (priority == "High")
+        {
+            foreach (var (job, value) in map.Children.ToList())
+            {
+                if (value is YamlScalarNode { Value: "High" })
+                    map.Children[job] = new YamlScalarNode("Medium");
+            }
+        }
+        if (priority == "Never")
+            map.Children.Remove(new YamlScalarNode(jobId));
+        else
+            map.Children[new YamlScalarNode(jobId)] = new YamlScalarNode(priority);
+    }
+
+    /// <summary>
+    /// Replaces the selected loadouts of one group in a role's saved loadout. Entries kept keep
+    /// their other fields (some forks store colour or name overrides there).
+    /// </summary>
+    public void SetLoadoutGroup(string role, string group, IReadOnlyList<string> loadoutIds)
+    {
+        var loadoutsKey = new YamlScalarNode("_loadouts");
+        if (!Profile.Children.TryGetValue(loadoutsKey, out var node) || node is not YamlMappingNode roles)
+            Profile.Children[loadoutsKey] = roles = new YamlMappingNode();
+        if (!roles.Children.TryGetValue(new YamlScalarNode(role), out var roleNode) || roleNode is not YamlMappingNode roleMap)
+            roles.Children[new YamlScalarNode(role)] = roleMap = new YamlMappingNode();
+        if (!roleMap.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected) || selected is not YamlMappingNode groups)
+            roleMap.Children[new YamlScalarNode("selectedLoadouts")] = groups = new YamlMappingNode();
+
+        var existing = groups.Children.TryGetValue(new YamlScalarNode(group), out var old) && old is YamlSequenceNode oldList
+            ? oldList.Children.OfType<YamlMappingNode>().Where(m => Scalar(m, "prototype") != null)
+                .GroupBy(m => Scalar(m, "prototype")!).ToDictionary(g => g.Key, g => g.First())
+            : new Dictionary<string, YamlMappingNode>();
+        groups.Children[new YamlScalarNode(group)] = new YamlSequenceNode(loadoutIds.Select(id =>
+            (YamlNode)(existing.TryGetValue(id, out var kept) ? kept : new YamlMappingNode { { "prototype", id } })));
+    }
+
     /// <summary>Any single value in the profile by key, such as a fork's own <c>height</c>.</summary>
     public string? GetValue(string key) => Scalar(Profile, key);
 

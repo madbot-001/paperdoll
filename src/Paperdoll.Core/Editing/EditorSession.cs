@@ -144,6 +144,62 @@ public sealed class EditorSession : IAsyncDisposable
         return RequireContent().Outfits.OutfitFor(job, LoadoutFor(job));
     }
 
+    /// <summary>The character's priority for a job: High, Medium, Low or Never.</summary>
+    public string JobPriority(string jobId) => RequireFile().JobPriorities.GetValueOrDefault(jobId) ?? "Never";
+
+    public IReadOnlyList<RuleFix> SetJobPriority(string jobId, string priority) => Edit(f => f.SetJobPriority(jobId, priority));
+
+    /// <summary>
+    /// Selects or clears a loadout within its group's limits: a group taking one item swaps it,
+    /// others add up to the limit; clearing stops at the group's minimum.
+    /// </summary>
+    public IReadOnlyList<RuleFix> ToggleLoadout(string jobId, string groupId, string loadoutId)
+    {
+        var outfits = RequireContent().Outfits;
+        var group = outfits.Groups[groupId];
+        var current = LoadoutFor(jobId).Groups.FirstOrDefault(g => g.Group == groupId).Loadouts?.ToList() ?? [];
+
+        if (current.Contains(loadoutId))
+        {
+            if (current.Count <= group.MinLimit)
+                return [new RuleFix("loadout", $"This group needs at least {group.MinLimit}.")];
+            current.Remove(loadoutId);
+        }
+        else if (group.MaxLimit == 1)
+            current = [loadoutId];
+        else if (current.Count >= group.MaxLimit)
+            return [new RuleFix("loadout", $"This group takes at most {group.MaxLimit}; clear one first.")];
+        else
+            current.Add(loadoutId);
+
+        return Edit(f => f.SetLoadoutGroup(OutfitCatalog.RoleFor(jobId), groupId, current));
+    }
+
+    /// <summary>A loadout's name as the game shows it: its dummy or single item's name.</summary>
+    public string LoadoutName(string loadoutId)
+    {
+        var outfits = RequireContent().Outfits;
+        if (!outfits.Loadouts.TryGetValue(loadoutId, out var loadout))
+            return loadoutId;
+        if (Scalar(loadout.Node, "dummyEntity") is { } dummy)
+            return EntityName(dummy);
+        var gear = outfits.GearOf(loadout);
+        return gear.Count == 1 ? EntityName(gear.Values.First()) : loadoutId;
+    }
+
+    /// <summary>An entity's name: its translation if the fork has one, else the prototype's name.</summary>
+    public string EntityName(string entityId)
+    {
+        var content = RequireContent();
+        if (content.Strings[$"ent-{entityId}"] is { } translated)
+            return translated;
+        return content.Prototypes.Resolve("entity", entityId) is { } entity && Scalar(entity, "name") is { } name ? name : entityId;
+    }
+
+    private static string? Scalar(YamlDotNet.RepresentationModel.YamlMappingNode node, string key) =>
+        node.Children.TryGetValue(new YamlDotNet.RepresentationModel.YamlScalarNode(key), out var value)
+            && value is YamlDotNet.RepresentationModel.YamlScalarNode scalar ? scalar.Value : null;
+
     /// <summary>How much the character is scaled on screen, across and up.</summary>
     public (float X, float Y) SpriteScale()
     {
@@ -304,7 +360,7 @@ public sealed class EditorSession : IAsyncDisposable
     private void ApplyRules()
     {
         var file = RequireFile();
-        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName);
+        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits);
         Look = file.ReadLook(Content.Characters);
     }
 

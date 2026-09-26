@@ -20,9 +20,10 @@
       <MenuItem Header="_View">
         <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+1" HotKey="Ctrl+1" />
         <MenuItem Header="_Markings" Click="OnShowTab" Tag="1" InputGesture="Ctrl+2" HotKey="Ctrl+2" />
-        <MenuItem Header="_Credits" Click="OnShowTab" Tag="2" InputGesture="Ctrl+3" HotKey="Ctrl+3" />
-        <MenuItem Header="M_essages" Click="OnShowTab" Tag="3" InputGesture="Ctrl+4" HotKey="Ctrl+4" />
-        <MenuItem Header="S_ource" Click="OnShowTab" Tag="4" InputGesture="Ctrl+5" HotKey="Ctrl+5" />
+        <MenuItem Header="_Jobs" Click="OnShowTab" Tag="2" InputGesture="Ctrl+3" HotKey="Ctrl+3" />
+        <MenuItem Header="_Credits" Click="OnShowTab" Tag="3" InputGesture="Ctrl+4" HotKey="Ctrl+4" />
+        <MenuItem Header="M_essages" Click="OnShowTab" Tag="4" InputGesture="Ctrl+5" HotKey="Ctrl+5" />
+        <MenuItem Header="S_ource" Click="OnShowTab" Tag="5" InputGesture="Ctrl+6" HotKey="Ctrl+6" />
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_About Paperdoll" Click="OnAbout" />
@@ -162,6 +163,32 @@
                   <DataGridTextColumn Header="Licence" Binding="{Binding License}" Width="130" />
                   <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="170" FontFamily="{StaticResource MonoFont}" />
                   <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </DockPanel>
+          </TabItem>
+          <TabItem Header="Jobs">
+            <DockPanel>
+              <Border Classes="filterbar" DockPanel.Dock="Top">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="3">
+                    <TextBlock Classes="hint" Text="Priority" Margin="0,0,3,0" />
+                    <Button Classes="small" Content="High" Click="OnSetPriority" Tag="High" />
+                    <Button Classes="small" Content="Medium" Click="OnSetPriority" Tag="Medium" />
+                    <Button Classes="small" Content="Low" Click="OnSetPriority" Tag="Low" />
+                    <Button Classes="small" Content="Never" Click="OnSetPriority" Tag="Never" />
+                    <Button Classes="small" Content="Show in preview" Click="OnPreviewJob" Margin="8,0,0,0" />
+                  </StackPanel>
+                  <TextBox Name="JobFilter" Width="200" HorizontalAlignment="Left" PlaceholderText="Filter jobs" MinHeight="20" />
+                </DockPanel>
+              </Border>
+              <DataGrid Name="JobGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:JobRow" DoubleTapped="OnJobDoubleTapped">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Job" Binding="{Binding Name}" Width="190" />
+                  <DataGridTextColumn Header="Department" Binding="{Binding Department}" Width="160" />
+                  <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80" />
+                  <DataGridTextColumn Header="Loadout groups" Binding="{Binding Groups}" Width="110" />
+                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
                 </DataGrid.Columns>
               </DataGrid>
             </DockPanel>

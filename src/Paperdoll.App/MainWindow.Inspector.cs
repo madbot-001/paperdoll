@@ -35,6 +35,12 @@ public partial class MainWindow
             case NodeKind.Marking when organ != null && _selected.Index < Applied(look, organ.Category, _selected.Layer!).Count:
                 InspectMarking(organ, _selected.Layer!, _selected.Index);
                 break;
+            case NodeKind.Outfit:
+                InspectOutfit();
+                break;
+            case NodeKind.LoadoutGroup when _selected.Group != null && _session.Content.Outfits.Groups.ContainsKey(_selected.Group):
+                InspectLoadoutGroup(_selected.Group);
+                break;
             default:
                 InspectCharacter(species);
                 break;
@@ -279,6 +285,100 @@ public partial class MainWindow
         actions.Children.Add(ActionButton("Move down", index < Applied(session.Look!, organ.Category, layer).Count - 1, () => { _selected = _selected with { Index = index + 1 }; Apply(s => s.MoveMarking(organ.Category, layer, index, 1)); }));
         actions.Children.Add(ActionButton("Remove", true, () => { _selected = _selected.Parent!; Apply(s => s.RemoveMarking(organ.Category, layer, index)); }));
         AddWide(actions);
+    }
+
+    private static readonly string[] Priorities = ["High", "Medium", "Low", "Never"];
+
+    private void InspectOutfit()
+    {
+        var session = _session!;
+        var outfits = session.Content!.Outfits;
+        var job = session.DressedJob();
+        InspectorTitle.Text = "Outfit";
+
+        AddCategory("Job");
+        var jobs = new ComboBox { ItemsSource = _jobs.Select(j => j.Name).ToList(), SelectedIndex = _jobs.FindIndex(j => j.Id == job), HorizontalAlignment = HorizontalAlignment.Stretch };
+        jobs.SelectionChanged += (_, _) =>
+        {
+            if (jobs.SelectedIndex >= 0 && _jobs[jobs.SelectedIndex].Id != session.DressedJob())
+            {
+                session.PreviewJob = _jobs[jobs.SelectedIndex].Id;
+                SelectDressedJob();
+                RefreshAll();
+            }
+        };
+        AddRow("Shown as", jobs, "The lobby shows the High priority job; pick another to try its clothes.");
+        if (job == null)
+            return;
+
+        var priority = new ComboBox { ItemsSource = Priorities, SelectedItem = session.JobPriority(job), HorizontalAlignment = HorizontalAlignment.Stretch };
+        priority.SelectionChanged += (_, _) =>
+        {
+            if (priority.SelectedItem is string value && value != session.JobPriority(job))
+                Apply(s => s.SetJobPriority(job, value));
+        };
+        AddRow("Priority", priority, "Setting High moves another High job to Medium.");
+
+        AddCategory("Loadout");
+        foreach (var (groupId, chosen) in session.LoadoutFor(job).Groups)
+        {
+            if (!outfits.Groups.TryGetValue(groupId, out var group) || group.Hidden)
+                continue;
+            var open = new Button { Classes = { "crumb" }, Content = session.Content.Strings.Get(group.NameKey), HorizontalAlignment = HorizontalAlignment.Left };
+            var target = new Node(NodeKind.LoadoutGroup, Group: groupId);
+            open.Click += (_, _) => Select(target);
+            AddRow("", open, chosen.Count == 0 ? "Nothing" : string.Join(", ", chosen.Select(session.LoadoutName)));
+        }
+    }
+
+    private void InspectLoadoutGroup(string groupId)
+    {
+        var session = _session!;
+        var outfits = session.Content!.Outfits;
+        var group = outfits.Groups[groupId];
+        var job = session.DressedJob()!;
+        var chosen = session.LoadoutFor(job).Groups.FirstOrDefault(g => g.Group == groupId).Loadouts ?? [];
+        InspectorTitle.Text = $"Loadout: {session.Content.Strings.Get(group.NameKey)}";
+
+        AddCategory("Group");
+        AddRow("Takes", Text(group.MinLimit == group.MaxLimit ? $"{group.MaxLimit}" : $"{group.MinLimit} to {group.MaxLimit}"));
+        AddRow("Id", Mono(groupId));
+
+        AddCategory(group.MaxLimit == 1 ? "Choose one" : $"Choose up to {group.MaxLimit}");
+        foreach (var loadoutId in group.Loadouts)
+        {
+            if (!outfits.Loadouts.TryGetValue(loadoutId, out var loadout))
+                continue;
+            var check = outfits.Check(loadout, session.Look!.Species);
+            var name = session.LoadoutName(loadoutId);
+            Control choice = group.MaxLimit == 1
+                ? new RadioButton { Content = name, IsChecked = chosen.Contains(loadoutId), GroupName = "loadout-" + groupId }
+                : new CheckBox { Content = name, IsChecked = chosen.Contains(loadoutId) };
+            choice.IsEnabled = check != Core.Outfits.LoadoutCheck.WrongSpecies;
+            choice.Margin = new Thickness(6, 1);
+            ToolTip.SetTip(choice, loadoutId);
+            ((Avalonia.Controls.Primitives.ToggleButton)choice).IsCheckedChanged += (_, _) =>
+            {
+                var isChecked = ((Avalonia.Controls.Primitives.ToggleButton)choice).IsChecked == true;
+                if (!_refreshing && isChecked != chosen.Contains(loadoutId))
+                    Apply(s => s.ToggleLoadout(job, groupId, loadoutId));
+            };
+            var note = check switch
+            {
+                Core.Outfits.LoadoutCheck.WrongSpecies => $"Not for {session.DisplayName(session.Content.Characters.Species[session.Look!.Species])}",
+                Core.Outfits.LoadoutCheck.ServerChecks => "Needs playtime; the server checks",
+                _ => null,
+            };
+            if (note == null)
+                AddWide(choice);
+            else
+            {
+                var stack = new StackPanel();
+                stack.Children.Add(choice);
+                stack.Children.Add(new TextBlock { Text = note, Classes = { "hint", check == Core.Outfits.LoadoutCheck.ServerChecks ? "warning" : "muted" }, Margin = new Thickness(28, 0, 4, 2) });
+                AddWide(stack);
+            }
+        }
     }
 
     /// <summary>One applied marking in a layer's list: order buttons, name, colours, remove.</summary>

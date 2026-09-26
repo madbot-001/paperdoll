@@ -16,18 +16,24 @@ public partial class MainWindow
         Organ,
         Layer,
         Marking,
+        Outfit,
+        LoadoutGroup,
     }
 
-    /// <summary>What an explorer node points at: the character, an organ, a layer, or a marking on it.</summary>
-    private sealed record Node(NodeKind Kind, string? Organ = null, string? Layer = null, int Index = -1)
+    /// <summary>
+    /// What an explorer node points at: the character, an organ, a layer, a marking on it, the
+    /// outfit, or one of its loadout groups.
+    /// </summary>
+    private sealed record Node(NodeKind Kind, string? Organ = null, string? Layer = null, int Index = -1, string? Group = null)
     {
-        public string Key => $"{Kind}/{Organ}/{Layer}/{Index}";
+        public string Key => $"{Kind}/{Organ}/{Layer}/{Index}/{Group}";
 
         public Node? Parent => Kind switch
         {
             NodeKind.Marking => new Node(NodeKind.Layer, Organ, Layer),
             NodeKind.Layer => new Node(NodeKind.Organ, Organ),
-            NodeKind.Organ => new Node(NodeKind.Character),
+            NodeKind.Organ or NodeKind.Outfit => new Node(NodeKind.Character),
+            NodeKind.LoadoutGroup => new Node(NodeKind.Outfit),
             _ => null,
         };
     }
@@ -50,6 +56,24 @@ public partial class MainWindow
         var root = Item(new Node(NodeKind.Character), HeaderFor(
             string.IsNullOrWhiteSpace(session.File!.Name) ? "Unnamed character" : session.File.Name!,
             session.DisplayName(species)), expandedByDefault: true, items);
+
+        if (session.DressedJob() is { } job)
+        {
+            var outfits = session.Content.Outfits;
+            var jobName = outfits.Jobs.TryGetValue(job, out var info) ? session.Content.Strings.Get(info.NameKey) : job;
+            var outfitItem = Item(new Node(NodeKind.Outfit), HeaderFor("Outfit", jobName + (session.ShowClothes ? "" : ", hidden")), false, items);
+            foreach (var (groupId, chosen) in session.LoadoutFor(job).Groups)
+            {
+                if (!outfits.Groups.TryGetValue(groupId, out var group) || group.Hidden)
+                    continue;
+                var groupItem = Item(new Node(NodeKind.LoadoutGroup, Group: groupId),
+                    HeaderFor(session.Content.Strings.Get(group.NameKey), $"{chosen.Count}/{group.MaxLimit}"), false, items);
+                foreach (var loadout in chosen)
+                    groupItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = session.LoadoutName(loadout) }, Tag = new Node(NodeKind.LoadoutGroup, Group: groupId), Focusable = false });
+                outfitItem.Items.Add(groupItem);
+            }
+            root.Items.Add(outfitItem);
+        }
 
         foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
         {
@@ -171,6 +195,10 @@ public partial class MainWindow
             (session.Fork!.Name, null),
             (session.DisplayName(session.Content!.Characters.Species[look.Species]), new Node(NodeKind.Character)),
         };
+        if (_selected.Kind is NodeKind.Outfit or NodeKind.LoadoutGroup)
+            steps.Add(("Outfit", new Node(NodeKind.Outfit)));
+        if (_selected is { Kind: NodeKind.LoadoutGroup, Group: { } groupId } && session.Content.Outfits.Groups.TryGetValue(groupId, out var shownGroup))
+            steps.Add((session.Content.Strings.Get(shownGroup.NameKey), _selected));
         if (_selected.Organ != null)
             steps.Add((Words(_selected.Organ), new Node(NodeKind.Organ, _selected.Organ)));
         if (_selected.Layer != null)
@@ -210,7 +238,7 @@ public partial class MainWindow
     public void ShowPart(string path, int tab)
     {
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var node = parts.Length switch
+        var node = parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
         {
             0 => new Node(NodeKind.Character),
             1 => new Node(NodeKind.Organ, parts[0]),

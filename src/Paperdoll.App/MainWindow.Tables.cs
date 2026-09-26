@@ -10,11 +10,68 @@ public partial class MainWindow
 {
     private List<SpeciesRow> _speciesRows = [];
     private List<MarkingRow> _markingRows = [];
+    private List<JobRow> _jobRows = [];
 
     private void SetUpTables()
     {
         SpeciesFilter.TextChanged += (_, _) => FilterSpecies();
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
+        JobFilter.TextChanged += (_, _) => FilterJobs();
+    }
+
+    private void BuildJobTable()
+    {
+        var session = _session!;
+        var outfits = session.Content!.Outfits;
+        _jobRows = outfits.SelectableJobs().Select(job =>
+        {
+            var department = outfits.Departments.FirstOrDefault(d => d.Roles.Contains(job.Id));
+            var groups = outfits.RoleLoadouts.TryGetValue(Core.Outfits.OutfitCatalog.RoleFor(job.Id), out var g) ? g.Count : 0;
+            return new JobRow(job.Id, session.Content.Strings.Get(job.NameKey),
+                department != null ? session.Content.Strings.Get(department.NameKey) : "", session.JobPriority(job.Id), groups);
+        })
+        .OrderBy(r => r.Priority switch { "High" => 0, "Medium" => 1, "Low" => 2, _ => 3 })
+        .ThenBy(r => r.Department, StringComparer.CurrentCulture)
+        .ThenBy(r => r.Name, StringComparer.CurrentCulture)
+        .ToList();
+        FilterJobs();
+    }
+
+    private void FilterJobs()
+    {
+        var filter = JobFilter.Text?.Trim() ?? "";
+        var selected = (JobGrid.SelectedItem as JobRow)?.Id;
+        var rows = _jobRows.Where(r => filter.Length == 0
+            || r.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || r.Department.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || r.Id.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+        JobGrid.ItemsSource = rows;
+        JobGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == selected);
+    }
+
+    private void OnSetPriority(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string priority } && JobGrid.SelectedItem is JobRow row)
+        {
+            Apply(s => s.SetJobPriority(row.Id, priority));
+            SetStatus($"{row.Name}: {priority}.");
+        }
+    }
+
+    private void OnPreviewJob(object? sender, RoutedEventArgs e) => PreviewSelectedJob();
+
+    private void OnJobDoubleTapped(object? sender, TappedEventArgs e) => PreviewSelectedJob();
+
+    private void PreviewSelectedJob()
+    {
+        if (JobGrid.SelectedItem is not JobRow row || _session == null)
+            return;
+        _session.PreviewJob = row.Id;
+        _refreshing = true;
+        SelectDressedJob();
+        _refreshing = false;
+        _selected = new Node(NodeKind.Outfit);
+        RefreshAll();
     }
 
     private void RefreshTables()
@@ -22,6 +79,7 @@ public partial class MainWindow
         var session = _session!;
         BuildSpeciesTable();
         RefreshMarkingTable();
+        BuildJobTable();
         CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
 
         var fixes = session.LastFixes;

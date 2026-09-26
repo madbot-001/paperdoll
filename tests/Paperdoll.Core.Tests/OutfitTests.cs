@@ -224,3 +224,72 @@ public class ClothingResolverTests
         Assert.Empty(Build().Resolve("Helmet", "jumpsuit", null)!.Layers);
     }
 }
+
+public class OutfitEditingTests
+{
+    private const string File = """
+        forkId: x
+        version: 2
+        profile:
+          name: Ann Bee
+          species: Human
+          _jobPriorities:
+            Passenger: High
+            Chef: Medium
+            Wizard: High
+          _loadouts:
+            JobPassenger:
+              selectedLoadouts:
+                Jumpsuit:
+                - prototype: GreySuit
+                  colorOverride: '#123456'
+                Hat: []
+        """;
+
+    [Fact]
+    public void Setting_high_moves_the_old_high_to_medium_and_never_removes()
+    {
+        var file = Profiles.CharacterFile.Parse(File);
+
+        file.SetJobPriority("Chef", "High");
+        file.SetJobPriority("Wizard", "Never");
+
+        Assert.Equal("High", file.JobPriorities["Chef"]);
+        Assert.Equal("Medium", file.JobPriorities["Passenger"]);
+        Assert.False(file.JobPriorities.ContainsKey("Wizard"));
+        Assert.Equal("Chef", file.HighPriorityJob);
+    }
+
+    [Fact]
+    public void Writing_a_group_keeps_other_groups_and_the_fields_of_kept_entries()
+    {
+        var file = Profiles.CharacterFile.Parse(File);
+
+        file.SetLoadoutGroup("JobPassenger", "Jumpsuit", ["GreySuit", "BlueSuit"]);
+        file.SetLoadoutGroup("JobChef", "Hat", ["ChefHat"]);
+        var again = Profiles.CharacterFile.Parse(file.ToYaml());
+
+        Assert.Equal(["GreySuit", "BlueSuit"], again.Loadouts["JobPassenger"]["Jumpsuit"]);
+        Assert.Empty(again.Loadouts["JobPassenger"]["Hat"]);
+        Assert.Equal(["ChefHat"], again.Loadouts["JobChef"]["Hat"]);
+        Assert.Contains("'#123456'", again.ToYaml());
+    }
+
+    [Fact]
+    public void The_rules_keep_known_jobs_and_one_high()
+    {
+        var outfits = OutfitCatalog.Build(PrototypeIndex.Load([new PrototypeSource("j.yml", Encoding.UTF8.GetBytes(
+            "- type: job\n  id: Passenger\n- type: job\n  id: Chef\n- type: species\n  id: Human\n  name: x\n  roundStart: true\n  dollPrototype: D\n- type: entity\n  id: D\n"))]));
+        var catalog = Characters.CharacterCatalog.Build(PrototypeIndex.Load([new PrototypeSource("s.yml", Encoding.UTF8.GetBytes(
+            "- type: species\n  id: Human\n  name: x\n  roundStart: true\n  dollPrototype: D\n- type: entity\n  id: D\n"))]));
+        var file = Profiles.CharacterFile.Parse(File.Replace("Chef: Medium", "Chef: High"));
+
+        var fixes = Profiles.CharacterRules.EnsureValid(file, catalog,
+            new Forks.ForkInfo("t", "T", "o/r", "main", Forks.AppearanceModel.New, false, []), outfits: outfits);
+
+        Assert.Equal("High", file.JobPriorities["Passenger"]);
+        Assert.Equal("Medium", file.JobPriorities["Chef"]);
+        Assert.False(file.JobPriorities.ContainsKey("Wizard"));
+        Assert.Contains(fixes, f => f.Field == "jobs");
+    }
+}

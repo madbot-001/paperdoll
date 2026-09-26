@@ -32,8 +32,9 @@ public static partial class CharacterRules
     /// Makes a random name for a species and pronouns, used when the name is empty, as the game
     /// does. Without it an empty name is only reported.
     /// </param>
+    /// <param name="outfits">The fork's jobs, for checking job priorities; without it they are left alone.</param>
     public static IReadOnlyList<RuleFix> EnsureValid(CharacterFile file, CharacterCatalog catalog, ForkInfo fork,
-        Func<SpeciesInfo, string?, string>? randomName = null)
+        Func<SpeciesInfo, string?, string>? randomName = null, Outfits.OutfitCatalog? outfits = null)
     {
         var fixes = new List<RuleFix>();
 
@@ -107,6 +108,9 @@ public static partial class CharacterRules
                 CharacterSize.WriteHeight(file, height);
         }
 
+        if (outfits != null)
+            CheckJobPriorities(file, outfits, fixes);
+
         var checkedLook = EnsureValidLook(look, species, catalog, fixes);
         file.WriteLook(new CharacterLook
         {
@@ -117,6 +121,36 @@ public static partial class CharacterRules
             Markings = checkedLook.Markings,
         });
         return fixes;
+    }
+
+    // Only jobs the fork has and lets players pick, only High, Medium and Low (Never is the
+    // default and not stored), and one High at most; later ones become Medium.
+    private static void CheckJobPriorities(CharacterFile file, Outfits.OutfitCatalog outfits, List<RuleFix> fixes)
+    {
+        var written = file.JobPriorities;
+        var kept = new List<(string Job, string Priority)>();
+        var high = false;
+        foreach (var (job, priority) in written)
+        {
+            if (!outfits.Jobs.TryGetValue(job, out var info) || !info.SetPreference || priority is not ("High" or "Medium" or "Low"))
+                continue;
+            var value = priority;
+            if (value == "High")
+            {
+                if (high)
+                    value = "Medium";
+                high = true;
+            }
+            kept.Add((job, value));
+        }
+        if (kept.Count == written.Count && kept.All(k => written[k.Job] == k.Priority))
+            return;
+
+        fixes.Add(new("jobs", "Job preferences for jobs this fork does not have, or more than one High, were changed."));
+        foreach (var job in written.Keys)
+            file.SetJobPriority(job, "Never");
+        foreach (var (job, priority) in kept)
+            file.SetJobPriority(job, priority);
     }
 
     /// <summary>The name after the game's rules: cut to length, trimmed, filtered, capitalised.</summary>
