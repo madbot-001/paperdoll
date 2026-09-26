@@ -162,6 +162,49 @@ public sealed record MarkingInfo(
 
     /// <summary>Old model: coloured like the skin (<c>followSkinColor</c>), from before colouring rules existed.</summary>
     public bool FollowSkinColor { get; init; }
+
+    /// <summary>
+    /// Euphoria's <c>layering</c>: sprite states drawn on another body layer than the marking's,
+    /// such as a tail's back half on <c>TailBehind</c>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Layering { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// Euphoria's <c>colorLinks</c>: sprite states drawn in another state's colour (linked state
+    /// to the state it copies). Its lobby hides their colour pickers.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ColorLinks { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>The body layer a sprite is drawn on.</summary>
+    public string LayerOf(SpriteRef sprite) =>
+        sprite.State != null && Layering.TryGetValue(sprite.State, out var layer) ? layer : Layer;
+
+    /// <summary>Whether a sprite takes another sprite's colour, and so has no colour of its own to choose.</summary>
+    public bool IsColorLinked(int sprite) =>
+        sprite < Sprites.Count && Sprites[sprite].State is { } state && ColorLinks.ContainsKey(state);
+
+    /// <summary>
+    /// The colours the sprites are drawn in: linked sprites take the colour of the sprite they
+    /// name; missing colours are white.
+    /// </summary>
+    public List<Rendering.Rgba> DrawnColors(IReadOnlyList<Rendering.Rgba> colors)
+    {
+        if (ColorLinks.Count == 0)
+            return Sprites.Select((_, i) => i < colors.Count ? colors[i] : Rendering.Rgba.White).ToList();
+        var byState = new Dictionary<string, Rendering.Rgba>(StringComparer.Ordinal);
+        for (var i = 0; i < Sprites.Count; i++)
+        {
+            if (Sprites[i].State is { } state)
+                byState.TryAdd(state, i < colors.Count ? colors[i] : Rendering.Rgba.White);
+        }
+        // In the order the prototype lists them, as the game does.
+        foreach (var (child, parent) in ColorLinks)
+        {
+            if (byState.TryGetValue(parent, out var color))
+                byState[child] = color;
+        }
+        return Sprites.Select((sprite, i) => sprite.State is { } state ? byState[state] : i < colors.Count ? colors[i] : Rendering.Rgba.White).ToList();
+    }
 }
 
 /// <summary>A base body layer in the old appearance model (<c>humanoidBaseSprite</c>).</summary>
@@ -648,7 +691,23 @@ public sealed class CharacterCatalog
             Category = Str(node, "markingCategory"),
             SpeciesRestriction = Strings(node, "speciesRestriction"),
             FollowSkinColor = Bool(node, "followSkinColor") ?? false,
+            Layering = Pairs(node, "layering", Layer),
+            ColorLinks = Pairs(node, "colorLinks", value => value),
         };
+    }
+
+    private static Dictionary<string, string> Pairs(YamlMappingNode node, string key, Func<string?, string?> value)
+    {
+        var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (Get(node, key) is YamlMappingNode map)
+        {
+            foreach (var (k, v) in map.Children)
+            {
+                if (k is YamlScalarNode { Value: { } name } && v is YamlScalarNode scalar && value(scalar.Value) is { } read)
+                    pairs[name] = read;
+            }
+        }
+        return pairs;
     }
 
     // A DisplacementData block: sizeMaps: { 32: { sprite: ..., state: ... } }.

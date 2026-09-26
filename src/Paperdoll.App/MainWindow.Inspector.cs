@@ -350,6 +350,9 @@ public partial class MainWindow
         AddCategory("Colours");
         for (var c = 0; c < entry.Colors.Count; c++)
         {
+            // A sprite linked to another's colour has no picker, as in the lobby.
+            if (marking.IsColorLinked(c))
+                continue;
             var colorIndex = c;
             var label = c < marking.Sprites.Count ? marking.Sprites[c].State ?? $"Sprite {c + 1}" : $"Sprite {c + 1}";
             AddRow(label, ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color))));
@@ -655,8 +658,11 @@ public partial class MainWindow
         row.Children.Add(buttons);
 
         var colors = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Margin = new Thickness(4, 0) };
+        var marking = _session!.Content!.Characters.Markings.GetValueOrDefault(entry.Id);
         for (var c = 0; c < entry.Colors.Count; c++)
         {
+            if (marking?.IsColorLinked(c) == true)
+                continue;
             var colorIndex = c;
             colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true));
         }

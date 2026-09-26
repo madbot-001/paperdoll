@@ -146,7 +146,7 @@ public partial class MainWindow
                 for (var i = 0; i < applied.Count; i++)
                 {
                     var markingItem = Item(new Node(NodeKind.Marking, organ.Category, layer, i),
-                        MarkingHeader(session.MarkingName(applied[i].Id), applied[i].Colors), false, items);
+                        MarkingHeader(session.MarkingName(applied[i].Id), OwnColors(session, applied[i])), false, items);
                     layerItem.Items.Add(markingItem);
                 }
                 organItem.Items.Add(layerItem);
@@ -197,6 +197,12 @@ public partial class MainWindow
             panel.Children.Add(new TextBlock { Text = detail, Opacity = 0.65, FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
         return panel;
     }
+
+    // The colours a marking's sprites are chosen in, leaving out sprites linked to another's colour.
+    private static List<Rgba> OwnColors(Core.Editing.EditorSession session, MarkingEntry entry) =>
+        session.Content!.Characters.Markings.GetValueOrDefault(entry.Id) is { } marking
+            ? entry.Colors.Where((_, i) => !marking.IsColorLinked(i)).ToList()
+            : entry.Colors.ToList();
 
     private static Control MarkingHeader(string name, IReadOnlyList<Rgba> colors)
     {

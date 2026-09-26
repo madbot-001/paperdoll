@@ -9,7 +9,7 @@ namespace Paperdoll.Core.Tests;
 public class PaperdollRendererTests
 {
     // A species with a torso (Chest layer, markings on Chest and Tail) and eyes, drawn over a
-    // doll whose sprite lists Chest, Eyes, then Tail.
+    // doll whose sprite lists TailBehind, Chest, Eyes, then Tail.
     private const string Yaml = """
         - type: species
           id: Lizard
@@ -21,6 +21,7 @@ public class PaperdollRendererTests
           components:
           - type: Sprite
             layers:
+            - map: [ "enum.HumanoidVisualLayers.TailBehind" ]
             - map: [ "enum.HumanoidVisualLayers.Chest" ]
             - map: [ "enum.HumanoidVisualLayers.Eyes" ]
             - map: [ "enum.HumanoidVisualLayers.Tail" ]
@@ -89,6 +90,18 @@ public class PaperdollRendererTests
           sprites:
           - sprite: /Textures/Mobs/big.rsi
             state: tail
+        - type: marking
+          id: SplitTail
+          bodyPart: Tail
+          layering:
+            back: TailBehind
+          colorLinks:
+            back: front
+          sprites:
+          - sprite: Mobs/markings.rsi
+            state: front
+          - sprite: Mobs/markings.rsi
+            state: back
         """;
 
     private static readonly Rgba Skin = Rgba.Parse("#FF8040");
@@ -188,6 +201,26 @@ public class PaperdollRendererTests
         var tattoo = layers.Single(l => l.Key == "Tattoo-a").Color;
         Assert.Equal(0.4f, tattoo.ToHsv().V, 3);
         Assert.Equal(Skin.ToHsv().H, tattoo.ToHsv().H, 3);
+    }
+
+    [Fact]
+    public void Layering_draws_a_sprite_on_its_own_layer_in_the_colour_it_links_to()
+    {
+        var (renderer, _) = Build();
+        var look = new CharacterLook
+        {
+            Species = "Lizard",
+            Sex = "Male",
+            SkinColor = Skin,
+            EyeColor = Rgba.White,
+            Markings = new() { ["Torso"] = new() { ["Tail"] = [new MarkingEntry("SplitTail", [Rgba.Parse("#0000FF"), Rgba.Parse("#FF0000")])] } },
+        };
+
+        var layers = renderer.Layers(look);
+
+        Assert.Equal(["SplitTail-back", "enum.HumanoidVisualLayers.Chest", "enum.HumanoidVisualLayers.Eyes", "SplitTail-front"],
+            layers.Select(l => l.Key));
+        Assert.All(layers.Where(l => l.Key.StartsWith("SplitTail", StringComparison.Ordinal)), l => Assert.Equal(Rgba.Parse("#0000FF"), l.Color));
     }
 
     [Fact]

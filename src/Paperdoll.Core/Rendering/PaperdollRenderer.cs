@@ -291,18 +291,25 @@ public sealed partial class PaperdollRenderer
 
             foreach (var (marking, entry) in Resolve(entries, look, group))
             {
-                var index = FindSlot(slots, marking.Layer);
-                if (index < 0)
-                    continue;
                 var displacement = marking.CanBeDisplaced && organ.MarkingsDisplacement.TryGetValue(marking.Layer, out var map) ? map : null;
+                var colors = marking.DrawnColors(entry.Colors);
+                // Each sprite goes just above its layer (Euphoria's layering can move it to
+                // another), after the marking's earlier sprites there.
+                var placed = new Dictionary<string, int>(StringComparer.Ordinal);
                 for (var i = 0; i < marking.Sprites.Count; i++)
                 {
-                    var color = i < entry.Colors.Count ? entry.Colors[i] : Rgba.White;
-                    slots.Insert(index + i + 1, new Slot([$"{marking.Id}-{marking.Sprites[i].State}"])
+                    var spriteLayer = marking.LayerOf(marking.Sprites[i]);
+                    var index = FindSlot(slots, spriteLayer);
+                    if (index < 0)
+                        continue;
+                    var before = placed.GetValueOrDefault(spriteLayer);
+                    placed[spriteLayer] = before + 1;
+                    slots.Insert(index + before + 1, new Slot([$"{marking.Id}-{marking.Sprites[i].State}"])
                     {
                         Sprite = marking.Sprites[i],
-                        Color = color,
+                        Color = colors[i],
                         Displacement = displacement,
+                        // Clothing hides the whole marking by its own layer, wherever a sprite is drawn.
                         BodyLayer = marking.Layer,
                     });
                 }
