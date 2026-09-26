@@ -89,4 +89,12 @@ public enum SizeRule
     /// <c>minHeight</c> to <c>maxHeight</c> and rounded to two decimals.
     /// </summary>
     SpeciesScaleTimesHeight,
+
+    /// <summary>
+    /// Einstein Engines' height and width, as Goob and its forks have them: drawn at the
+    /// character's <c>width</c> across and <c>height</c> up, each clamped to the species' range.
+    /// The lobby also keeps the two within the species' <c>sizeRatio</c> of each other and shows
+    /// centimetres and weight.
+    /// </summary>
+    HeightAndWidth,
 }

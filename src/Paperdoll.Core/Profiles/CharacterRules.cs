@@ -143,12 +143,26 @@ public static partial class CharacterRules
 
         if (CharacterSize.HasHeight(fork))
         {
-            var written = CharacterSize.ReadHeight(file);
-            var height = CharacterSize.CheckHeight(written ?? 1f, species);
+            var written = CharacterSize.ReadHeight(file, fork);
+            var height = CharacterSize.CheckHeight(written ?? CharacterSize.Missing(fork), species, fork);
+            var steps = fork.SizeRule == SizeRule.SpeciesScaleTimesHeight ? ", in steps of 0.01" : "";
             if (written != null && written != height)
-                fixes.Add(new("height", $"{species.Id} heights run from {species.MinHeight:0.##} to {species.MaxHeight:0.##}, in steps of 0.01; set to {height:0.##}."));
+                fixes.Add(new("height", $"{species.Id} heights run from {species.MinHeight:0.##} to {species.MaxHeight:0.##}{steps}; set to {height:0.##}."));
+            else if (written == null && CharacterSize.HasWidth(fork))
+                fixes.Add(new("height", $"No height was saved, which the game reads as the smallest; set to {height:0.##}."));
             if (written != height)
-                CharacterSize.WriteHeight(file, height);
+                CharacterSize.WriteHeight(file, fork, height);
+        }
+        if (CharacterSize.HasWidth(fork))
+        {
+            var written = CharacterSize.ReadWidth(file);
+            var width = CharacterSize.CheckWidth(written ?? CharacterSize.Missing(fork), species);
+            if (written != null && written != width)
+                fixes.Add(new("width", $"{species.Id} widths run from {species.MinWidth:0.##} to {species.MaxWidth:0.##}; set to {width:0.##}."));
+            else if (written == null)
+                fixes.Add(new("width", $"No width was saved, which the game reads as the narrowest; set to {width:0.##}."));
+            if (written != width)
+                CharacterSize.WriteWidth(file, width);
         }
 
         if (fork.Extras.HasFlag(ProfileExtras.CustomSpeciesName))

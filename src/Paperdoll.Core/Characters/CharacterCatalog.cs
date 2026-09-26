@@ -1,3 +1,4 @@
+using System.Globalization;
 using Paperdoll.Core.Prototypes;
 using YamlDotNet.RepresentationModel;
 
@@ -38,10 +39,28 @@ public sealed record SpeciesInfo(
     /// <summary>The species' fixed sprite scale (Delta-V's <c>baseScale</c>); 1 by 1 elsewhere.</summary>
     public (float X, float Y) BaseScale { get; init; } = (1, 1);
 
-    /// <summary>Allowed character heights (Delta-V's <c>minHeight</c> and <c>maxHeight</c>, 0.8 to 1.2 by default).</summary>
+    /// <summary>Allowed character heights (Delta-V's and Goob's <c>minHeight</c> and <c>maxHeight</c>, 0.8 to 1.2 by default).</summary>
     public float MinHeight { get; init; } = 0.8f;
     public float MaxHeight { get; init; } = 1.2f;
     public float DefaultHeight { get; init; } = 1f;
+
+    /// <summary>Allowed character widths, where the fork has them (Goob's <c>minWidth</c> and <c>maxWidth</c>).</summary>
+    public float MinWidth { get; init; } = 0.85f;
+    public float MaxWidth { get; init; } = 1.15f;
+    public float DefaultWidth { get; init; } = 1f;
+
+    /// <summary>How far height and width may part in the lobby's sliders, either way (Goob's <c>sizeRatio</c>).</summary>
+    public float SizeRatio { get; init; } = 1.2f;
+
+    /// <summary>Centimetres at height or width 1, for showing sizes (Goob's <c>averageHeight</c> and <c>averageWidth</c>).</summary>
+    public float AverageHeight { get; init; } = 176.1f;
+    public float AverageWidth { get; init; } = 40f;
+
+    /// <summary>
+    /// Kilograms at size 1, from the species entity's main fixture (its area times density), for
+    /// showing weight; null when it has no simple shape.
+    /// </summary>
+    public float? Mass { get; init; }
 
     /// <summary>The old appearance model's body, for forks still on it; null on the new model.</summary>
     public OldBody? Old { get; init; }
@@ -429,6 +448,13 @@ public sealed class CharacterCatalog
             MaxHeight = Float(node, "maxHeight") ?? heights.Max,
             CustomName = Bool(node, "customName") ?? true,
             DefaultHeight = Float(node, "defaultHeight") ?? 1f,
+            MinWidth = Float(node, "minWidth") ?? 0.85f,
+            MaxWidth = Float(node, "maxWidth") ?? 1.15f,
+            DefaultWidth = Float(node, "defaultWidth") ?? 1f,
+            SizeRatio = Float(node, "sizeRatio") ?? 1.2f,
+            AverageHeight = Float(node, "averageHeight") ?? 176.1f,
+            AverageWidth = Float(node, "averageWidth") ?? 40f,
+            Mass = Str(node, "prototype") is { } entity ? FixtureMass(Component(index.Resolve("entity", entity), "Fixtures")) : null,
             Old = Str(node, "sprites") is { } baseSprites ? ReadOldBody(index, baseSprites, Str(node, "markingLimits"), doll) : null,
             ClothingSpeciesId = Str(inventory, "speciesId"),
             ClothingDisplacements = Displacements(inventory, "displacements"),
@@ -452,6 +478,39 @@ public sealed class CharacterCatalog
             }
         }
         return result;
+    }
+
+    // The mass of the "fix1" fixture: its shape's area times its density (a circle, a box or a polygon).
+    private static float? FixtureMass(YamlMappingNode? fixtures)
+    {
+        if (Get(Get(fixtures, "fixtures") as YamlMappingNode, "fix1") is not YamlMappingNode fixture
+            || Get(fixture, "shape") is not YamlMappingNode shape)
+            return null;
+        var density = Float(fixture, "density") ?? 1f;
+        float? area = shape.Tag.IsEmpty ? null : shape.Tag.Value switch
+        {
+            "!type:PhysShapeCircle" => MathF.PI * MathF.Pow(Float(shape, "radius") ?? 0.5f, 2),
+            "!type:PhysShapeAabb" => Floats(Str(shape, "bounds")) is [var left, var bottom, var right, var top] ? (right - left) * (top - bottom) : null,
+            "!type:PolygonShape" => Get(shape, "vertices") is YamlSequenceNode vertices ? PolygonArea(vertices) : null,
+            _ => null,
+        };
+        return area * density;
+
+        static float[]? Floats(string? text) => text?.Split(',').Select(v => float.TryParse(v.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var f) ? f : float.NaN).ToArray();
+
+        static float? PolygonArea(YamlSequenceNode vertices)
+        {
+            var points = vertices.Children.OfType<YamlScalarNode>().Select(v => Floats(v.Value)).OfType<float[]>().Where(p => p.Length == 2).ToList();
+            if (points.Count < 3)
+                return null;
+            var twice = 0f;
+            for (var i = 0; i < points.Count; i++)
+            {
+                var (a, b) = (points[i], points[(i + 1) % points.Count]);
+                twice += a[0] * b[1] - b[0] * a[1];
+            }
+            return MathF.Abs(twice) / 2;
+        }
     }
 
     // Two-number vectors are written "1.1, 1.1".

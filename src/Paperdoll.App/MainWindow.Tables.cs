@@ -191,7 +191,13 @@ public partial class MainWindow
             $"{s.MinAge} to {s.MaxAge}",
             s.SkinColoration ?? "",
             s.Organs.Sum(o => o.MarkingLayers.Count),
-            Core.Profiles.CharacterSize.HasHeight(session.Fork!) ? $"{s.BaseScale.Y:0.##}x" : "1x",
+            session.Fork!.SizeRule switch
+            {
+                Core.Forks.SizeRule.SpeciesScaleTimesHeight => $"{s.BaseScale.Y:0.##}x",
+                // Goob: the height range, in centimetres.
+                Core.Forks.SizeRule.HeightAndWidth => $"{Core.Profiles.CharacterSize.Centimetres(s, s.MinHeight, 1).Height}–{Core.Profiles.CharacterSize.Centimetres(s, s.MaxHeight, 1).Height} cm",
+                _ => "1x",
+            },
             session.SourceOf("species", s.Id) ?? "")).ToList();
         FilterSpecies();
     }

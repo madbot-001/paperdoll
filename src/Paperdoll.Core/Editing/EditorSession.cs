@@ -144,8 +144,11 @@ public sealed class EditorSession : IAsyncDisposable
         file.Age = Math.Max(species.MinAge, Math.Min(species.YoungAge, species.MaxAge));
         file.Gender = "Epicene";
         file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")), catalog);
+        // The species' default size, which the lobby's reset buttons give.
         if (CharacterSize.HasHeight(Fork))
-            CharacterSize.WriteHeight(file, CharacterSize.CheckHeight(species.DefaultHeight, species));
+            CharacterSize.WriteHeight(file, Fork, CharacterSize.CheckHeight(species.DefaultHeight, species, Fork));
+        if (CharacterSize.HasWidth(Fork))
+            CharacterSize.WriteWidth(file, CharacterSize.CheckWidth(species.DefaultWidth, species));
         // The game starts every profile on MaleHuman; its rules then give species that cannot use it their default.
         if (catalog.HasVoices)
             file.Voice = species.Voices.Contains(CharacterRules.DefaultVoice) ? CharacterRules.DefaultVoice : species.DefaultVoice(species.Sexes[0]);
@@ -275,7 +278,31 @@ public sealed class EditorSession : IAsyncDisposable
         return CharacterSize.SpriteScale(Fork!, species, RequireFile());
     }
 
-    public IReadOnlyList<RuleFix> SetHeight(float height) => Edit(f => CharacterSize.WriteHeight(f, height));
+    /// <summary>
+    /// Sets the height. Where the fork has width too, the width follows as the lobby's sliders
+    /// pull it, to stay within the species' size ratio.
+    /// </summary>
+    public IReadOnlyList<RuleFix> SetHeight(float height) => Edit(f =>
+    {
+        if (!CharacterSize.HasWidth(Fork!))
+        {
+            CharacterSize.WriteHeight(f, Fork!, height);
+            return;
+        }
+        var species = RequireContent().Characters.Species[Look!.Species];
+        var (h, w) = CharacterSize.KeepRatio(height, CharacterSize.Width(f, Fork!, species), species, heightMoved: true);
+        CharacterSize.WriteHeight(f, Fork!, h);
+        CharacterSize.WriteWidth(f, w);
+    });
+
+    /// <summary>Sets the width (Goob); the height follows as the lobby's sliders pull it.</summary>
+    public IReadOnlyList<RuleFix> SetWidth(float width) => Edit(f =>
+    {
+        var species = RequireContent().Characters.Species[Look!.Species];
+        var (h, w) = CharacterSize.KeepRatio(CharacterSize.Height(f, Fork!, species), width, species, heightMoved: false);
+        CharacterSize.WriteHeight(f, Fork!, h);
+        CharacterSize.WriteWidth(f, w);
+    });
 
     /// <summary>
     /// Sets the sex; pronouns follow it (Male, Female, else Epicene), and where the fork has
@@ -642,6 +669,13 @@ public sealed class EditorSession : IAsyncDisposable
             file.Name = RandomName(species, gender);
         if (parts.HasFlag(RandomParts.Age))
             file.Age = randomizer.Age(species);
+        // Goob's randomiser picks height and width each anywhere in the species' range.
+        if (parts.HasFlag(RandomParts.Size) && CharacterSize.HasWidth(Fork!))
+        {
+            var (height, width) = randomizer.Size(species);
+            CharacterSize.WriteHeight(file, Fork!, height);
+            CharacterSize.WriteWidth(file, width);
+        }
 
         // Kept colours stand in for the palette's, so random markings match them.
         var palette = randomizer.RandomPalette(species);

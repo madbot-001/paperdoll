@@ -323,7 +323,7 @@ public class CharacterSizeTests
 
         CharacterRules.EnsureValid(file, euphoria, DeltaVLike);
 
-        Assert.Equal(0.72f, CharacterSize.ReadHeight(file));
+        Assert.Equal(0.72f, CharacterSize.ReadHeight(file, DeltaVLike));
         Assert.Equal((0.9f, 1.1f), (euphoria.Species["Small"].MinHeight, euphoria.Species["Small"].MaxHeight));
         Assert.Equal(0.8f, Catalog.Species["Human"].MinHeight);
     }
@@ -359,7 +359,7 @@ public class CharacterSizeTests
 
         var fixes = CharacterRules.EnsureValid(file, Catalog, DeltaVLike);
 
-        Assert.Equal("1.1", file.GetValue(CharacterSize.HeightKey));
+        Assert.Equal("1.1", file.GetValue(CharacterSize.DeltaVHeightKey));
         Assert.Contains(fixes, f => f.Field == "height");
     }
 
@@ -370,7 +370,7 @@ public class CharacterSizeTests
 
         var fixes = CharacterRules.EnsureValid(file, Catalog, DeltaVLike);
 
-        Assert.Equal("1", file.GetValue(CharacterSize.HeightKey));
+        Assert.Equal("1", file.GetValue(CharacterSize.DeltaVHeightKey));
         Assert.DoesNotContain(fixes, f => f.Field == "height");
     }
 
@@ -381,7 +381,7 @@ public class CharacterSizeTests
 
         CharacterRules.EnsureValid(file, Catalog, Upstream);
 
-        Assert.Equal("5", file.GetValue(CharacterSize.HeightKey));
+        Assert.Equal("5", file.GetValue(CharacterSize.DeltaVHeightKey));
     }
 }
 

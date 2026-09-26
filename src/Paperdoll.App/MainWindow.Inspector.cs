@@ -169,25 +169,12 @@ public partial class MainWindow
         };
         AddRow("Age", age, $"{species.MinAge} to {species.MaxAge}");
 
-        if (Core.Profiles.CharacterSize.HasHeight(session.Fork!))
+        if (Core.Profiles.CharacterSize.HasWidth(session.Fork!))
+            AddHeightAndWidth(session, species, file);
+        else if (Core.Profiles.CharacterSize.HasHeight(session.Fork!))
         {
-            var current = Core.Profiles.CharacterSize.CheckHeight(Core.Profiles.CharacterSize.ReadHeight(file) ?? 1f, species);
-            var value = new TextBlock { Text = current.ToString("0.00"), Classes = { "mono" }, Width = 34, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0) };
-            var slider = new Slider
-            {
-                Minimum = species.MinHeight,
-                Maximum = species.MaxHeight,
-                Value = current,
-                SmallChange = 0.01,
-                LargeChange = 0.05,
-                TickFrequency = 0.01,
-                IsSnapToTickEnabled = true,
-                MinHeight = 18,
-            };
-            var panel = new DockPanel();
-            DockPanel.SetDock(value, Dock.Right);
-            panel.Children.Add(value);
-            panel.Children.Add(slider);
+            var current = Core.Profiles.CharacterSize.Height(file, session.Fork!, species);
+            var (panel, value, slider) = SizeSlider(species.MinHeight, species.MaxHeight, current);
             var note = new TextBlock { Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap };
             void Describe(float h) => note.Text = $"{species.MinHeight:0.00} to {species.MaxHeight:0.00}; drawn at {species.BaseScale.Y * h:0.00}x"
                 + (species.BaseScale.Y != 1 ? $" (species {species.BaseScale.Y:0.##}x)" : "");
@@ -805,5 +792,82 @@ public partial class MainWindow
                 Commit();
         };
         box.LostFocus += (_, _) => Commit();
+    }
+
+    // A slider in steps of 0.01 with its value beside it.
+    private static (DockPanel Panel, TextBlock Value, Slider Slider) SizeSlider(float minimum, float maximum, float current)
+    {
+        var value = new TextBlock { Text = current.ToString("0.00"), Classes = { "mono" }, Width = 34, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0) };
+        var slider = new Slider
+        {
+            Minimum = minimum,
+            Maximum = maximum,
+            Value = current,
+            SmallChange = 0.01,
+            LargeChange = 0.05,
+            TickFrequency = 0.01,
+            IsSnapToTickEnabled = true,
+            MinHeight = 18,
+        };
+        var panel = new DockPanel();
+        DockPanel.SetDock(value, Dock.Right);
+        panel.Children.Add(value);
+        panel.Children.Add(slider);
+        return (panel, value, slider);
+    }
+
+    // Goob's height and width: two sliders that pull each other within the species' size ratio,
+    // with centimetres and weight as its lobby shows them.
+    private void AddHeightAndWidth(Core.Editing.EditorSession session, SpeciesInfo species, Core.Profiles.CharacterFile file)
+    {
+        var height = Core.Profiles.CharacterSize.Height(file, session.Fork!, species);
+        var width = Core.Profiles.CharacterSize.Width(file, session.Fork!, species);
+        var (heightPanel, heightValue, heightSlider) = SizeSlider(species.MinHeight, species.MaxHeight, height);
+        var (widthPanel, widthValue, widthSlider) = SizeSlider(species.MinWidth, species.MaxWidth, width);
+        var heightNote = new TextBlock { Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap };
+        var widthNote = new TextBlock { Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap };
+        void Describe(float h, float w)
+        {
+            var (cm, shoulders) = Core.Profiles.CharacterSize.Centimetres(species, h, w);
+            heightNote.Text = $"{cm} cm, {Core.Profiles.CharacterSize.Kilograms(species, h, w)} kg; {species.MinHeight:0.00} to {species.MaxHeight:0.00}";
+            widthNote.Text = $"{shoulders} cm across the shoulders; {species.MinWidth:0.00} to {species.MaxWidth:0.00}";
+        }
+        Describe(height, width);
+
+        // Moving one slider can pull the other, as in the lobby.
+        var updating = false;
+        void Moved(bool heightMoved)
+        {
+            if (updating)
+                return;
+            var (h, w) = Core.Profiles.CharacterSize.KeepRatio((float)Math.Round(heightSlider.Value, 2), (float)Math.Round(widthSlider.Value, 2), species, heightMoved);
+            updating = true;
+            heightSlider.Value = h;
+            widthSlider.Value = w;
+            updating = false;
+            heightValue.Text = h.ToString("0.00");
+            widthValue.Text = w.ToString("0.00");
+            Describe(h, w);
+            Apply(s => heightMoved ? s.SetHeight(h) : s.SetWidth(w), keepInspector: true);
+        }
+        heightSlider.ValueChanged += (_, _) => Moved(heightMoved: true);
+        widthSlider.ValueChanged += (_, _) => Moved(heightMoved: false);
+
+        var heightStack = new StackPanel();
+        heightStack.Children.Add(heightPanel);
+        heightStack.Children.Add(heightNote);
+        AddRow("Height", heightStack);
+        var widthStack = new StackPanel();
+        widthStack.Children.Add(widthPanel);
+        widthStack.Children.Add(widthNote);
+        AddRow("Width", widthStack);
+        var reset = new Button { Classes = { "small" }, Content = "Default size", HorizontalAlignment = HorizontalAlignment.Left };
+        ToolTip.SetTip(reset, $"{species.DefaultHeight:0.00} high, {species.DefaultWidth:0.00} wide, as the lobby's reset buttons give");
+        reset.Click += (_, _) => Apply(s =>
+        {
+            s.SetHeight(species.DefaultHeight);
+            return s.SetWidth(species.DefaultWidth);
+        });
+        AddRow("", reset);
     }
 }

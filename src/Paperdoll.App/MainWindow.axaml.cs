@@ -311,6 +311,7 @@ public partial class MainWindow : Window
             (Core.Characters.RandomParts.Skin, "Skin colour"),
             (Core.Characters.RandomParts.Eyes, "Eye colour"),
             (Core.Characters.RandomParts.Markings, "Markings, hair included"),
+            (Core.Characters.RandomParts.Size, "Height and width (Goob)"),
         ];
         foreach (var (part, label) in parts)
         {

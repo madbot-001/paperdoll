@@ -20,7 +20,8 @@ public enum RandomParts
     Eyes = 32,
     Skin = 64,
     Markings = 128,
-    All = Name | Species | Age | Sex | Pronouns | Eyes | Skin | Markings,
+    Size = 256,
+    All = Name | Species | Age | Sex | Pronouns | Eyes | Skin | Markings | Size,
 }
 
 /// <summary>
@@ -43,6 +44,11 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
     public string Sex(SpeciesInfo species) => species.Sexes[random.Next(species.Sexes.Count)];
 
     public static string PronounsFor(string sex) => sex switch { "Male" => "Male", "Female" => "Female", _ => "Epicene" };
+
+    /// <summary>Height and width, each anywhere in the species' range (Goob).</summary>
+    public (float Height, float Width) Size(SpeciesInfo species) =>
+        (species.MinHeight + random.NextSingle() * (species.MaxHeight - species.MinHeight),
+         species.MinWidth + random.NextSingle() * (species.MaxWidth - species.MinWidth));
 
     /// <summary>From the youngest age up to, but not including, the species' old age.</summary>
     public int Age(SpeciesInfo species) => species.OldAge > species.MinAge ? random.Next(species.MinAge, species.OldAge) : species.MinAge;

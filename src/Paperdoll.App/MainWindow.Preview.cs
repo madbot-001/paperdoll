@@ -154,7 +154,7 @@ public partial class MainWindow
             {
                 var look = LookDefaults.Create(catalog, species.Id, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000"));
                 using var sprite = _session.Renderer!.Render(look);
-                var scale = Core.Profiles.CharacterSize.HasHeight(_session.Fork!) ? species.BaseScale : (1f, 1f);
+                var scale = Core.Profiles.CharacterSize.DefaultScale(_session.Fork!, species);
                 using var canvas = FloorCanvas.Compose(36, 36, 1, sprite, scale);
                 _portraits[species.Id] = FloorCanvas.ToAvalonia(canvas);
             }
