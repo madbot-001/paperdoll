@@ -1,0 +1,47 @@
+using Paperdoll.Core.Editing;
+using Paperdoll.Core.Forks;
+using Paperdoll.Core.Profiles;
+using Paperdoll.Core.Rendering;
+
+namespace Paperdoll.Core.Tests;
+
+public sealed class EditorSessionTests : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("paperdoll-session-").FullName;
+
+    public void Dispose()
+    {
+        foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
+            File.SetAttributes(file, FileAttributes.Normal);
+        Directory.Delete(_root, recursive: true);
+    }
+
+    [Fact]
+    public async Task A_delta_v_character_can_be_made_edited_and_exported()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("PAPERDOLL_NETWORK_TESTS") == "1",
+            "Set PAPERDOLL_NETWORK_TESTS=1 to run tests that use the network.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var session = await EditorSession.OpenAsync(_root, ct);
+
+        await session.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
+        session.Edit(f => f.Name = "urist mchands");
+        session.ChangeSpecies("Harpy");
+        var head = session.Content!.Characters.Species["Harpy"].Organs.First(o => o.MarkingLayers.Contains("Hair"));
+        var hair = session.AvailableMarkings(head, "Hair").First();
+        session.AddMarking(head.Category, "Hair", hair.Id);
+        session.SetMarkingColor(head.Category, "Hair", 0, 0, Rgba.Parse("#123456"));
+
+        var exported = CharacterFile.Parse(session.Export());
+        var look = exported.ReadLook(session.Content.Characters);
+
+        Assert.Equal("Urist Mchands", exported.Name);
+        Assert.Equal("Harpy", exported.Species);
+        Assert.Equal("delta-v", exported.ForkId);
+        Assert.Equal(hair.Id, look.Markings[head.Category]["Hair"][0].Id);
+        Assert.Equal(Rgba.Parse("#123456"), look.Markings[head.Category]["Hair"][0].Colors[0]);
+        Assert.NotEmpty(session.Credits());
+        using var image = session.Render();
+        Assert.True(image.Width >= 32);
+    }
+}
