@@ -326,3 +326,79 @@ public class CharacterSizeTests
         Assert.Equal("5", file.GetValue(CharacterSize.HeightKey));
     }
 }
+
+public class NameGeneratorTests
+{
+    private const string Yaml = """
+        - type: species
+          id: Lizard
+          name: species-name-lizard
+          roundStart: true
+          dollPrototype: Doll
+          naming: LastFirst
+          maleFirstNames: LizardFirst
+          femaleFirstNames: LizardFirst
+          lastNames: LizardLast
+        - type: species
+          id: Odd
+          name: species-name-odd
+          roundStart: true
+          dollPrototype: Doll
+          naming: SomethingNew
+          maleFirstNames: LizardFirst
+          femaleFirstNames: LizardFirst
+          lastNames: PlainLast
+        - type: entity
+          id: Doll
+        - type: localizedDataset
+          id: LizardFirst
+          values:
+            prefix: names-lizard-first-
+            count: 1
+        - type: localizedDataset
+          id: LizardLast
+          values:
+            prefix: names-lizard-last-
+            count: 1
+        - type: dataset
+          id: PlainLast
+          values: [ Stone ]
+        """;
+
+    private static (NameGenerator, CharacterCatalog) Build()
+    {
+        var index = PrototypeIndex.Load([new PrototypeSource("n.yml", Encoding.UTF8.GetBytes(Yaml))]);
+        var strings = new Locale.FluentStrings();
+        strings.Add("names-lizard-first-1 = Hisses\nnames-lizard-last-1 = Scales\nnamepreset-lastfirst = {$last} {$first}\nnamepreset-firstlast = {$first} {$last}\n");
+        return (new NameGenerator(index, strings, new Random(1)), CharacterCatalog.Build(index));
+    }
+
+    [Fact]
+    public void Uses_the_species_naming_pattern_and_datasets()
+    {
+        var (names, catalog) = Build();
+
+        Assert.Equal("Scales Hisses", names.Next(catalog.Species["Lizard"], "Male"));
+    }
+
+    [Fact]
+    public void Unknown_namings_fall_back_to_first_and_last_and_plain_datasets_work()
+    {
+        var (names, catalog) = Build();
+
+        Assert.Equal("Hisses Stone", names.Next(catalog.Species["Odd"], "Female"));
+    }
+
+    [Fact]
+    public void An_empty_name_gets_a_random_one_from_the_rules()
+    {
+        var (names, catalog) = Build();
+        var file = CharacterFile.Parse("forkId: x\nversion: 2\nprofile:\n  name: ''\n  species: Lizard\n  age: 30\n  sex: Male\n  gender: Male\n  appearance:\n    markings: {}\n");
+        var fork = new ForkInfo("t", "T", "o/r", "main", AppearanceModel.New, false, []);
+
+        var fixes = CharacterRules.EnsureValid(file, catalog, fork, names.Next);
+
+        Assert.Equal("Scales Hisses", file.Name);
+        Assert.Contains(fixes, f => f.Field == "name");
+    }
+}

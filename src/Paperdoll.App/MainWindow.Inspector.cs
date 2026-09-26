@@ -51,7 +51,14 @@ public partial class MainWindow
         AddCategory("Identity");
         var name = new TextBox { Text = file.Name ?? "", PlaceholderText = "Name (required in the game)" };
         CommitOnEnterOrLeave(name, text => Apply(s => s.Edit(f => f.Name = text)));
-        AddRow("Name", name);
+        var random = new Button { Classes = { "small" }, Content = "Random", Margin = new Thickness(4, 0, 2, 0) };
+        ToolTip.SetTip(random, "Pick a random name as the game does for this species");
+        random.Click += (_, _) => Apply(s => s.RandomizeName());
+        var nameRow = new DockPanel();
+        DockPanel.SetDock(random, Dock.Right);
+        nameRow.Children.Add(random);
+        nameRow.Children.Add(name);
+        AddRow("Name", nameRow);
 
         var speciesRow = new DockPanel();
         var change = new Button { Classes = { "small" }, Content = "Change...", Margin = new Thickness(4, 0, 2, 0) };

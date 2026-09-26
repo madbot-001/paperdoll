@@ -103,7 +103,7 @@ public sealed class EditorSession : IAsyncDisposable
         var catalog = RequireContent().Characters;
         var species = catalog.Species[speciesId];
         var file = CharacterFile.CreateNew(Fork!.ServerForkIds.FirstOrDefault() ?? Fork.Id);
-        file.Name = "";
+        file.Name = RandomName(species, "Epicene");
         file.Age = Math.Max(species.MinAge, Math.Min(species.YoungAge, species.MaxAge));
         file.Gender = "Epicene";
         file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")));
@@ -262,10 +262,18 @@ public sealed class EditorSession : IAsyncDisposable
             .ToList();
     }
 
+    /// <summary>A random name for the species and pronouns, as the game makes them.</summary>
+    public string RandomName(SpeciesInfo species, string? gender) =>
+        new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender);
+
+    /// <summary>Gives the character a new random name.</summary>
+    public IReadOnlyList<RuleFix> RandomizeName() => Edit(f =>
+        f.Name = RandomName(RequireContent().Characters.Species[Look!.Species], f.Gender));
+
     private void ApplyRules()
     {
         var file = RequireFile();
-        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!);
+        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName);
         Look = file.ReadLook(Content.Characters);
     }
 

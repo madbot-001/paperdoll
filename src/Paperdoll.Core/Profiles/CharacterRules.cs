@@ -28,7 +28,12 @@ public static partial class CharacterRules
     private static readonly string[] Genders = ["Epicene", "Female", "Male", "Neuter"];
 
     /// <summary>Applies the game's rules to the file in place and lists what changed.</summary>
-    public static IReadOnlyList<RuleFix> EnsureValid(CharacterFile file, CharacterCatalog catalog, ForkInfo fork)
+    /// <param name="randomName">
+    /// Makes a random name for a species and pronouns, used when the name is empty, as the game
+    /// does. Without it an empty name is only reported.
+    /// </param>
+    public static IReadOnlyList<RuleFix> EnsureValid(CharacterFile file, CharacterCatalog catalog, ForkInfo fork,
+        Func<SpeciesInfo, string?, string>? randomName = null)
     {
         var fixes = new List<RuleFix>();
 
@@ -68,7 +73,13 @@ public static partial class CharacterRules
         }
 
         var name = CheckName(file.Name ?? "", fork.NameRule);
-        if (name != (file.Name ?? ""))
+        if (name.Length == 0 && randomName != null)
+        {
+            name = CheckName(randomName(species, file.Gender), fork.NameRule);
+            fixes.Add(new("name", $"The name was empty or had no allowed characters; picked a random one, {name}."));
+            file.Name = name;
+        }
+        else if (name != (file.Name ?? ""))
         {
             fixes.Add(new("name", name.Length == 0
                 ? "The name is empty or has no allowed characters; the game will pick a random one."
