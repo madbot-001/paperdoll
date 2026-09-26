@@ -1,10 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Paperdoll.App.AboutWindow"
+        Icon="/Assets/icon.png"
         Title="About Paperdoll"
-        Width="420" Height="230" CanResize="False" WindowStartupLocation="CenterOwner">
+        Width="460" Height="250" CanResize="False" WindowStartupLocation="CenterOwner">
   <DockPanel Margin="10">
     <Button DockPanel.Dock="Bottom" Content="OK" Width="80" HorizontalAlignment="Right" Click="OnOk" />
+    <!-- The katashiro outline, as in Assets/katashiro.svg. -->
+    <Path DockPanel.Dock="Left" Width="64" Height="64" Margin="0,2,14,0" VerticalAlignment="Top" Stretch="None"
+          Stroke="{StaticResource TextBrush}" StrokeThickness="2.5" StrokeJoin="Round"
+          Data="M29 17.9 A7.5 7.5 0 1 1 35 17.9 L35 21 L53 24 L53 31 L41 29 L44 60 L35 60 L32 55 L29 60 L20 60 L23 29 L11 31 L11 24 L29 21 Z" />
     <StackPanel Spacing="6">
       <TextBlock Text="Paperdoll" FontWeight="Bold" FontSize="14" />
       <TextBlock TextWrapping="Wrap" Text="A character editor for Space Station 14. Make and edit characters without joining a server, and export them for the lobby's Import button." />

@@ -1,3 +1,5 @@
+<img src="src/Paperdoll.App/Assets/icon.svg" width="72" alt="">
+
 # Paperdoll
 
 A character editor for Space Station 14 that runs on your own computer. Make and edit characters

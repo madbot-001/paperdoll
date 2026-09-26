@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="Assets\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Paperdoll.Core\Paperdoll.Core.csproj" />
   </ItemGroup>
 </Project>

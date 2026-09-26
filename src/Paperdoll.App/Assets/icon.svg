@@ -1,0 +1,5 @@
+<!-- The window icon: the logo's katashiro as white paper with a dark outline, readable on light and
+     dark taskbars. icon.png is made from it with: rsvg-convert -w 256 -h 256 icon.svg -o icon.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path d="M29 17.9 A7.5 7.5 0 1 1 35 17.9 L35 21 L53 24 L53 31 L41 29 L44 60 L35 60 L32 55 L29 60 L20 60 L23 29 L11 31 L11 24 L29 21 Z" fill="#FBFAF6" stroke="#2B3036" stroke-width="4" stroke-linejoin="round"/>
+</svg>
