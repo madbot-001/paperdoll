@@ -26,6 +26,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         SetUpPreview();
         SetUpTables();
+        _settle.Tick += (_, _) =>
+        {
+            _settle.Stop();
+            RefreshAll(keepInspector: true);
+        };
         _liveColor = (color, apply) =>
         {
             _keepInspector = true;
@@ -133,14 +138,25 @@ public partial class MainWindow : Window
         _refreshing = false;
     }
 
-    /// <summary>Redraws every pane from the session. The inspector is kept while a control in it is being dragged.</summary>
-    private void RefreshAll(bool keepInspector = false)
+    /// <summary>
+    /// Redraws every pane from the session. The inspector is kept while a control in it is being
+    /// dragged; then only the preview follows, and the other panes catch up once the dragging stops.
+    /// </summary>
+    private void RefreshAll(bool keepInspector = false, bool previewOnly = false)
     {
         if (_session?.Content == null || _session.Look == null)
             return;
         _refreshing = true;
         try
         {
+            if (previewOnly)
+            {
+                RefreshPreview();
+                _settle.Stop();
+                _settle.Start();
+                return;
+            }
+            _settle.Stop();
             BuildExplorer();
             if (!keepInspector)
                 BuildInspector();
@@ -159,6 +175,9 @@ public partial class MainWindow : Window
 
     private bool _keepInspector;
 
+    // Fires once dragging has paused, to refresh what a live change skipped.
+    private readonly Avalonia.Threading.DispatcherTimer _settle = new() { Interval = TimeSpan.FromMilliseconds(250) };
+
     /// <summary>Runs an edit through the session and shows the result, or the error.</summary>
     private void Apply(Func<EditorSession, IReadOnlyList<RuleFix>> edit, bool keepInspector = false)
     {
@@ -167,7 +186,8 @@ public partial class MainWindow : Window
         try
         {
             var fixes = edit(_session);
-            RefreshAll(keepInspector || _keepInspector);
+            var live = keepInspector || _keepInspector;
+            RefreshAll(live, previewOnly: live);
             if (fixes.Count > 0)
                 SetStatus(fixes[^1].Message);
         }

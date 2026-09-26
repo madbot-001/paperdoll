@@ -50,6 +50,36 @@ public sealed class PaperdollRenderer
 {
     private const string LayerPrefix = "enum.HumanoidVisualLayers.";
     private readonly Dictionary<string, RsiMeta?> _metas = new(StringComparer.Ordinal);
+
+    // Decoded frames, and frames reshaped by a displacement map, kept so each is only made once.
+    private readonly Dictionary<(string Rsi, string State, Direction Direction), Pixels?> _frames = new();
+    private readonly Dictionary<(SpriteRef Sprite, SpriteRef Map, Direction Direction), Pixels?> _displaced = new();
+
+    /// <summary>A frame's pixels, row by row, with straight (not premultiplied) alpha.</summary>
+    private sealed record Pixels(int Width, int Height, SKColor[] Data)
+    {
+        public static Pixels From(SKBitmap bitmap)
+        {
+            var data = new SKColor[bitmap.Width * bitmap.Height];
+            for (var y = 0; y < bitmap.Height; y++)
+            {
+                for (var x = 0; x < bitmap.Width; x++)
+                    data[y * bitmap.Width + x] = bitmap.GetPixel(x, y);
+            }
+            return new Pixels(bitmap.Width, bitmap.Height, data);
+        }
+
+        public SKBitmap ToBitmap()
+        {
+            var bitmap = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+            for (var y = 0; y < Height; y++)
+            {
+                for (var x = 0; x < Width; x++)
+                    bitmap.SetPixel(x, y, Data[y * Width + x]);
+            }
+            return bitmap;
+        }
+    }
     private readonly CharacterCatalog catalog;
     private readonly PrototypeIndex prototypes;
     private readonly ITextureSource textures;
@@ -157,25 +187,20 @@ public sealed class PaperdollRenderer
     /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
     public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null)
     {
-        var frames = new List<(SKBitmap Frame, Rgba Color)>();
+        var frames = new List<(Pixels Frame, Rgba Color)>();
         foreach (var layer in Layers(look, outfit))
         {
             if (LoadFrame(layer.Sprite, direction) is not { } frame)
                 continue;
-            if (layer.Displacement?.For(frame.Width) is { } map && LoadFrame(map, direction) is { } displacement)
-            {
-                var displaced = Displace(frame, displacement);
-                frame.Dispose();
-                displacement.Dispose();
-                frame = displaced;
-            }
+            if (layer.Displacement?.For(frame.Width) is { } map)
+                frame = Displaced(layer.Sprite, frame, map, direction) ?? frame;
             frames.Add((frame, layer.Color));
         }
 
         var width = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Width);
         var height = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Height);
-        var result = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
-        result.Erase(SKColors.Transparent);
+        var result = new Pixels(width, height, new SKColor[width * height]);
+        Array.Fill(result.Data, SKColors.Transparent);
 
         foreach (var (frame, color) in frames)
         {
@@ -184,11 +209,13 @@ public sealed class PaperdollRenderer
             for (var y = 0; y < frame.Height; y++)
             {
                 for (var x = 0; x < frame.Width; x++)
-                    result.SetPixel(x + offsetX, y + offsetY, Over(Tint(frame.GetPixel(x, y), color), result.GetPixel(x + offsetX, y + offsetY)));
+                {
+                    var i = (y + offsetY) * width + x + offsetX;
+                    result.Data[i] = Over(Tint(frame.Data[y * frame.Width + x], color), result.Data[i]);
+                }
             }
-            frame.Dispose();
         }
-        return result;
+        return result.ToBitmap();
     }
 
     /// <summary>The RSI's meta.json, read once, or null if the fork does not have it.</summary>
@@ -300,35 +327,55 @@ public sealed class PaperdollRenderer
     private static int FindSlot(List<Slot> slots, string layer) =>
         slots.FindIndex(s => s.Keys.Contains(LayerPrefix + layer));
 
-    private SKBitmap? LoadFrame(SpriteRef sprite, Direction direction)
+    private Pixels? LoadFrame(SpriteRef sprite, Direction direction)
     {
-        if (sprite.State == null || Meta(sprite.Rsi) is not { } meta || !meta.States.TryGetValue(sprite.State, out var state))
+        if (sprite.State == null)
             return null;
-        var png = textures.Read($"{sprite.Rsi}/{sprite.State}.png");
-        return png == null ? null : meta.Frame(state, png, direction);
+        var key = (sprite.Rsi, sprite.State, direction);
+        if (_frames.TryGetValue(key, out var cached))
+            return cached;
+        Pixels? pixels = null;
+        if (Meta(sprite.Rsi) is { } meta && meta.States.TryGetValue(sprite.State, out var state)
+            && textures.Read($"{sprite.Rsi}/{sprite.State}.png") is { } png)
+        {
+            using var frame = meta.Frame(state, png, direction);
+            if (frame != null)
+                pixels = Pixels.From(frame);
+        }
+        return _frames[key] = pixels;
+    }
+
+    private Pixels? Displaced(SpriteRef sprite, Pixels frame, SpriteRef map, Direction direction)
+    {
+        var key = (sprite, map, direction);
+        if (_displaced.TryGetValue(key, out var cached))
+            return cached;
+        return _displaced[key] = LoadFrame(map, direction) is { } mapPixels ? Displace(frame, mapPixels) : null;
     }
 
     /// <summary>
     /// Reshapes a frame as the game's displacement shader does: each output pixel takes the source
     /// pixel moved by the map's (red - 128, green - 128), with the map's alpha as a mask.
     /// </summary>
-    public static SKBitmap Displace(SKBitmap frame, SKBitmap map)
+    public static SKBitmap Displace(SKBitmap frame, SKBitmap map) => Displace(Pixels.From(frame), Pixels.From(map)).ToBitmap();
+
+    private static Pixels Displace(Pixels frame, Pixels map)
     {
-        var result = new SKBitmap(new SKImageInfo(frame.Width, frame.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        var result = new Pixels(frame.Width, frame.Height, new SKColor[frame.Width * frame.Height]);
         for (var y = 0; y < frame.Height; y++)
         {
             for (var x = 0; x < frame.Width; x++)
             {
                 if (x >= map.Width || y >= map.Height)
                 {
-                    result.SetPixel(x, y, SKColors.Transparent);
+                    result.Data[y * frame.Width + x] = SKColors.Transparent;
                     continue;
                 }
-                var d = map.GetPixel(x, y);
+                var d = map.Data[y * map.Width + x];
                 var sx = x + d.Red - 128;
                 var sy = y + d.Green - 128;
-                var source = sx >= 0 && sy >= 0 && sx < frame.Width && sy < frame.Height ? frame.GetPixel(sx, sy) : SKColors.Transparent;
-                result.SetPixel(x, y, source.WithAlpha((byte)Math.Round(source.Alpha * (d.Alpha / 255f))));
+                var source = sx >= 0 && sy >= 0 && sx < frame.Width && sy < frame.Height ? frame.Data[sy * frame.Width + sx] : SKColors.Transparent;
+                result.Data[y * frame.Width + x] = source.WithAlpha((byte)Math.Round(source.Alpha * (d.Alpha / 255f)));
             }
         }
         return result;
