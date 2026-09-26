@@ -9,7 +9,9 @@
       <MenuItem Header="_File">
         <MenuItem Header="_New Character" Click="OnNew" InputGesture="Ctrl+N" HotKey="Ctrl+N" />
         <MenuItem Header="_Open..." Click="OnOpen" InputGesture="Ctrl+O" HotKey="Ctrl+O" />
+        <MenuItem Header="_Save" Click="OnSave" InputGesture="Ctrl+S" HotKey="Ctrl+S" />
         <MenuItem Header="_Export..." Click="OnExport" InputGesture="Ctrl+E" HotKey="Ctrl+E" />
+        <MenuItem Name="AutosaveItem" Header="_Autosave" ToggleType="CheckBox" IsChecked="True" />
         <Separator />
         <MenuItem Header="E_xit" Click="OnExit" />
       </MenuItem>

@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         SetUpPreview();
         SetUpTables();
+        SetUpFiles();
         _settle.Tick += (_, _) =>
         {
             _settle.Stop();
@@ -69,6 +70,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            LoadSettings();
             SetStatus("Opening the fork store");
             _session = await Task.Run(() => EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE")));
             var statuses = await _session.ForkStatusesAsync();
@@ -76,11 +78,18 @@ public partial class MainWindow : Window
 
             // PAPERDOLL_START_FORK names a fork to open at start, downloading it if needed.
             var start = Environment.GetEnvironmentVariable("PAPERDOLL_START_FORK") is { } id ? KnownForks.Find(id) : null;
+            // Otherwise the fork the autosaved character was made for, if it is downloaded.
+            if (start == null && _settings.Autosave && AutosaveForkId() is { } savedFork && KnownForks.FindByServerForkId(savedFork) is { } forFile
+                && statuses.Any(s => s.Downloaded && s.Editable && s.Fork.Id == forFile.Id))
+                start = forFile;
             start ??= statuses.FirstOrDefault(s => s.Downloaded && s.Editable && s.Fork.Id == "deltav")?.Fork
                 ?? statuses.FirstOrDefault(s => s.Downloaded && s.Editable)?.Fork;
 
             if (start != null)
+            {
                 await LoadForkAsync(start, update: false);
+                await RestoreAutosaveAsync();
+            }
             else
             {
                 SetStatus("No fork downloaded yet. Choose Fork > Forks... to download one.");
@@ -169,6 +178,7 @@ public partial class MainWindow : Window
             RefreshPreview();
             RefreshTables();
 
+            UpdateTitle();
             StatusFork.Text = $"{_session.Fork!.Name} {_session.Content.Commit[..8]} via {_session.StoreKind}";
             StatusCounts.Text = $"{_session.Selectable().Count} species, {_session.Content.Characters.Markings.Count} markings";
         }
@@ -191,6 +201,7 @@ public partial class MainWindow : Window
         try
         {
             var fixes = edit(_session);
+            MarkChanged();
             var live = keepInspector || _keepInspector;
             RefreshAll(live, previewOnly: live);
             if (fixes.Count > 0)
@@ -234,6 +245,7 @@ public partial class MainWindow : Window
         if (_session?.Look == null)
             return;
         _selected = new Node(NodeKind.Character);
+        _currentFile = null;
         Apply(s =>
         {
             s.NewCharacter(s.Look!.Species);
