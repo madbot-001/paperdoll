@@ -45,8 +45,10 @@ internal static class LoadoutRules
                 WriteCustomizationFields(role);
         }
 
+        // The same change in several jobs is listed once, with how many.
+        var listed = notes.GroupBy(n => n, StringComparer.Ordinal).Select(g => g.Count() == 1 ? g.Key : $"{g.Key} ({g.Count()} jobs)");
         if (notes.Count > 0)
-            fixes.Add(new("loadouts", "Loadouts were fitted to the game's rules: " + string.Join("; ", notes) + "."));
+            fixes.Add(new("loadouts", "Loadouts were fitted to the game's rules: " + string.Join("; ", listed) + "."));
     }
 
     // Only roles that allow it keep a name. As in the game, only a name over the length is trimmed
