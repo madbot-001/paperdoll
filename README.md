@@ -14,8 +14,7 @@ the lobby's character editor imports.
 - **Uses the game's own format.** Export a character here, then use **Import** in the lobby editor.
 
 Status: early. Delta-V and upstream (and other forks on the new appearance model) can be
-downloaded, drawn facing any way, edited and exported. See [docs/PLAN.md](docs/PLAN.md) and
-[docs/RESEARCH.md](docs/RESEARCH.md).
+downloaded, drawn facing any way, edited and exported.
 
 The first start opens Fork > Forks: pick a fork and press Download. Fork files are kept in
 your local application data folder (`~/.local/share/Paperdoll/store` on Linux), about 10 to 30 MB
@@ -42,7 +41,6 @@ dotnet run --project src/Paperdoll.App
   download from GitHub run only with `PAPERDOLL_NETWORK_TESTS=1`.
 - `tests/Paperdoll.App.Tests`: a headless screenshot of the window, taken when
   `PAPERDOLL_SCREENSHOT_OUT` names a folder.
-- `docs/`: the plan and research notes.
 
 ## Licence
 

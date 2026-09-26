@@ -1,6 +1,6 @@
 namespace Paperdoll.Core.Forks;
 
-/// <summary>How a fork stores a character's appearance. See docs/FORKS.md.</summary>
+/// <summary>How a fork stores a character's appearance.</summary>
 public enum AppearanceModel
 {
     /// <summary>Hair and facial hair in their own fields, markings in one flat list.</summary>

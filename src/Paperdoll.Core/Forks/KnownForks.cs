@@ -1,7 +1,7 @@
 namespace Paperdoll.Core.Forks;
 
 /// <summary>
-/// The public, English-language forks surveyed on 2026-09-25 (docs/FORKS.md).
+/// Public, English-language forks, as of 2026-09-25.
 /// </summary>
 public static class KnownForks
 {
