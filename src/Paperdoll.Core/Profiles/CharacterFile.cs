@@ -176,6 +176,12 @@ public sealed class CharacterFile
 
     public string? Name { get => Scalar(Profile, "name"); set => SetScalar(Profile, "name", value); }
     public string? FlavorText { get => Scalar(Profile, "flavorText"); set => SetScalar(Profile, "flavorText", value); }
+
+    /// <summary>Where the character spawns when joining mid-round: None, Arrivals or Cryosleep.</summary>
+    public string? SpawnPriority { get => Scalar(Profile, "spawnPriority"); set => SetScalar(Profile, "spawnPriority", value); }
+
+    /// <summary>What happens when none of the character's jobs are free: StayInLobby or SpawnAsOverflow.</summary>
+    public string? PreferenceUnavailable { get => Scalar(Profile, "preferenceUnavailable"); set => SetScalar(Profile, "preferenceUnavailable", value); }
     public string? Species { get => Scalar(Profile, "species"); set => SetScalar(Profile, "species", value); }
     public string? Sex { get => Scalar(Profile, "sex"); set => SetScalar(Profile, "sex", value); }
     public string? Gender { get => Scalar(Profile, "gender"); set => SetScalar(Profile, "gender", value); }

@@ -27,6 +27,9 @@ public static partial class CharacterRules
     private static readonly string[] Sexes = ["Male", "Female", "Unsexed"];
     private static readonly string[] Genders = ["Epicene", "Female", "Male", "Neuter"];
 
+    /// <summary>Where a character can ask to spawn mid-round (<c>SpawnPriorityPreference</c>).</summary>
+    public static readonly string[] SpawnPriorities = ["None", "Arrivals", "Cryosleep"];
+
     /// <summary>The voice a profile has when none is saved (<c>HumanoidCharacterProfile.DefaultVoice</c>).</summary>
     public const string DefaultVoice = "MaleHuman";
 
@@ -109,6 +112,24 @@ public static partial class CharacterRules
                 : $"Names are at most {MaxNameLength} characters, may use {fork.NameRule.Description}, and start words with capitals."));
             file.Name = name;
         }
+
+        // Spawn choices: a missing value takes the game's default, an unknown one its fallback.
+        var spawn = file.SpawnPriority ?? "None";
+        if (!SpawnPriorities.Contains(spawn))
+        {
+            fixes.Add(new("spawnPriority", $"Unknown spawn priority {spawn}; set to None."));
+            spawn = "None";
+        }
+        if (spawn != file.SpawnPriority)
+            file.SpawnPriority = spawn;
+        var unavailable = file.PreferenceUnavailable ?? "SpawnAsOverflow";
+        if (unavailable is not ("StayInLobby" or "SpawnAsOverflow"))
+        {
+            fixes.Add(new("preferenceUnavailable", $"Unknown choice for when no job is free ({unavailable}); set to StayInLobby."));
+            unavailable = "StayInLobby";
+        }
+        if (unavailable != file.PreferenceUnavailable)
+            file.PreferenceUnavailable = unavailable;
 
         var flavor = file.FlavorText ?? "";
         var cleanFlavor = RemoveMarkup(flavor);

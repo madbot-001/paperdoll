@@ -191,6 +191,25 @@ public class CharacterFileTests
     }
 
     [Fact]
+    public void Spawn_choices_take_the_game_defaults_and_fallbacks()
+    {
+        var missing = CharacterFile.Parse(OldFile);
+        CharacterRules.EnsureValid(missing, Catalog, Fork);
+        Assert.Equal("None", missing.SpawnPriority);
+        Assert.Equal("SpawnAsOverflow", missing.PreferenceUnavailable);
+
+        var odd = CharacterFile.Parse(OldFile.Replace("  sex: Male", "  sex: Male\n  spawnPriority: Moon\n  preferenceUnavailable: Sulk"));
+        var fixes = CharacterRules.EnsureValid(odd, Catalog, Fork);
+        Assert.Equal("None", odd.SpawnPriority);
+        Assert.Equal("StayInLobby", odd.PreferenceUnavailable);
+        Assert.Contains(fixes, f => f.Field == "spawnPriority");
+
+        var kept = CharacterFile.Parse(OldFile.Replace("  sex: Male", "  sex: Male\n  spawnPriority: Cryosleep"));
+        CharacterRules.EnsureValid(kept, Catalog, Fork);
+        Assert.Equal("Cryosleep", kept.SpawnPriority);
+    }
+
+    [Fact]
     public void Organs_that_take_markings_are_written_even_when_empty()
     {
         var file = CharacterFile.Parse(OldFile.Replace("hair: HairShort", "hair: HairNone").Replace("facialHair: Beard", "facialHair: None"));

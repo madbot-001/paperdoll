@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Paperdoll.Core.Characters;
+using Paperdoll.Core.Profiles;
 using Paperdoll.Core.Rendering;
 
 namespace Paperdoll.App;
@@ -196,6 +197,39 @@ public partial class MainWindow
         else
             AddRow("Skin", ColorField(look.SkinColor, color => Apply(s => s.SetSkin(color))), $"{species.SkinColoration}: nearest allowed colour is used");
         AddRow("Eyes", ColorField(look.EyeColor, color => Apply(s => s.SetEyes(color))));
+
+        AddCategory("Round start");
+        var spawnLabels = CharacterRules.SpawnPriorities
+            .Select(p => session.Content!.Strings[$"humanoid-profile-editor-preference-spawn-priority-{p.ToLowerInvariant()}"] ?? p).ToList();
+        var spawn = new ComboBox
+        {
+            ItemsSource = spawnLabels,
+            SelectedIndex = Array.IndexOf(CharacterRules.SpawnPriorities, file.SpawnPriority ?? "None"),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        spawn.SelectionChanged += (_, _) =>
+        {
+            if (spawn.SelectedIndex >= 0 && CharacterRules.SpawnPriorities[spawn.SelectedIndex] != session.File?.SpawnPriority)
+                Apply(s => s.Edit(f => f.SpawnPriority = CharacterRules.SpawnPriorities[spawn.SelectedIndex]));
+        };
+        AddRow("Spawn priority", spawn, "Where you arrive when joining mid-round.");
+
+        var overflow = session.Content!.Outfits.Jobs.TryGetValue(Core.Outfits.OutfitCatalog.FallbackJob, out var overflowJob)
+            ? session.Content.Strings[overflowJob.NameKey] ?? overflowJob.Id
+            : Core.Outfits.OutfitCatalog.FallbackJob;
+        string[] unavailableValues = ["SpawnAsOverflow", "StayInLobby"];
+        var unavailable = new ComboBox
+        {
+            ItemsSource = new[] { $"Join as {overflow}", "Stay in the lobby" },
+            SelectedIndex = Array.IndexOf(unavailableValues, file.PreferenceUnavailable ?? "SpawnAsOverflow"),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        unavailable.SelectionChanged += (_, _) =>
+        {
+            if (unavailable.SelectedIndex >= 0 && unavailableValues[unavailable.SelectedIndex] != session.File?.PreferenceUnavailable)
+                Apply(s => s.Edit(f => f.PreferenceUnavailable = unavailableValues[unavailable.SelectedIndex]));
+        };
+        AddRow("No job free", unavailable, "When none of your chosen jobs has room at round start.");
 
         AddCategory("Description");
         var description = new TextBox
