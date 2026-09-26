@@ -14,6 +14,7 @@
         <MenuItem Header="_Randomise" Click="OnRandom" InputGesture="Ctrl+R" HotKey="Ctrl+R" />
         <MenuItem Header="_Export..." Click="OnExport" InputGesture="Ctrl+E" HotKey="Ctrl+E" />
         <MenuItem Name="AutosaveItem" Header="_Autosave" ToggleType="CheckBox" IsChecked="True" />
+        <MenuItem Header="Files on this _computer..." Click="OnFiles" />
         <Separator />
         <MenuItem Header="E_xit" Click="OnExit" />
       </MenuItem>

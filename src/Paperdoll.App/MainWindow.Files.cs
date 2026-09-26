@@ -158,6 +158,16 @@ public partial class MainWindow
         Title = $"{name}{(_dirty ? " *" : "")} - Paperdoll";
     }
 
+    private async void OnFiles(object? sender, RoutedEventArgs e) => await ShowFilesAsync(this);
+
+    /// <summary>Where Paperdoll keeps its files; also opened from the Forks window.</summary>
+    internal async Task ShowFilesAsync(Window owner)
+    {
+        if (_session == null)
+            return;
+        await new FilesWindow(_session, AutosavePath, SettingsPath, () => _autosave.Stop()).ShowDialog(owner);
+    }
+
     private void OnAutosaveToggled()
     {
         _settings = _settings with { Autosave = AutosaveItem.IsChecked };

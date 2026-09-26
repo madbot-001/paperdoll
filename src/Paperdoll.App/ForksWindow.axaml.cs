@@ -19,9 +19,12 @@ public partial class ForksWindow : Window
         InitializeComponent();
     }
 
-    public ForksWindow(EditorSession session) : this()
+    private readonly Func<Window, Task>? _showFiles;
+
+    public ForksWindow(EditorSession session, Func<Window, Task>? showFiles = null) : this()
     {
         _session = session;
+        _showFiles = showFiles;
         Opened += async (_, _) => await RefreshAsync();
     }
 
@@ -78,6 +81,12 @@ public partial class ForksWindow : Window
         await _session.RemoveForkAsync(row.Fork);
         await RefreshAsync();
         StatusText.Text = $"Removed {row.Fork.Name}.";
+    }
+
+    private async void OnFiles(object? sender, RoutedEventArgs e)
+    {
+        if (_showFiles != null)
+            await _showFiles(this);
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close(null);

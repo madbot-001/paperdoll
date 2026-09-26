@@ -106,6 +106,31 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Cleaning_up_drops_an_older_versions_files()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "one", ["Resources/Prototypes/b.yml"] = "same" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        var old = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", old, ct);
+
+        source.Commit(new() { ["Resources/Prototypes/a.yml"] = "two", ["Resources/Prototypes/b.yml"] = "same" });
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        var current = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", current, ct);
+        await store.CleanUpAsync(ct);
+
+        var oldA = old.Single(e => e.Path == "Resources/Prototypes/a.yml").ObjectId;
+        Assert.Equal([oldA], await store.MissingAsync(old.Concat(current).Select(e => e.ObjectId), ct));
+        // The store still works: current files read, and dropped ones can be fetched again.
+        await using (var reader = store.OpenReader())
+            Assert.Equal("two", Encoding.UTF8.GetString((await reader.ReadAsync(current.Single(e => e.Path == "Resources/Prototypes/a.yml").ObjectId, ct))!));
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        Assert.Empty(await store.MissingAsync(current.Select(e => e.ObjectId), ct));
+    }
+
+    [Fact]
     public async Task Removing_a_fork_forgets_it()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -133,4 +133,36 @@ public sealed class GitForkStore : IForkStore
 
         await _git.RunAsync(["gc", "--quiet", "--prune=now"], ct: ct);
     }
+
+    // Updating a fork leaves its old commit and files behind. Everything fetched here sits in
+    // promisor packs, which gc keeps whether or not anything uses them, so repack by hand: pack
+    // what the current refs reach into one new promisor pack, then drop the old packs.
+    public async Task<long> CleanUpAsync(CancellationToken ct = default)
+    {
+        var before = StoreSize.Of(Directory);
+        await _git.RunAsync(["reflog", "expire", "--expire=now", "--all"], ct: ct);
+
+        var reachable = await _git.RunTextAsync(["rev-list", "--objects", "--all", "--missing=allow-promisor"], ct: ct);
+        if (reachable.Length == 0)
+            return 0;
+        var packDir = Path.Combine(Directory, "objects", "pack");
+        var name = (await _git.RunTextAsync(["pack-objects", "--quiet", Path.Combine(packDir, "pack")], reachable, ct)).Trim();
+        if (name.Length == 0 || !File.Exists(Path.Combine(packDir, $"pack-{name}.pack")))
+            throw new InvalidOperationException("git did not write the new pack; nothing was removed.");
+        await File.WriteAllTextAsync(Path.Combine(packDir, $"pack-{name}.promisor"), "", ct);
+
+        foreach (var file in System.IO.Directory.EnumerateFiles(packDir, "pack-*").ToList())
+        {
+            if (!Path.GetFileName(file).StartsWith($"pack-{name}.", StringComparison.Ordinal))
+                File.Delete(file);
+        }
+        // Indexes over the old packs would now point at missing files.
+        foreach (var stale in new[] { Path.Combine(packDir, "multi-pack-index"), Path.Combine(Directory, "objects", "info", "commit-graph") })
+            File.Delete(stale);
+        if (System.IO.Directory.Exists(Path.Combine(Directory, "objects", "info", "commit-graphs")))
+            System.IO.Directory.Delete(Path.Combine(Directory, "objects", "info", "commit-graphs"), recursive: true);
+        await _git.RunAsync(["prune", "--expire=now"], ct: ct);
+
+        return Math.Max(0, before - StoreSize.Of(Directory));
+    }
 }

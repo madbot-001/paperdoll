@@ -93,6 +93,18 @@ public sealed class EditorSession : IAsyncDisposable
 
     public Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default) => Store.RemoveAsync(fork.Id, ct);
 
+    /// <summary>Frees space old fork versions left behind. Returns the bytes freed.</summary>
+    public async Task<long> CleanUpStoreAsync(CancellationToken ct = default)
+    {
+        // Close the reader first; it is opened again when next needed.
+        if (_reader != null)
+        {
+            await _reader.DisposeAsync();
+            _reader = null;
+        }
+        return await Store.CleanUpAsync(ct);
+    }
+
     /// <summary>Species a player can pick on the loaded fork, by display name.</summary>
     public IReadOnlyList<SpeciesInfo> Selectable() =>
         Content == null ? [] : Content.Characters.Selectable(Fork!.HiddenSpecies).OrderBy(DisplayName, StringComparer.CurrentCulture).ToList();

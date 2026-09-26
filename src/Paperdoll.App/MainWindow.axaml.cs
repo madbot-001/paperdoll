@@ -234,7 +234,7 @@ public partial class MainWindow : Window
     {
         if (_session == null)
             return;
-        var choice = await new ForksWindow(_session).ShowDialog<ForkChoice?>(this);
+        var choice = await new ForksWindow(_session, ShowFilesAsync).ShowDialog<ForkChoice?>(this);
         await RefreshForkBoxAsync();
         if (choice != null)
             await LoadForkAsync(choice.Fork, choice.Update);

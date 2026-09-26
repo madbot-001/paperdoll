@@ -12,6 +12,8 @@
       <Button Name="OpenButton" Content="Open" Click="OnOpenFork" HorizontalAlignment="Stretch" />
       <Button Name="UpdateButton" Content="Update" Click="OnUpdateFork" HorizontalAlignment="Stretch" />
       <Button Name="RemoveButton" Content="Remove" Click="OnRemoveFork" HorizontalAlignment="Stretch" />
+      <Button Content="Files..." Click="OnFiles" HorizontalAlignment="Stretch" Margin="0,12,0,0"
+              ToolTip.Tip="Where downloads are kept, their size, and cleaning up after updates" />
       <Button Content="Close" Click="OnClose" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
     </StackPanel>
     <TextBlock DockPanel.Dock="Bottom" Name="StatusText" Classes="hint" Margin="0,6,0,0" />

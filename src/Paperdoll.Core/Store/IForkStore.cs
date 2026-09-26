@@ -35,6 +35,18 @@ public interface IForkStore
 
     /// <summary>Forgets a fork and frees the space of files no other fork uses.</summary>
     Task RemoveAsync(string forkId, CancellationToken ct = default);
+
+    /// <summary>Deletes what older versions of the forks left behind. Returns the bytes freed.</summary>
+    Task<long> CleanUpAsync(CancellationToken ct = default);
+}
+
+public static class StoreSize
+{
+    /// <summary>Total size of the files under a folder, 0 if it does not exist.</summary>
+    public static long Of(string directory) =>
+        System.IO.Directory.Exists(directory)
+            ? new DirectoryInfo(directory).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length)
+            : 0;
 }
 
 public interface IBlobReader : IAsyncDisposable

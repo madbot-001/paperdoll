@@ -27,7 +27,8 @@ dotnet run --project src/Paperdoll.App
 The first time, pick a fork under Fork > Forks and download it. Fork data goes in
 `~/.local/share/Paperdoll/store` on Linux (your local application data folder elsewhere), 10 to
 30 MB per fork. If you have git 2.45 or newer it's used; otherwise downloads go through the GitHub
-API, which allows 60 requests an hour.
+API, which allows 60 requests an hour. File > Files on this computer shows where Paperdoll keeps
+its files and how much room they take, and can clean up what old fork versions leave behind.
 
 ## Building and testing
 

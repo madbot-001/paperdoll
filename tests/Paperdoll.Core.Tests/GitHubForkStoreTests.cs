@@ -109,6 +109,29 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Cleaning_up_drops_what_an_older_version_used()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/x.png"] = "one", ["Resources/same.png"] = "same" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), ct);
+        var old = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", old, ct);
+        var oldTrees = Directory.GetFiles(Path.Combine(_root, "store", "trees")).Length;
+
+        _github.AddRepo("owner/a", new() { ["Resources/x.png"] = "two", ["Resources/same.png"] = "same" });
+        await store.SyncAsync(Fork("a"), ct);
+        var current = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", current, ct);
+        var freed = await store.CleanUpAsync(ct);
+
+        Assert.True(freed > 0);
+        var oldX = old.Single(e => e.Path == "Resources/x.png").ObjectId;
+        Assert.Equal([oldX], await store.MissingAsync(old.Concat(current).Select(e => e.ObjectId), ct));
+        Assert.Equal(oldTrees, Directory.GetFiles(Path.Combine(_root, "store", "trees")).Length);
+    }
+
+    [Fact]
     public async Task A_file_that_does_not_match_its_id_is_rejected()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -140,6 +163,8 @@ public sealed class GitHubForkStoreTests : IDisposable
     {
         private readonly Dictionary<string, Dictionary<string, byte[]>> _repos = [];
         private readonly Dictionary<string, (string Repo, string Folder)> _trees = [];
+        // Adding a repo again publishes a new version with its own commit and tree ids.
+        private readonly Dictionary<string, int> _versions = [];
 
         private int _apiRequests;
         private int _rawRequests;
@@ -152,15 +177,16 @@ public sealed class GitHubForkStoreTests : IDisposable
 
         public void AddRepo(string repo, Dictionary<string, string> files)
         {
+            _versions[repo] = _versions.GetValueOrDefault(repo) + 1;
             _repos[repo] = files.ToDictionary(f => f.Key, f => Encoding.UTF8.GetBytes(f.Value));
             _trees[CommitOf(repo)] = (repo, "");
             foreach (var folder in files.Keys.SelectMany(Parents).Distinct())
                 _trees[TreeId(repo, folder)] = (repo, folder);
         }
 
-        public string CommitOf(string repo) => Hash("commit " + repo);
+        public string CommitOf(string repo) => Hash($"commit {repo} {_versions.GetValueOrDefault(repo)}");
 
-        private static string TreeId(string repo, string folder) => Hash($"tree {repo} {folder}");
+        private string TreeId(string repo, string folder) => Hash($"tree {repo} {_versions.GetValueOrDefault(repo)} {folder}");
 
         private static string Hash(string text) => Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(text)));
 

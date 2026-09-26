@@ -64,6 +64,9 @@ public sealed class GitHubForkStore : IForkStore
         var commit = (await SendAsync(request, ct)).Trim();
 
         var record = await LoadForkAsync(fork.Id, ct) ?? new ForkRecord(fork.Repository, fork.Branch, commit, []);
+        // A new version starts its own lists, so clean-up can tell what the old one used.
+        if (record.Commit != commit)
+            record = record with { Objects = [], Trees = [] };
         await SaveForkAsync(fork.Id, record with { Repository = fork.Repository, Branch = fork.Branch, Commit = commit }, ct);
         return commit;
     }
@@ -83,6 +86,7 @@ public sealed class GitHubForkStore : IForkStore
             if (treeId != null)
                 await ListFolderAsync(fork, treeId, path, entries, ct);
         }
+        await SaveForkAsync(forkId, fork, ct);
         return entries;
     }
 
@@ -130,17 +134,42 @@ public sealed class GitHubForkStore : IForkStore
     public async Task RemoveAsync(string forkId, CancellationToken ct = default)
     {
         File.Delete(ForkPath(forkId));
+        await CleanUpAsync(ct);
+    }
 
-        var keep = new HashSet<string>(StringComparer.Ordinal);
+    // Keeps only the files and listings some fork's current version uses. A fork synced before
+    // listings were tracked keeps every listing.
+    public async Task<long> CleanUpAsync(CancellationToken ct = default)
+    {
+        var before = StoreSize.Of(Directory);
+        var keepObjects = new HashSet<string>(StringComparer.Ordinal);
+        var keepTrees = new HashSet<string>(StringComparer.Ordinal);
+        var keepAllTrees = false;
         foreach (var file in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json"))
-            keep.UnionWith((await LoadForkAsync(Path.GetFileNameWithoutExtension(file), ct))!.Objects);
+        {
+            var record = (await LoadForkAsync(Path.GetFileNameWithoutExtension(file), ct))!;
+            keepObjects.UnionWith(record.Objects);
+            if (record.Trees == null)
+                keepAllTrees = true;
+            else
+                keepTrees.UnionWith(record.Trees);
+        }
 
         foreach (var file in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "objects"), "*", SearchOption.AllDirectories))
         {
             var id = Path.GetFileName(Path.GetDirectoryName(file)) + Path.GetFileName(file);
-            if (!keep.Contains(id))
+            if (!keepObjects.Contains(id))
                 File.Delete(file);
         }
+        if (!keepAllTrees)
+        {
+            foreach (var file in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "trees"), "*.json"))
+            {
+                if (!keepTrees.Contains(Path.GetFileNameWithoutExtension(file)))
+                    File.Delete(file);
+            }
+        }
+        return Math.Max(0, before - StoreSize.Of(Directory));
     }
 
     /// <summary>The git object id of a file's contents: SHA-1 of "blob &lt;size&gt;\0" and the bytes.</summary>
@@ -198,7 +227,9 @@ public sealed class GitHubForkStore : IForkStore
 
     private async Task<TreeListing> GetTreeAsync(ForkRecord fork, string id, bool recursive, CancellationToken ct)
     {
-        var cache = Path.Combine(Directory, "trees", id + (recursive ? ".r" : "") + ".json");
+        var name = id + (recursive ? ".r" : "");
+        fork.Trees?.Add(name);
+        var cache = Path.Combine(Directory, "trees", name + ".json");
         if (File.Exists(cache))
             return JsonSerializer.Deserialize<TreeListing>(await File.ReadAllBytesAsync(cache, ct), Json)!;
 
@@ -256,7 +287,8 @@ public sealed class GitHubForkStore : IForkStore
     private Task SaveForkAsync(string forkId, ForkRecord record, CancellationToken ct) =>
         File.WriteAllTextAsync(ForkPath(forkId), JsonSerializer.Serialize(record, Json), ct);
 
-    private sealed record ForkRecord(string Repository, string Branch, string Commit, HashSet<string> Objects);
+    /// <param name="Trees">Cached listings the current version used; null in records from before these were tracked.</param>
+    private sealed record ForkRecord(string Repository, string Branch, string Commit, HashSet<string> Objects, HashSet<string>? Trees = null);
 
     private sealed record TreeListing(string Sha, List<TreeItem> Tree, bool Truncated);
 
