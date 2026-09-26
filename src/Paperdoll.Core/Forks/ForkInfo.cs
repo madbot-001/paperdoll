@@ -34,4 +34,7 @@ public sealed record ForkInfo(
     /// <c>species.hidden</c>), so <c>roundStart: true</c> alone would list them wrongly.
     /// </summary>
     public IReadOnlyList<string> HiddenSpecies { get; init; } = [];
+
+    /// <summary>Which characters names may contain.</summary>
+    public Profiles.NameRule NameRule { get; init; } = Profiles.NameRule.Upstream;
 }

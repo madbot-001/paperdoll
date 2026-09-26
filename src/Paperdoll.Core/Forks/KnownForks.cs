@@ -8,8 +8,8 @@ public static class KnownForks
     public static IReadOnlyList<ForkInfo> All { get; } =
     [
         new("upstream", "Wizard's Den (upstream)", "space-wizards/space-station-14", "master", AppearanceModel.New, false, ["wizards"]),
-        new("deltav", "Delta-V", "DeltaV-Station/Delta-v", "master", AppearanceModel.New, false, ["delta-v"]) { HiddenSpecies = ["Motorkind"] },
-        new("euphoria", "Euphoria", "Floof-Station/Panta-Rhei", "master", AppearanceModel.New, false, ["euphoria"]) { HiddenSpecies = ["Motorkind"] },
+        new("deltav", "Delta-V", "DeltaV-Station/Delta-v", "master", AppearanceModel.New, false, ["delta-v"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin },
+        new("euphoria", "Euphoria", "Floof-Station/Panta-Rhei", "master", AppearanceModel.New, false, ["euphoria"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin },
         new("trauma", "Trauma", "Trauma-Station/Trauma-Station", "master", AppearanceModel.New, false, ["Trauma"]),
         new("carpmosia", "Carpmosia", "carpmosia/carpmosia", "dev", AppearanceModel.New, false, ["carpmosia"]),
         new("floof", "Floof", "Floof-Station-SS14/Floof-Station", "master", AppearanceModel.New, false, ["floof-ss14", "floof-station-nova"]),
