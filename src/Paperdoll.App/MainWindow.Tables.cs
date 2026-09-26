@@ -18,6 +18,41 @@ public partial class MainWindow
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
         JobFilter.TextChanged += (_, _) => FilterJobs();
         TraitFilter.TextChanged += (_, _) => FilterTraits();
+
+        // Hovering a marking shows the character wearing it, drawn when the tip opens.
+        MarkingGrid.LoadingRow += (_, e) =>
+        {
+            var image = new Image { Width = 96, Height = 96 };
+            Avalonia.Media.RenderOptions.SetBitmapInterpolationMode(image, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
+            var caption = new TextBlock { Classes = { "hint" }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+            var tip = new StackPanel { Spacing = 2 };
+            tip.Children.Add(image);
+            tip.Children.Add(caption);
+            var row = e.Row;
+            tip.AttachedToVisualTree += (_, _) =>
+            {
+                if (row.DataContext is MarkingRow marking && _session?.Renderer != null)
+                {
+                    caption.Text = marking.Name;
+                    image.Source = MarkingPreview(marking);
+                }
+            };
+            ToolTip.SetTip(row, tip);
+        };
+    }
+
+    private Avalonia.Media.Imaging.Bitmap? MarkingPreview(MarkingRow row)
+    {
+        try
+        {
+            using var sprite = _session!.RenderWithMarking(row.OrganCategory, row.LayerKey, row.Id);
+            using var canvas = Preview.FloorCanvas.Compose(96, 96, 3, sprite, _session.SpriteScale());
+            return Preview.FloorCanvas.ToAvalonia(canvas);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private List<TraitRow> _traitRows = [];

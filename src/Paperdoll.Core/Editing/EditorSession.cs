@@ -369,7 +369,17 @@ public sealed class EditorSession : IAsyncDisposable
     /// (upstream <c>MarkingsViewModel.TrySelectMarking</c>, MIT): on a layer that takes one marking
     /// and has it, the new one replaces it; a full layer that takes more refuses.
     /// </summary>
-    public IReadOnlyList<RuleFix> AddMarking(string organ, string layer, string markingId) => EditLook(look =>
+    public IReadOnlyList<RuleFix> AddMarking(string organ, string layer, string markingId) =>
+        EditLook(look => WithMarking(look, organ, layer, markingId, preview: false));
+
+    /// <summary>
+    /// The character facing south without clothes, wearing the marking as adding it would, for a
+    /// preview. On a full layer that takes more, it is simply drawn along with the others.
+    /// </summary>
+    public SKBitmap RenderWithMarking(string organ, string layer, string markingId) =>
+        Renderer!.Render(WithMarking(Look!, organ, layer, markingId, preview: true));
+
+    private CharacterLook WithMarking(CharacterLook look, string organ, string layer, string markingId, bool preview)
     {
         var catalog = RequireContent().Characters;
         var marking = catalog.Markings[markingId];
@@ -383,11 +393,11 @@ public sealed class EditorSession : IAsyncDisposable
         var limit = catalog.Species[look.Species].Organs.FirstOrDefault(o => o.Category == organ) is { } info ? LayerLimit(info, layer) : null;
         if (limit == 1 && list.Count == 1)
             list.Clear();
-        else if (limit is { } max && list.Count >= max)
+        else if (limit is { } max && list.Count >= max && !preview)
             throw new InvalidOperationException($"This layer already holds {max}; remove one first.");
         list.Add(new MarkingEntry(markingId, colors));
         return With(look, markings);
-    });
+    }
 
     public IReadOnlyList<RuleFix> RemoveMarking(string organ, string layer, int index) => EditLook(look =>
     {
