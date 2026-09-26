@@ -250,7 +250,8 @@ public partial class MainWindow
             SelectDressedJob();
             _refreshing = false;
             RefreshAll();
-            SetStatus($"Opened {files[0].Name}" + (wasOld ? ", converted from the old appearance model." : "."));
+            var converted = wasOld && _session.Content?.Characters.Species.GetValueOrDefault(_session.Look!.Species)?.Old == null;
+            SetStatus($"Opened {files[0].Name}" + (converted ? ", converted from the old appearance model." : "."));
         }
         catch (Exception ex)
         {

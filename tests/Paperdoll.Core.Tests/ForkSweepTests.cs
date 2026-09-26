@@ -13,7 +13,7 @@ namespace Paperdoll.Core.Tests;
 public sealed class ForkSweepTests
 {
     public static TheoryData<string> EditableForks() =>
-        new(KnownForks.All.Where(f => f.Model == AppearanceModel.New).Select(f => f.Id));
+        new(KnownForks.All.Where(f => new Editing.ForkStatus(f, null).Editable).Select(f => f.Id));
 
     [Theory]
     [MemberData(nameof(EditableForks))]

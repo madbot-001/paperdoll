@@ -26,7 +26,8 @@ public enum RandomParts
 /// <summary>
 /// The lobby's randomise button: a random sex, age and name for the
 /// species, a palette of three colours a set turn apart on the colour wheel (skin, hair and eyes,
-/// fitted to the species' skin rule), and markings rolled layer by layer by weight.
+/// fitted to the species' skin rule), and markings rolled layer by layer by weight. Species on
+/// the old appearance model follow the old randomiser, which picks only hair and colours.
 /// </summary>
 public sealed class Randomizer(CharacterCatalog catalog, Random random)
 {
@@ -52,6 +53,8 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
     /// </summary>
     public Palette RandomPalette(SpeciesInfo species)
     {
+        if (species.Old != null)
+            return OldPalette(species);
         var baseColor = new Rgba(random.NextSingle(), random.NextSingle(), random.NextSingle());
         var delta = random.Next(4) switch
         {
@@ -107,6 +110,8 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
     /// </summary>
     public Dictionary<string, Dictionary<string, List<MarkingEntry>>> Markings(SpeciesInfo species, string sex, Palette palette)
     {
+        if (species.Old != null)
+            return OldMarkings(species, sex, palette);
         var result = new Dictionary<string, Dictionary<string, List<MarkingEntry>>>();
         foreach (var organ in species.Organs.Where(o => o.TakesMarkings))
         {
@@ -146,6 +151,41 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
             picked.Add(new MarkingEntry(marking.Id, colors));
         }
         return picked;
+    }
+
+    // The old model's randomiser: a realistic hair colour nudged a little, a realistic eye colour,
+    // and any skin colour the species' rule allows.
+    private Palette OldPalette(SpeciesInfo species)
+    {
+        var pick = RealisticHair[random.Next(RealisticHair.Length)];
+        var hair = new Rgba(Nudge(pick.R), Nudge(pick.G), Nudge(pick.B));
+        var eyes = RealisticEyes[random.Next(RealisticEyes.Length)];
+        var rule = catalog.SkinRuleFor(species);
+        var skin = rule.IsUnary
+            ? rule.FromUnary(random.NextSingle() * 100f)
+            : rule.Closest(new Rgba(random.NextSingle(), random.NextSingle(), random.NextSingle()));
+        return new Palette(skin, hair, eyes);
+
+        float Nudge(float channel) => Math.Clamp(channel + random.Next(-25, 25) / 100f, 0f, 1f);
+    }
+
+    // The old model's randomiser picks only hair, and facial hair unless female, each from the
+    // styles the lobby offers the species, all equally likely, in the hair colour.
+    private Dictionary<string, Dictionary<string, List<MarkingEntry>>> OldMarkings(SpeciesInfo species, string sex, Palette palette)
+    {
+        var result = new Dictionary<string, Dictionary<string, List<MarkingEntry>>>();
+        foreach (var category in new[] { "Hair", "FacialHair" })
+        {
+            var styles = catalog.Markings.Values
+                .Where(m => m.Category == category && species.Old!.Offers(m, species.Id))
+                .OrderBy(m => m.Id, StringComparer.Ordinal)
+                .ToList();
+            if (styles.Count == 0 || (category == "FacialHair" && sex == "Female"))
+                continue;
+            var style = styles[random.Next(styles.Count)];
+            result[category] = new() { [style.Layer] = [new MarkingEntry(style.Id, [palette.Hair])] };
+        }
+        return result;
     }
 
     private MarkingInfo? PickWeighted(List<MarkingInfo> markings)

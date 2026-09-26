@@ -134,10 +134,14 @@ public partial class MainWindow
             if (layers.Count == 0)
                 continue;
 
-            var organItem = Item(new Node(NodeKind.Organ, organ.Category), HeaderFor(Words(organ.Category), null), true, items);
+            // Old-model categories spanning several layers share one limit, shown on the category.
+            var shared = session.SharesLimit(organ);
+            var sharedLimit = shared ? session.LayerLimit(organ, organ.MarkingLayers[0]) : null;
+            var organCount = sharedLimit is { } total ? $"{session.LimitCount(organ, organ.MarkingLayers[0])}/{total}" : null;
+            var organItem = Item(new Node(NodeKind.Organ, organ.Category), HeaderFor(Words(organ.Category), organCount), true, items);
             foreach (var (layer, applied, limit) in layers)
             {
-                var count = limit is { } l ? $"{applied.Count}/{l}" : applied.Count.ToString();
+                var count = limit is { } l && !shared ? $"{applied.Count}/{l}" : applied.Count.ToString();
                 var layerItem = Item(new Node(NodeKind.Layer, organ.Category, layer), HeaderFor(Words(layer), count), applied.Count > 0, items);
                 for (var i = 0; i < applied.Count; i++)
                 {

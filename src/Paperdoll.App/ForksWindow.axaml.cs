@@ -48,7 +48,7 @@ public partial class ForksWindow : Window
     private void UpdateButtons()
     {
         var row = Selected;
-        var editable = row?.Fork.Model == AppearanceModel.New;
+        var editable = row != null && new ForkStatus(row.Fork, null).Editable;
         OpenButton.IsEnabled = editable;
         OpenButton.Content = row != null && row.Commit.Length == 0 ? "Download" : "Open";
         UpdateButton.IsEnabled = editable && row!.Commit.Length > 0;

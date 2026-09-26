@@ -34,8 +34,8 @@ public sealed class PrivateFileTests : IDisposable
 
     /// <summary>
     /// Each private export opens against its fork's current data: old files convert to the new
-    /// model, pass the game's rules, write back, read again and draw. Set PAPERDOLL_RENDER_OUT to
-    /// keep the pictures.
+    /// model where the fork has moved to it, pass the game's rules, write back, read again and
+    /// draw. Set PAPERDOLL_RENDER_OUT to keep the pictures.
     /// </summary>
     [Fact]
     public async Task Private_exports_import_into_their_forks()
@@ -74,11 +74,14 @@ public sealed class PrivateFileTests : IDisposable
                 $"{Path.GetFileName(path)} -> {fork.Name}: {look.Species}, old model {markingsBefore}, " +
                 $"{look.Markings.Values.Sum(l => l.Values.Sum(m => m.Count))} markings; " +
                 string.Join(" | ", fixes.Select(f => $"{f.Field}: {f.Message}")));
-            // A new-model file the game wrote, needing no fixes, exports exactly as it came in.
-            if (!markingsBefore && fixes.Count == 0)
+            // A file the game wrote, needing no fixes, exports exactly as it came in: new-model
+            // files, and old-model files for forks still on the old model.
+            var oldModel = fork_.Content.Characters.Species.GetValueOrDefault(look.Species)?.Old != null;
+            if ((!markingsBefore || oldModel) && fixes.Count == 0)
                 Assert.Equal(original, file.ToYaml());
-            Assert.False(again.IsOldModel);
-            Assert.Equal("2", again.Version);
+            Assert.Equal(oldModel, again.IsOldModel);
+            if (!oldModel)
+                Assert.Equal("2", again.Version);
 
             var renderer = new PaperdollRenderer(fork_.Content.Characters, fork_.Content.Prototypes, fork_.Textures);
             using var image = renderer.Render(look);

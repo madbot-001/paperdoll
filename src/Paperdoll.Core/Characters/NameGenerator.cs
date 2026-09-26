@@ -22,9 +22,10 @@ public sealed partial class NameGenerator(PrototypeIndex prototypes, FluentStrin
             ?? strings["namepreset-firstlast"]
             ?? "{$first} {$last}";
 
-        var male = Scalar(node, "maleFirstNames") ?? "NamesFirstMale";
-        var female = Scalar(node, "femaleFirstNames") ?? "NamesFirstFemale";
-        var last = Scalar(node, "lastNames") ?? "NamesLast";
+        // Older forks' defaults have the older dataset ids.
+        var male = Scalar(node, "maleFirstNames") ?? Existing("NamesFirstMale", "names_first_male");
+        var female = Scalar(node, "femaleFirstNames") ?? Existing("NamesFirstFemale", "names_first_female");
+        var last = Scalar(node, "lastNames") ?? Existing("NamesLast", "names_last");
 
         string First() => Pick(gender switch
         {
@@ -33,13 +34,18 @@ public sealed partial class NameGenerator(PrototypeIndex prototypes, FluentStrin
             _ => _random.Next(2) == 0 ? male : female,
         });
 
+        // Starlight's presets also use prefix and suffix (first and last) and id (a number of four digits).
         return Placeholder().Replace(pattern, m => m.Groups[1].Value switch
         {
-            "first" or "first1" or "first2" => First(),
-            "last" => Pick(last),
+            "first" or "first1" or "first2" or "prefix" => First(),
+            "last" or "suffix" => Pick(last),
+            "id" => _random.Next(100, 9999).ToString("D4", System.Globalization.CultureInfo.InvariantCulture),
             _ => "",
         }).Trim();
     }
+
+    private string Existing(string id, string older) =>
+        prototypes.Resolve("localizedDataset", id) != null || prototypes.Resolve("dataset", id) != null ? id : older;
 
     // A localizedDataset (message ids prefix1..prefixN) or a plain dataset (a list of values).
     private string Pick(string datasetId)

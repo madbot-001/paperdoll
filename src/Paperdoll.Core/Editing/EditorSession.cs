@@ -13,8 +13,8 @@ public sealed record ForkStatus(ForkInfo Fork, string? Commit)
 {
     public bool Downloaded => Commit != null;
 
-    /// <summary>Paperdoll can edit forks on the new appearance model.</summary>
-    public bool Editable => Fork.Model == AppearanceModel.New;
+    /// <summary>Paperdoll can edit forks on the new appearance model, and old-model forks it has been checked against.</summary>
+    public bool Editable => Fork.Model == AppearanceModel.New || Fork.Supported;
 }
 
 /// <summary>A sprite on screen and its licence, for the credits pane.</summary>
@@ -63,9 +63,6 @@ public sealed class EditorSession : IAsyncDisposable
     /// </summary>
     public async Task LoadForkAsync(ForkInfo fork, bool update, IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        if (fork.Model != AppearanceModel.New)
-            throw new NotSupportedException($"{fork.Name} uses the old appearance model, which Paperdoll cannot edit yet.");
-
         if (update || await Store.CommitOfAsync(fork.Id, ct) == null)
         {
             progress?.Report($"Checking {fork.Name} for its newest version");
@@ -105,8 +102,8 @@ public sealed class EditorSession : IAsyncDisposable
         var build = await new Servers.GameServers(Http).BuildAsync(address, ct);
         var fork = KnownForks.FindByServerForkId(build.ForkId ?? "")
             ?? throw new InvalidOperationException($"This server runs {build.ForkId ?? "a fork it does not name"}, which Paperdoll does not know.");
-        if (fork.Model != AppearanceModel.New)
-            throw new InvalidOperationException($"This server runs {fork.Name}, which uses the old appearance model Paperdoll cannot edit yet.");
+        if (!new ForkStatus(fork, null).Editable)
+            throw new InvalidOperationException($"This server runs {fork.Name}, which Paperdoll cannot edit yet.");
         if (!build.IsCommit)
             throw new InvalidOperationException($"This server gives its version as {build.Version ?? "nothing"}, not a git commit, so it cannot be matched.");
 
@@ -146,7 +143,7 @@ public sealed class EditorSession : IAsyncDisposable
         file.Name = RandomName(species, "Epicene");
         file.Age = Math.Max(species.MinAge, Math.Min(species.YoungAge, species.MaxAge));
         file.Gender = "Epicene";
-        file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")));
+        file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")), catalog);
         if (CharacterSize.HasHeight(Fork))
             CharacterSize.WriteHeight(file, CharacterSize.CheckHeight(species.DefaultHeight, species));
         // The game starts every profile on MaleHuman; its rules then give species that cannot use it their default.
@@ -165,7 +162,7 @@ public sealed class EditorSession : IAsyncDisposable
     public string? DressedJob()
     {
         var outfits = RequireContent().Outfits;
-        foreach (var candidate in new[] { PreviewJob, File?.HighPriorityJob, OutfitCatalog.FallbackJob })
+        foreach (var candidate in new[] { PreviewJob, File?.HighPriorityJob, Fork?.FallbackJob })
         {
             if (candidate != null && outfits.Jobs.ContainsKey(candidate))
                 return candidate;
@@ -364,7 +361,7 @@ public sealed class EditorSession : IAsyncDisposable
     public IReadOnlyList<RuleFix> EditLook(Func<CharacterLook, CharacterLook> change)
     {
         var file = RequireFile();
-        file.WriteLook(change(Look!));
+        file.WriteLook(change(Look!), RequireContent().Characters);
         ApplyRules();
         return LastFixes;
     }
@@ -384,21 +381,58 @@ public sealed class EditorSession : IAsyncDisposable
     public IReadOnlyList<MarkingInfo> AvailableMarkings(OrganInfo organ, string layer)
     {
         var catalog = RequireContent().Characters;
-        if (organ.MarkingGroup == null || !catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup, out var group))
-            return [];
-        return catalog.Markings.Values
-            .Where(m => m.Layer == layer && CharacterRules.CanBeApplied(group, Look!.Sex, m))
-            .OrderBy(m => MarkingName(m.Id), StringComparer.CurrentCulture)
-            .ToList();
+        var sex = Look!.Sex;
+        IEnumerable<MarkingInfo> offered;
+        if (OldBody() is { } old)
+        {
+            // The old model offers a category's markings for the species and sex.
+            offered = catalog.Markings.Values.Where(m => m.Category == organ.Category && m.Layer == layer
+                && old.Offers(m, Look.Species) && (m.SexRestriction == null || m.SexRestriction == sex));
+        }
+        else
+        {
+            if (organ.MarkingGroup == null || !catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup, out var group))
+                return [];
+            offered = catalog.Markings.Values.Where(m => m.Layer == layer && CharacterRules.CanBeApplied(group, sex, m));
+        }
+        return offered.OrderBy(m => MarkingName(m.Id), StringComparer.CurrentCulture).ToList();
     }
 
-    /// <summary>How many markings the layer may hold; null when the group sets no limit.</summary>
-    public int? LayerLimit(OrganInfo organ, string layer)
+    /// <summary>
+    /// The limit on a layer's markings, or null when there is none. On the old appearance model it
+    /// is the category's points, which all the category's layers share.
+    /// </summary>
+    public LayerLimit? LimitFor(OrganInfo organ, string layer)
     {
         var catalog = RequireContent().Characters;
+        if (OldBody() is { } old)
+        {
+            return old.Points.TryGetValue(organ.Category, out var points)
+                ? new LayerLimit(points.Points, points.Required, points.OnlyWhitelisted, points.Defaults, [])
+                : null;
+        }
         return organ.MarkingGroup != null && catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup, out var group)
-            && group.Limits.TryGetValue(layer, out var limit) ? limit.Limit : null;
+            && group.Limits.TryGetValue(layer, out var limit) ? limit : null;
     }
+
+    /// <summary>How many markings the layer may hold; null when there is no limit.</summary>
+    public int? LayerLimit(OrganInfo organ, string layer) => LimitFor(organ, layer)?.Limit;
+
+    /// <summary>How many markings count against the layer's limit: its own, or on the old model the whole category's.</summary>
+    public int LimitCount(OrganInfo organ, string layer)
+    {
+        var byLayer = Look!.Markings.GetValueOrDefault(organ.Category);
+        if (byLayer == null)
+            return 0;
+        return OldBody() != null ? byLayer.Values.Sum(l => l.Count) : byLayer.GetValueOrDefault(layer)?.Count ?? 0;
+    }
+
+    /// <summary>Whether the organ's layers share one limit (old-model categories spanning several layers).</summary>
+    public bool SharesLimit(OrganInfo organ) => OldBody() != null && organ.MarkingLayers.Count > 1;
+
+    // The character's species on the old appearance model, or null on the new one.
+    private OldBody? OldBody() =>
+        Look != null && Content?.Characters.Species.GetValueOrDefault(Look.Species) is { } species ? species.Old : null;
 
     /// <summary>
     /// Adds a marking with its default colours (upstream <c>MarkingsViewModel.TrySelectMarking</c>,
@@ -424,15 +458,37 @@ public sealed class EditorSession : IAsyncDisposable
             markings[organ] = byLayer = [];
         if (!byLayer.TryGetValue(layer, out var list))
             byLayer[layer] = list = [];
+        var old = catalog.Species[look.Species].Old;
         // Colours are worked out before any replacement, from the markings already there.
-        var colors = MarkingColoring.LayerColors(marking, look.SkinColor, look.EyeColor, list);
+        var colors = old == null
+            ? MarkingColoring.LayerColors(marking, look.SkinColor, look.EyeColor, list)
+            : organ is "Hair" or "FacialHair"
+                // The old model's hair colour is its own field, kept when the style changes.
+                ? [FirstIn(organ)?.Colors.FirstOrDefault() ?? File?.OldHairColor(organ == "FacialHair") ?? Rgba.White]
+                : old.Layer(marking.Layer) is { MarkingsMatchSkin: true }
+                    ? Enumerable.Repeat(look.SkinColor, marking.Sprites.Count).ToList()
+                    : MarkingColoring.LayerColors(marking, look.SkinColor, look.EyeColor, [], FirstIn);
         var limit = catalog.Species[look.Species].Organs.FirstOrDefault(o => o.Category == organ) is { } info ? LayerLimit(info, layer) : null;
-        if (limit == 1 && list.Count == 1)
-            list.Clear();
-        else if (limit is { } max && list.Count >= max && !preview)
-            throw new InvalidOperationException($"This layer already holds {max}; remove one first.");
+        // On the old model a category's layers share its limit.
+        var counted = old != null ? byLayer.Values.Sum(l => l.Count) : list.Count;
+        if (limit == 1 && counted == 1)
+        {
+            foreach (var markingsOnLayer in byLayer.Values)
+                markingsOnLayer.Clear();
+        }
+        else if (limit is { } max && counted >= max)
+        {
+            if (!preview)
+                throw new InvalidOperationException($"This {(old != null ? "category" : "layer")} already holds {max}; remove one first.");
+            // The old model draws no more than the limit, so the preview stands in for the last one.
+            if (old != null && byLayer.Values.LastOrDefault(l => l.Count > 0) is { } last)
+                last.RemoveAt(last.Count - 1);
+        }
         list.Add(new MarkingEntry(markingId, colors));
         return With(look, markings);
+
+        MarkingEntry? FirstIn(string category) =>
+            look.Markings.GetValueOrDefault(category)?.Values.SelectMany(l => l).FirstOrDefault();
     }
 
     public IReadOnlyList<RuleFix> RemoveMarking(string organ, string layer, int index) => EditLook(look =>
@@ -601,7 +657,7 @@ public sealed class EditorSession : IAsyncDisposable
             SkinColor = palette.Skin,
             EyeColor = palette.Eyes,
             Markings = parts.HasFlag(RandomParts.Markings) ? randomizer.Markings(species, sex, palette) : current.Markings,
-        });
+        }, catalog);
     });
 
     public IReadOnlyList<RuleFix> RandomizeName() => Edit(f =>

@@ -287,13 +287,19 @@ public partial class MainWindow
         var organ = session.Content!.Characters.Species[session.Look!.Species].Organs.First(o => o.Category == row.OrganCategory);
         var applied = Applied(session.Look, row.OrganCategory, row.LayerKey);
         var limit = session.LayerLimit(organ, row.LayerKey);
-        if (limit is { } max && applied.Count >= max && max != 1)
+        var counted = session.LimitCount(organ, row.LayerKey);
+        if (limit is { } max && counted >= max && max != 1)
         {
-            SetStatus($"{Words(row.OrganCategory)} › {row.Layer} already holds {max}; remove one first.");
+            SetStatus(session.SharesLimit(organ)
+                ? $"{Words(row.OrganCategory)} already holds {max}; remove one first."
+                : $"{Words(row.OrganCategory)} › {row.Layer} already holds {max}; remove one first.");
             return;
         }
         // One-marking layers swap instead of refusing, like the lobby picker.
-        var replaced = limit == 1 && applied.Count == 1 ? session.MarkingName(applied[0].Id) : null;
+        var replacedEntry = limit == 1 && counted == 1
+            ? session.Look.Markings[row.OrganCategory].Values.SelectMany(l => l).First()
+            : null;
+        var replaced = replacedEntry != null ? session.MarkingName(replacedEntry.Id) : null;
         _selected = new Node(NodeKind.Marking, row.OrganCategory, row.LayerKey, replaced != null ? 0 : applied.Count);
         Apply(s => s.AddMarking(row.OrganCategory, row.LayerKey, row.Id));
         SetStatus(replaced != null

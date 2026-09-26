@@ -8,7 +8,11 @@ using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Outfits;
 
-public sealed record JobInfo(string Id, string NameKey, string? StartingGear, bool SetPreference, string? PreviewEntity);
+public sealed record JobInfo(string Id, string NameKey, string? StartingGear, bool SetPreference, string? PreviewEntity)
+{
+    /// <summary>Kept from the lobby's job list though the rules still accept it (Starlight's <c>hidden</c>).</summary>
+    public bool Hidden { get; init; }
+}
 
 public sealed record DepartmentInfo(string Id, string NameKey, IReadOnlyList<string> Roles);
 
@@ -66,9 +70,6 @@ public sealed record RoleLoadout(string Role, IReadOnlyList<(string Group, IRead
 /// <summary>Jobs, their starting gear and loadouts in one fork.</summary>
 public sealed class OutfitCatalog
 {
-    /// <summary>The job players fall back to when they pick none (upstream's overflow job).</summary>
-    public const string FallbackJob = "Passenger";
-
     private readonly PrototypeIndex _prototypes;
 
     private OutfitCatalog(PrototypeIndex prototypes) => _prototypes = prototypes;
@@ -96,7 +97,10 @@ public sealed class OutfitCatalog
             {
                 var node = index.Resolve("job", p.Id)!;
                 return new JobInfo(p.Id, Str(node, "name") ?? p.Id, Str(node, "startingGear"),
-                    Str(node, "setPreference") is not ("false" or "False"), Str(node, "jobPreviewEntity") ?? Str(node, "jobEntity"));
+                    Str(node, "setPreference") is not ("false" or "False"), Str(node, "jobPreviewEntity") ?? Str(node, "jobEntity"))
+                {
+                    Hidden = Str(node, "hidden") is "true" or "True",
+                };
             }, StringComparer.Ordinal),
             Departments = index.OfKind("department").Select(p =>
             {
@@ -138,7 +142,7 @@ public sealed class OutfitCatalog
     public static string RoleFor(string jobId) => "Job" + jobId;
 
     /// <summary>Jobs a player can put a preference on, by department order then id.</summary>
-    public IEnumerable<JobInfo> SelectableJobs() => Jobs.Values.Where(j => j.SetPreference).OrderBy(j => j.Id, StringComparer.Ordinal);
+    public IEnumerable<JobInfo> SelectableJobs() => Jobs.Values.Where(j => j.SetPreference && !j.Hidden).OrderBy(j => j.Id, StringComparer.Ordinal);
 
     /// <summary>
     /// What a loadout puts on, slot by slot: its starting gear's items, then its own, each only

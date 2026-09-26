@@ -242,9 +242,10 @@ public partial class MainWindow
         };
         AddRow("Spawn priority", spawn, "Where you arrive when joining mid-round.");
 
-        var overflow = session.Content!.Outfits.Jobs.TryGetValue(Core.Outfits.OutfitCatalog.FallbackJob, out var overflowJob)
+        var fallback = session.Fork!.FallbackJob;
+        var overflow = session.Content!.Outfits.Jobs.TryGetValue(fallback, out var overflowJob)
             ? session.Content.Strings[overflowJob.NameKey] ?? overflowJob.Id
-            : Core.Outfits.OutfitCatalog.FallbackJob;
+            : fallback;
         string[] unavailableValues = ["SpawnAsOverflow", "StayInLobby"];
         var unavailable = new ComboBox
         {
@@ -297,31 +298,37 @@ public partial class MainWindow
             AddRow("Per sex", Mono(string.Join("\n", organ.SexStates.Select(kv => $"{kv.Key}: {kv.Value}"))));
         AddRow("Markings group", Mono(organ.MarkingGroup ?? ""));
 
+        var shared = session.SharesLimit(organ);
+        if (shared && session.LayerLimit(organ, organ.MarkingLayers[0]) is { } total)
+            AddRow("Limit", Text($"{session.LimitCount(organ, organ.MarkingLayers[0])} of {total}, shared by its layers"));
+
         AddCategory("Marking layers");
         foreach (var layer in organ.MarkingLayers)
         {
             var applied = Applied(session.Look!, organ.Category, layer).Count;
-            var limit = session.LayerLimit(organ, layer);
+            var limit = shared ? null : session.LayerLimit(organ, layer);
             var available = session.AvailableMarkings(organ, layer).Count;
             var open = new Button { Classes = { "crumb" }, Content = Words(layer), HorizontalAlignment = HorizontalAlignment.Left };
             var target = new Node(NodeKind.Layer, organ.Category, layer);
             open.Click += (_, _) => Select(target);
-            AddRow("", open, $"{applied} of {(limit?.ToString() ?? "any")}, {available} to choose from");
+            var held = limit is { } max ? $"{applied} of {max}" : shared ? $"{applied}" : $"{applied} of any";
+            AddRow("", open, $"{held}, {available} to choose from");
         }
     }
 
     private void InspectLayer(OrganInfo organ, string layer)
     {
         var session = _session!;
-        var catalog = session.Content!.Characters;
         InspectorTitle.Text = $"Layer: {Words(organ.Category)} › {Words(layer)}";
-        var group = organ.MarkingGroup != null && catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup, out var g) ? g : null;
-        var limit = group != null && group.Limits.TryGetValue(layer, out var l) ? l : null;
+        var limit = session.LimitFor(organ, layer);
         var applied = Applied(session.Look!, organ.Category, layer);
+        var shared = session.SharesLimit(organ);
+        var counted = session.LimitCount(organ, layer);
 
         AddCategory("Layer");
         AddRow("Layer", Mono(layer));
-        AddRow("Limit", Text(limit == null ? "No limit" : $"{limit.Limit}" + (limit.Required ? ", required" : "")));
+        AddRow("Limit", Text(limit == null ? "No limit"
+            : $"{limit.Limit}" + (shared ? $" for all of {Words(organ.Category)}" : "") + (limit.Required ? ", required" : "")));
         if (limit is { Default.Count: > 0 })
             AddRow("Default", Mono(string.Join("\n", limit.Default)));
         AddRow("To choose from", Text($"{session.AvailableMarkings(organ, layer).Count} markings"));
@@ -332,8 +339,8 @@ public partial class MainWindow
 
         var add = new Button { Classes = { "small" }, Content = "Add a marking...", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(8, 4) };
         // A one-marking layer stays open: picking another swaps it.
-        add.IsEnabled = limit == null || limit.Limit == 1 || applied.Count < limit.Limit;
-        if (limit is { Limit: 1 } && applied.Count == 1)
+        add.IsEnabled = limit == null || limit.Limit == 1 || counted < limit.Limit;
+        if (limit is { Limit: 1 } && counted == 1)
             add.Content = "Swap for another...";
         add.Click += (_, _) => BottomTabs.SelectedIndex = 1;
         AddWide(add);

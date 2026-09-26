@@ -167,7 +167,9 @@ public static partial class CharacterRules
         if (traits != null)
             CheckTraits(file, traits, fork.TraitRules, fixes);
 
-        var checkedLook = EnsureValidLook(look, species, catalog, fixes);
+        var checkedLook = species.Old != null
+            ? OldAppearanceRules.EnsureValidLook(look, species, catalog, fixes, file.IsOldModel ? file.OldMarkingList() : null)
+            : EnsureValidLook(look, species, catalog, fixes);
         file.WriteLook(new CharacterLook
         {
             Species = speciesId,
@@ -175,7 +177,7 @@ public static partial class CharacterRules
             SkinColor = checkedLook.SkinColor,
             EyeColor = checkedLook.EyeColor,
             Markings = checkedLook.Markings,
-        });
+        }, catalog);
         return fixes;
     }
 
@@ -255,10 +257,14 @@ public static partial class CharacterRules
     /// The appearance after the game's rules: skin colour pulled into the species' range, markings
     /// on organs the species lacks dropped, and for each organ: colours padded or cut to the
     /// marking's sprites, group and sex restrictions, layer membership, per-layer limits, and
-    /// required layers given their default markings. The sex used is the one on the look.
+    /// required layers given their default markings. The sex used is the one on the look. Species on
+    /// the old appearance model follow <see cref="OldAppearanceRules"/> instead.
     /// </summary>
     public static CharacterLook EnsureValidLook(CharacterLook look, SpeciesInfo species, CharacterCatalog catalog, List<RuleFix>? fixes = null)
     {
+        if (species.Old != null)
+            return OldAppearanceRules.EnsureValidLook(look, species, catalog, fixes);
+
         var skin = catalog.SkinRuleFor(species).EnsureValid(look.SkinColor);
         if (skin != look.SkinColor)
             fixes?.Add(new("skinColor", $"{species.Id} skin must follow its colour rule; moved to the nearest allowed colour."));

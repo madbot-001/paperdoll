@@ -14,9 +14,10 @@ often lag behind a fork's newest code.
 Paperdoll only downloads game data. Your characters stay on your computer: nothing is uploaded or
 shared, and it never reads other players' characters.
 
-It's early. Forks on the new appearance model (Delta-V, Euphoria, upstream and a few others) can
-be downloaded, previewed from all four sides, edited and exported. Older forks aren't supported
-yet. So far it has only been run on Linux.
+It's early. Most forks can be downloaded, previewed from all four sides, edited and exported:
+Delta-V, Euphoria, upstream and others on the new appearance model, and Goob, Frontier, Starlight
+and others still on the old one, where characters are saved in the old shape those forks expect.
+Einstein Engines, Misfits and RMC-14 aren't supported yet. So far it has only been run on Linux.
 
 ## Running it
 

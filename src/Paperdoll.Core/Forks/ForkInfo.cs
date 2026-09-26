@@ -16,7 +16,10 @@ public enum AppearanceModel
 /// <param name="Repository">GitHub <c>owner/name</c>.</param>
 /// <param name="Branch">Branch the fork's servers are built from.</param>
 /// <param name="Model">Appearance model at the time of the survey.</param>
-/// <param name="Supported">Whether Paperdoll can edit this fork's characters yet.</param>
+/// <param name="Supported">
+/// For forks on the old appearance model, whether Paperdoll has been checked against the fork and
+/// can edit its characters. Forks on the new model can always be edited.
+/// </param>
 /// <param name="ServerForkIds">
 /// Values of <c>build.fork_id</c> that this fork's servers report on their <c>/info</c> page.
 /// </param>
@@ -50,6 +53,9 @@ public sealed record ForkInfo(
     public (float Min, float Max) DefaultHeights { get; init; } = (0.8f, 1.2f);
 
     public ProfileExtras Extras { get; init; } = ProfileExtras.None;
+
+    /// <summary>The job players fall back to when they pick none (<c>SharedGameTicker.FallbackOverflowJob</c>).</summary>
+    public string FallbackJob { get; init; } = "Passenger";
 }
 
 /// <summary>Character fields some forks add to the saved profile.</summary>

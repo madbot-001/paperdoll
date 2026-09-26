@@ -65,4 +65,55 @@ public sealed class EditorSessionTests : IDisposable
         Assert.Equal("Urist Mchands", session.File!.Name);
         Assert.Equal("Harpy", session.Look!.Species);
     }
+
+    [Fact]
+    public async Task A_goob_character_is_edited_and_exported_in_the_old_model()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("PAPERDOLL_NETWORK_TESTS") == "1",
+            "Set PAPERDOLL_NETWORK_TESTS=1 to run tests that use the network.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var session = await EditorSession.OpenAsync(_root, ct);
+
+        await session.LoadForkAsync(KnownForks.Find("goob")!, update: false, ct: ct);
+        session.Edit(f => f.Name = "wren holloway");
+        var species = session.Content!.Characters.Species["Human"];
+        var hairOrgan = species.Organs.Single(o => o.Category == "Hair");
+        var hairs = session.AvailableMarkings(hairOrgan, "Hair");
+        session.AddMarking("Hair", "Hair", hairs[0].Id);
+        session.SetMarkingColor("Hair", "Hair", 0, 0, Rgba.Parse("#654321"));
+        // Hair takes one, so another swaps it, keeping the hair colour.
+        session.AddMarking("Hair", "Hair", hairs[1].Id);
+        Assert.Equal(hairs[1].Id, Assert.Single(session.Look!.Markings["Hair"]["Hair"]).Id);
+        Assert.Equal(Rgba.Parse("#654321"), session.Look.Markings["Hair"]["Hair"][0].Colors[0]);
+
+        // A category with points refuses more than it takes.
+        var organ = species.Organs.First(o => session.LayerLimit(o, o.MarkingLayers[0]) is > 0 and < 5
+            && o.Category is not ("Hair" or "FacialHair") && session.AvailableMarkings(o, o.MarkingLayers[0]).Count > 5);
+        var layer = organ.MarkingLayers[0];
+        var limit = session.LayerLimit(organ, layer)!.Value;
+        var choices = session.AvailableMarkings(organ, layer);
+        for (var i = 0; i < limit; i++)
+            session.AddMarking(organ.Category, layer, choices[i].Id);
+        Assert.Equal(limit, session.LimitCount(organ, layer));
+        if (limit > 1)
+            Assert.Throws<InvalidOperationException>(() => session.AddMarking(organ.Category, layer, choices[limit].Id));
+
+        var text = session.Export();
+        var exported = CharacterFile.Parse(text);
+        Assert.True(exported.IsOldModel);
+        Assert.Contains($"hair: {hairs[1].Id}", text);
+        Assert.Contains("hairColor: '#654321FF'", text);
+        Assert.Equal("Wren Holloway", exported.Name);
+        // What Paperdoll exports needs no fixes and comes back the same.
+        Assert.Empty(CharacterRules.EnsureValid(exported, session.Content.Characters, session.Fork!));
+        Assert.Equal(text, exported.ToYaml());
+        using var image = session.Render();
+        Assert.True(image.Width >= 32);
+
+        for (var seed = 0; seed < 20; seed++)
+        {
+            session.Randomize(Characters.RandomParts.All, new Random(seed));
+            Assert.True(session.LastFixes.Count == 0, $"seed {seed}: " + string.Join("; ", session.LastFixes.Select(f => f.Message)));
+        }
+    }
 }

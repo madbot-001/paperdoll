@@ -43,6 +43,9 @@ public sealed record SpeciesInfo(
     public float MaxHeight { get; init; } = 1.2f;
     public float DefaultHeight { get; init; } = 1f;
 
+    /// <summary>The old appearance model's body, for forks still on it; null on the new model.</summary>
+    public OldBody? Old { get; init; }
+
     /// <summary>Whether characters of this species may have a custom species name (Euphoria's <c>customName</c>).</summary>
     public bool CustomName { get; init; } = true;
 
@@ -131,11 +134,65 @@ public sealed record MarkingInfo(
 
     /// <summary>How likely random characters are to get this marking, against the others (<c>randomWeight</c>).</summary>
     public float RandomWeight { get; init; } = 1f;
+
+    /// <summary>Old model: the points category it counts against (<c>markingCategory</c>).</summary>
+    public string? Category { get; init; }
+
+    /// <summary>Old model: the species that may have it (<c>speciesRestriction</c>); null for any.</summary>
+    public IReadOnlyList<string>? SpeciesRestriction { get; init; }
+
+    /// <summary>Old model: coloured like the skin (<c>followSkinColor</c>), from before colouring rules existed.</summary>
+    public bool FollowSkinColor { get; init; }
+}
+
+/// <summary>A base body layer in the old appearance model (<c>humanoidBaseSprite</c>).</summary>
+/// <param name="AllowsMarkings">Whether markings on this layer are drawn.</param>
+public sealed record OldBodyLayer(string Layer, SpriteRef? Sprite, bool MatchSkin, bool MarkingsMatchSkin, float LayerAlpha, bool AllowsMarkings)
+{
+    /// <summary>
+    /// The versions drawn for Male and Female, where the fork has them: the game looks for the
+    /// layer's id with the sex added (<c>MobHumanHead</c> becomes <c>MobHumanHeadMale</c>), on the
+    /// chest and head only.
+    /// </summary>
+    public IReadOnlyDictionary<string, OldBodyLayer> BySex { get; init; } = new Dictionary<string, OldBodyLayer>();
+
+    public OldBodyLayer ForSex(string sex) => BySex.GetValueOrDefault(sex) ?? this;
+}
+
+/// <summary>How many markings a category takes in the old model, and which it starts with.</summary>
+/// <param name="OnlyWhitelisted">Whether the lobby offers only markings made for the species in this category.</param>
+public sealed record MarkingPoints(int Points, bool Required, IReadOnlyList<string> Defaults, bool OnlyWhitelisted);
+
+/// <summary>
+/// A species under the old appearance model: base sprites by layer (<c>speciesBaseSprites</c>) and
+/// marking points by category (<c>markingPoints</c>), instead of organs.
+/// </summary>
+public sealed record OldBody(IReadOnlyList<OldBodyLayer> Layers, IReadOnlyDictionary<string, MarkingPoints> Points, bool OnlyWhitelisted)
+{
+    /// <summary>Body layers that worn items may hide (<c>hideLayersOnEquip</c>); the game's default is hair only.</summary>
+    public IReadOnlyList<string> HideOnEquip { get; init; } = ["Hair"];
+
+    /// <summary>Maps reshaping markings on a layer, such as hair on Vox (<c>markingsDisplacement</c>).</summary>
+    public IReadOnlyDictionary<string, DisplacementRef> MarkingsDisplacement { get; init; } = new Dictionary<string, DisplacementRef>();
+
+    /// <summary>The base layer drawn for a body layer, if the species has one.</summary>
+    public OldBodyLayer? Layer(string layer) => Layers.FirstOrDefault(l => l.Layer == layer);
+
+    /// <summary>
+    /// Whether the lobby offers the marking to the species (<c>MarkingManager.MarkingsByCategoryAndSpecies</c>):
+    /// markings made for other species never, and ones made for no species in particular unless
+    /// the species or the category takes only its own. The rules only check the species-wide switch.
+    /// </summary>
+    public bool Offers(MarkingInfo marking, string speciesId) =>
+        marking.Category != null && (marking.SpeciesRestriction == null
+            ? !OnlyWhitelisted && !(Points.TryGetValue(marking.Category, out var points) && points.OnlyWhitelisted)
+            : marking.SpeciesRestriction.Contains(speciesId));
 }
 
 /// <summary>
 /// The character data in one fork: species with their organs, marking groups, markings and skin
-/// colorations. New appearance model only; old-model species load with no organs.
+/// colorations. Species on the old appearance model are given an organ per marking category and
+/// a group of their own, so both models can be edited the same way.
 /// </summary>
 public sealed class CharacterCatalog
 {
@@ -185,6 +242,15 @@ public sealed class CharacterCatalog
             foreach (var map in organ.MarkingsDisplacement.Values.Append(organ.Displacement).OfType<DisplacementRef>())
                 folders.UnionWith(map.SizeMaps.Values.Select(m => m.Rsi));
         }
+        foreach (var old in Species.Values.Select(s => s.Old).OfType<OldBody>())
+        {
+            foreach (var layer in old.Layers.SelectMany(l => l.BySex.Values.Append(l)))
+            {
+                if (layer.Sprite is { } sprite)
+                    folders.Add(sprite.Rsi);
+            }
+            folders.UnionWith(old.MarkingsDisplacement.Values.SelectMany(m => m.SizeMaps.Values).Select(m => m.Rsi));
+        }
         foreach (var species in Species.Values)
         {
             foreach (var map in species.ClothingDisplacements.Values.Concat(species.MaleClothingDisplacements.Values).Concat(species.FemaleClothingDisplacements.Values))
@@ -222,6 +288,9 @@ public sealed class CharacterCatalog
         var colorations = index.OfKind("skinColoration")
             .ToDictionary(p => p.Id, p => index.Resolve("skinColoration", p.Id)!, StringComparer.Ordinal);
 
+        if (species.Values.Any(sp => sp.Old != null))
+            ShapeOldModel(species, groups, markings);
+
         return new CharacterCatalog
         {
             Species = species,
@@ -229,6 +298,105 @@ public sealed class CharacterCatalog
             Markings = markings,
             SkinColorations = colorations,
             VoiceNames = voiceNames,
+        };
+    }
+
+    // The old model has no organs or marking groups. Each species gets a group of its own, with a
+    // marking's species restriction as the group's whitelist, and an organ per marking category
+    // holding the body layers that category's markings go on. The editor, the marking lists and
+    // the checks then work as on the new model; points are counted per category elsewhere.
+    private static void ShapeOldModel(Dictionary<string, SpeciesInfo> species, Dictionary<string, MarkingsGroupInfo> groups, Dictionary<string, MarkingInfo> markings)
+    {
+        foreach (var (id, marking) in markings.ToList())
+        {
+            if (marking.GroupWhitelist == null && marking.SpeciesRestriction != null)
+                markings[id] = marking with { GroupWhitelist = marking.SpeciesRestriction };
+        }
+
+        foreach (var sp in species.Values.Where(sp => sp.Old != null).ToList())
+        {
+            var usable = markings.Values.Where(m => sp.Old!.Offers(m, sp.Id)).ToList();
+            var categories = sp.Old!.Points.Keys
+                .Concat(usable.Select(m => m.Category!))
+                .Distinct(StringComparer.Ordinal);
+            var organs = categories.Select(category => new OrganInfo(
+                    category, "", null, null, new Dictionary<string, string>(),
+                    usable.Where(m => m.Category == category).Select(m => m.Layer).Distinct(StringComparer.Ordinal).ToList(),
+                    sp.Id)
+                { TakesMarkings = true })
+                .Where(o => o.MarkingLayers.Count > 0 || sp.Old.Points.ContainsKey(o.Category))
+                .ToList();
+            groups[sp.Id] = new MarkingsGroupInfo(sp.Id, sp.Old.OnlyWhitelisted, new Dictionary<string, LayerLimit>());
+            species[sp.Id] = sp with { Organs = organs };
+        }
+    }
+
+    // The old model's base sprites (layer to humanoidBaseSprite) and marking points, and from the
+    // lobby doll's HumanoidAppearance, which layers clothing may hide and marking displacements.
+    private static OldBody ReadOldBody(PrototypeIndex index, string baseSpritesId, string? pointsId, string? doll)
+    {
+        var layers = new List<OldBodyLayer>();
+        if (index.Resolve("speciesBaseSprites", baseSpritesId) is { } baseSprites && Get(baseSprites, "sprites") is YamlMappingNode byLayer)
+        {
+            foreach (var (key, value) in byLayer.Children)
+            {
+                var name = ((YamlScalarNode)key).Value!;
+                if (value is not YamlScalarNode { Value: { } layerId } || BaseLayer(name, layerId) is not { } layer)
+                    continue;
+                if (name is "Chest" or "Head")
+                {
+                    layer = layer with
+                    {
+                        BySex = new[] { "Male", "Female" }
+                            .Select(sex => (sex, variant: BaseLayer(name, layerId + sex)))
+                            .Where(v => v.variant != null)
+                            .ToDictionary(v => v.sex, v => v.variant!),
+                    };
+                }
+                layers.Add(layer);
+            }
+        }
+
+        OldBodyLayer? BaseLayer(string name, string id)
+        {
+            if (index.Resolve("humanoidBaseSprite", id) is not { } node)
+                return null;
+            var sprite = Get(node, "baseSprite") is YamlMappingNode spec && Str(spec, "sprite") is { } rsi
+                ? new SpriteRef(TexturePath(rsi), Str(spec, "state"))
+                : (SpriteRef?)null;
+            return new OldBodyLayer(name, sprite, Bool(node, "matchSkin") ?? true, Bool(node, "markingsMatchSkin") ?? false,
+                Float(node, "layerAlpha") ?? 1f, Bool(node, "allowsMarkings") ?? true);
+        }
+
+        var points = new Dictionary<string, MarkingPoints>(StringComparer.Ordinal);
+        var onlyWhitelisted = false;
+        if (pointsId != null && index.Resolve("markingPoints", pointsId) is { } limits)
+        {
+            onlyWhitelisted = Bool(limits, "onlyWhitelisted") ?? false;
+            if (Get(limits, "points") is YamlMappingNode byCategory)
+            {
+                foreach (var (key, value) in byCategory.Children)
+                {
+                    if (value is YamlMappingNode entry)
+                        points[((YamlScalarNode)key).Value!] = new MarkingPoints(Int(entry, "points") ?? 0, Bool(entry, "required") ?? false,
+                            Strings(entry, "defaultMarkings") ?? [], Bool(entry, "onlyWhitelisted") ?? false);
+                }
+            }
+        }
+        var appearance = Component(doll != null ? index.Resolve("entity", doll) : null, "HumanoidAppearance");
+        var displacements = new Dictionary<string, DisplacementRef>(StringComparer.Ordinal);
+        if (Get(appearance, "markingsDisplacement") is YamlMappingNode byLayerMap)
+        {
+            foreach (var (layerKey, data) in byLayerMap.Children)
+            {
+                if (ReadDisplacement(data as YamlMappingNode) is { } map)
+                    displacements[Layer(((YamlScalarNode)layerKey).Value)!] = map;
+            }
+        }
+        return new OldBody(layers, points, onlyWhitelisted)
+        {
+            HideOnEquip = (appearance != null ? Strings(appearance, "hideLayersOnEquip") : null)?.Select(l => Layer(l)!).ToList() ?? ["Hair"],
+            MarkingsDisplacement = displacements,
         };
     }
 
@@ -261,6 +429,7 @@ public sealed class CharacterCatalog
             MaxHeight = Float(node, "maxHeight") ?? heights.Max,
             CustomName = Bool(node, "customName") ?? true,
             DefaultHeight = Float(node, "defaultHeight") ?? 1f,
+            Old = Str(node, "sprites") is { } baseSprites ? ReadOldBody(index, baseSprites, Str(node, "markingLimits"), doll) : null,
             ClothingSpeciesId = Str(inventory, "speciesId"),
             ClothingDisplacements = Displacements(inventory, "displacements"),
             MaleClothingDisplacements = Displacements(inventory, "maleDisplacements"),
@@ -417,6 +586,9 @@ public sealed class CharacterCatalog
         {
             CanBeDisplaced = Bool(node, "canBeDisplaced") ?? true,
             RandomWeight = Float(node, "randomWeight") ?? 1f,
+            Category = Str(node, "markingCategory"),
+            SpeciesRestriction = Strings(node, "speciesRestriction"),
+            FollowSkinColor = Bool(node, "followSkinColor") ?? false,
         };
     }
 

@@ -10,7 +10,10 @@ using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Rendering;
 
-/// <summary>How a character looks: what the preview draws (new appearance model).</summary>
+/// <summary>
+/// How a character looks: what the preview draws. On the old appearance model, markings are
+/// grouped by marking category instead of organ, with hair and facial hair in categories of their own.
+/// </summary>
 public sealed class CharacterLook
 {
     public required string Species { get; init; }
@@ -18,7 +21,7 @@ public sealed class CharacterLook
     public Rgba SkinColor { get; init; } = Rgba.White;
     public Rgba EyeColor { get; init; } = Rgba.White;
 
-    /// <summary>Markings by organ category (such as <c>Head</c>), then by layer (such as <c>Hair</c>).</summary>
+    /// <summary>Markings by organ category (such as <c>Head</c>) or old-model marking category, then by layer (such as <c>Hair</c>).</summary>
     public Dictionary<string, Dictionary<string, List<MarkingEntry>>> Markings { get; init; } = [];
 }
 
@@ -45,9 +48,10 @@ public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, Displa
 /// Vox), unless the marking opts out.</item>
 /// <item>Colours multiply the sprite's pixels. Frames are centred on each other.</item>
 /// </list>
-/// Not drawn yet: marking shaders and the nudity-censoring defaults.
+/// Not drawn yet: marking shaders and the nudity-censoring defaults. Species on the old
+/// appearance model are drawn by the old rules (see <c>PaperdollRenderer.Old.cs</c>).
 /// </summary>
-public sealed class PaperdollRenderer
+public sealed partial class PaperdollRenderer
 {
     private const string LayerPrefix = "enum.HumanoidVisualLayers.";
     private readonly Dictionary<string, RsiMeta?> _metas = new(StringComparer.Ordinal);
@@ -114,6 +118,19 @@ public sealed class PaperdollRenderer
         if (!catalog.Species.TryGetValue(look.Species, out var species))
             throw new ArgumentException($"No species {look.Species}.", nameof(look));
 
+        var slots = species.Old != null ? OldSlots(species, look) : NewSlots(species, look);
+
+        if (outfit != null)
+            Dress(slots, species, look.Sex, outfit, tints);
+
+        return slots
+            .Where(s => s.Sprite is { State: not null })
+            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement, s.Greyscale))
+            .ToList();
+    }
+
+    private List<Slot> NewSlots(SpeciesInfo species, CharacterLook look)
+    {
         var slots = BaseSlots(species);
 
         foreach (var organ in species.Organs)
@@ -132,14 +149,7 @@ public sealed class PaperdollRenderer
 
         foreach (var organ in species.Organs)
             InsertMarkings(slots, organ, look);
-
-        if (outfit != null)
-            Dress(slots, species, look.Sex, outfit, tints);
-
-        return slots
-            .Where(s => s.Sprite is { State: not null })
-            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement, s.Greyscale))
-            .ToList();
+        return slots;
     }
 
     /// <summary>What each worn item looks like on this species, by slot.</summary>
@@ -175,8 +185,9 @@ public sealed class PaperdollRenderer
             }
         }
 
-        // Only layers an organ lets clothing hide, and the layers hidden along with them.
-        var hideable = species.Organs.SelectMany(o => o.HideableLayers).ToHashSet(StringComparer.Ordinal);
+        // Only layers an organ (or on the old model, the species) lets clothing hide, and the
+        // layers hidden along with them.
+        var hideable = (species.Old?.HideOnEquip ?? species.Organs.SelectMany(o => o.HideableLayers)).ToHashSet(StringComparer.Ordinal);
         var effective = hidden.Where(hideable.Contains).ToHashSet(StringComparer.Ordinal);
         foreach (var organ in species.Organs)
         {

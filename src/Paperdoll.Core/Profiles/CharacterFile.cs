@@ -296,17 +296,36 @@ public sealed class CharacterFile
 
         if (IsOldModel)
         {
-            var flat = new List<MarkingEntry>();
-            if (Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var list) && list is YamlSequenceNode seq)
-                flat.AddRange(seq.Children.OfType<YamlMappingNode>().Select(ReadMarking).OfType<MarkingEntry>());
+            var flat = OldMarkingList().ToList();
+            if (catalog.Species.TryGetValue(species, out var info) && info.Old != null)
+            {
+                // Hair and markings stay as the old model has them; unknown ones are left for the
+                // rules to report.
+                SortByCategory(look.Markings, flat, catalog);
+                foreach (var (idKey, colorKey, category) in new[] { ("hair", "hairColor", "Hair"), ("facialHair", "facialHairColor", "FacialHair") })
+                {
+                    if (Hair(idKey, colorKey) is not { } hair)
+                        continue;
+                    var layer = catalog.Markings.TryGetValue(hair.Id, out var style) ? style.Layer : category;
+                    if (!look.Markings.TryGetValue(category, out var byLayer))
+                        look.Markings[category] = byLayer = [];
+                    if (!byLayer.TryGetValue(layer, out var list))
+                        byLayer[layer] = list = [];
+                    list.Insert(0, hair);
+                }
+                return look;
+            }
             // Version 1 kept hair and facial hair apart; the game adds them as markings.
-            AddHair(flat, "hair", "hairColor");
-            AddHair(flat, "facialHair", "facialHairColor");
-            if (catalog.Species.TryGetValue(species, out var info))
+            if (Hair("hair", "hairColor") is { } hairMarking)
+                flat.Add(hairMarking);
+            if (Hair("facialHair", "facialHairColor") is { } facialHairMarking)
+                flat.Add(facialHairMarking);
+            if (info != null)
                 SortOntoOrgans(look.Markings, flat, info, catalog);
             return look;
         }
 
+        var oldSpecies = catalog.Species.TryGetValue(species, out var speciesInfo) && speciesInfo.Old != null;
         if (Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var byOrgan) && byOrgan is YamlMappingNode organs)
         {
             foreach (var (organKey, layersNode) in organs.Children)
@@ -322,14 +341,170 @@ public sealed class CharacterFile
                 look.Markings[((YamlScalarNode)organKey).Value!] = byLayer;
             }
         }
+        // A new-model file for a species on the old model: its markings sorted by category instead.
+        if (oldSpecies)
+        {
+            var flat = look.Markings.Values.SelectMany(o => o.Values).SelectMany(l => l).ToList();
+            look.Markings.Clear();
+            SortByCategory(look.Markings, flat, catalog);
+        }
         return look;
 
-        void AddHair(List<MarkingEntry> flat, string idKey, string colorKey)
+        MarkingEntry? Hair(string idKey, string colorKey) =>
+            Scalar(Appearance, idKey) is { Length: > 0 } id && id is not (NoHair or NoFacialHair)
+                ? new MarkingEntry(id, [Rgba.TryParse(Scalar(Appearance, colorKey), out var c) ? c : Rgba.White])
+                : null;
+    }
+
+    /// <summary>An old-model file's marking list as written, without hair; empty for other files.</summary>
+    public IReadOnlyList<MarkingEntry> OldMarkingList() =>
+        Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var list) && list is YamlSequenceNode seq
+            ? seq.Children.OfType<YamlMappingNode>().Select(ReadMarking).OfType<MarkingEntry>().ToList()
+            : [];
+
+    /// <summary>The old model's hair or facial hair colour, which the file keeps even without hair.</summary>
+    public Rgba? OldHairColor(bool facial) =>
+        Rgba.TryParse(Scalar(Appearance, facial ? "facialHairColor" : "hairColor"), out var color) ? color : null;
+
+    /// <summary>What an old-model file names for no hair or no facial hair (upstream's <c>HairStyles</c> defaults).</summary>
+    public const string NoHair = "HairBald";
+    public const string NoFacialHair = "FacialHairShaved";
+
+    /// <summary>Writes the appearance in the model the species uses.</summary>
+    /// <param name="catalog">When given and the species is on the old model, the look is written the old way.</param>
+    public void WriteLook(CharacterLook look, CharacterCatalog? catalog)
+    {
+        if (catalog != null && catalog.Species.TryGetValue(look.Species, out var species) && species.Old != null)
         {
-            if (Scalar(Appearance, idKey) is { Length: > 0 } id)
-                flat.Add(new MarkingEntry(id, [Rgba.TryParse(Scalar(Appearance, colorKey), out var c) ? c : Rgba.White]));
+            WriteOldLook(look);
+            return;
+        }
+        WriteLook(look);
+    }
+
+    // Old model: markings by category (the category is the look's "organ"), as the game groups them.
+    // Unknown markings go under their own id, for the rules to report and drop.
+    private static void SortByCategory(Dictionary<string, Dictionary<string, List<MarkingEntry>>> target, IEnumerable<MarkingEntry> markings, CharacterCatalog catalog)
+    {
+        foreach (var entry in markings)
+        {
+            var (category, layer) = catalog.Markings.TryGetValue(entry.Id, out var marking) && marking.Category != null
+                ? (marking.Category, marking.Layer)
+                : (entry.Id, entry.Id);
+            if (!target.TryGetValue(category, out var byLayer))
+                target[category] = byLayer = [];
+            if (!byLayer.TryGetValue(layer, out var list))
+                byLayer[layer] = list = [];
+            list.Add(entry);
         }
     }
+
+    /// <summary>
+    /// Writes an old-model look: hair and facial hair in their own fields, every other marking in
+    /// one list. Only what changed is rewritten, so a file the game wrote comes out as it went in: a
+    /// category whose markings are unchanged keeps its entries where they were; a changed one is
+    /// written where it first appeared; new categories go at the end.
+    /// </summary>
+    private void WriteOldLook(CharacterLook look)
+    {
+        if (Species != look.Species)
+            Species = look.Species;
+        if (Sex != look.Sex)
+            Sex = look.Sex;
+        var appearance = Appearance;
+        if (!IsOldModel)
+        {
+            // A new-model or empty appearance: the old fields go first, in the order the game
+            // writes them, and the file becomes version 1 as the old model's exports are.
+            var others = appearance.Children
+                .Where(kv => ((YamlScalarNode)kv.Key).Value is not ("markings" or "skinColor" or "eyeColor"))
+                .ToList();
+            appearance.Children.Clear();
+            appearance.Add("markings", new YamlSequenceNode());
+            appearance.Add("skinColor", look.SkinColor.ToHex());
+            appearance.Add("eyeColor", look.EyeColor.ToHex());
+            appearance.Add("facialHairColor", Black);
+            appearance.Add("facialHair", NoFacialHair);
+            appearance.Add("hairColor", Black);
+            appearance.Add("hair", NoHair);
+            foreach (var (key, value) in others)
+                appearance.Children[key] = value;
+            Version = "1";
+        }
+        SetIfChanged("skinColor", look.SkinColor.ToHex());
+        SetIfChanged("eyeColor", look.EyeColor.ToHex());
+        WriteHair("Hair", "hair", "hairColor", NoHair);
+        WriteHair("FacialHair", "facialHair", "facialHairColor", NoFacialHair);
+
+        var wanted = look.Markings.Where(kv => kv.Key is not ("Hair" or "FacialHair"))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+        var old = appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var node) && node is YamlSequenceNode seq
+            ? seq.Children.OfType<YamlMappingNode>().ToList()
+            : [];
+        // The category of each old entry, as the look grouped it.
+        string? CategoryOf(YamlMappingNode entry) =>
+            ReadMarking(entry) is { } read ? wanted.FirstOrDefault(kv => kv.Value.Values.Any(l => l.Any(e => e.Id == read.Id))).Key : null;
+        bool Unchanged(string category)
+        {
+            var before = old.Where(e => CategoryOf(e) == category).Select(ReadMarking).OfType<MarkingEntry>().ToList();
+            var after = wanted[category].Values.SelectMany(l => l).ToList();
+            return before.Count == after.Count && before.All(b => after.Any(a => a.Id == b.Id && a.Colors.SequenceEqual(b.Colors)))
+                && wanted[category].All(layer => layer.Value.Select(e => e.Id).SequenceEqual(
+                    before.Where(b => layer.Value.Any(e => e.Id == b.Id)).Select(b => b.Id)));
+        }
+
+        var result = new List<YamlNode>();
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in old)
+        {
+            if (CategoryOf(entry) is not { } category)
+                continue;
+            if (Unchanged(category))
+            {
+                result.Add(entry);
+                continue;
+            }
+            if (done.Add(category))
+                result.AddRange(wanted[category].Values.SelectMany(l => l).Select(e => OldEntry(e, old)));
+        }
+        foreach (var (category, layers) in wanted)
+        {
+            if (!done.Contains(category) && !old.Any(e => CategoryOf(e) == category))
+                result.AddRange(layers.Values.SelectMany(l => l).Select(e => OldEntry(e, old)));
+        }
+        if (!result.SequenceEqual(old) || node is not YamlSequenceNode)
+            appearance.Children[new YamlScalarNode("markings")] = new YamlSequenceNode(result);
+
+        void SetIfChanged(string key, string value)
+        {
+            if (!Rgba.TryParse(Scalar(appearance, key), out var current) || current.ToHex() != value)
+                SetScalar(appearance, key, value);
+        }
+
+        void WriteHair(string category, string idKey, string colorKey, string none)
+        {
+            var hair = look.Markings.TryGetValue(category, out var layers) ? layers.Values.SelectMany(l => l).FirstOrDefault() : null;
+            var id = hair?.Id ?? none;
+            if (Scalar(appearance, idKey) != id && !(hair == null && Scalar(appearance, idKey) is null))
+                SetScalar(appearance, idKey, id);
+            if (hair?.Colors.FirstOrDefault() is { } color && (!Rgba.TryParse(Scalar(appearance, colorKey), out var current) || current.ToHex() != color.ToHex()))
+                SetScalar(appearance, colorKey, color.ToHex());
+        }
+    }
+
+    // The old model's hair colour for a new character (Color.Black).
+    private const string Black = "#000000FF";
+
+    // An old-model marking entry: the file's own entry when nothing about it changed, else a new
+    // one in the order the game writes them.
+    private static YamlMappingNode OldEntry(MarkingEntry entry, List<YamlMappingNode> old) =>
+        old.FirstOrDefault(e => ReadMarking(e) is { } read && read.Id == entry.Id && read.Colors.SequenceEqual(entry.Colors))
+        ?? new YamlMappingNode
+        {
+            { "markingId", entry.Id },
+            { "visible", "True" },
+            { "markingColor", new YamlSequenceNode(entry.Colors.Select(c => (YamlNode)new YamlScalarNode(c.ToHex()))) },
+        };
 
     /// <summary>
     /// Writes the appearance in the new model (version 2), replacing an old model's hair fields
