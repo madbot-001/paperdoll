@@ -162,7 +162,7 @@ public static partial class CharacterRules
         {
             CheckJobPriorities(file, outfits, fixes);
             CheckAntags(file, outfits, fixes);
-            LoadoutRules.Check(file, outfits, speciesId, fixes);
+            LoadoutRules.Check(file, outfits, speciesId, fixes, fork.Extras.HasFlag(ProfileExtras.ItemCustomization));
         }
         if (traits != null)
             CheckTraits(file, traits, fork.TraitRules, fixes);

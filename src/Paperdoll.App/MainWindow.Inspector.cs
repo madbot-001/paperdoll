@@ -505,7 +505,48 @@ public partial class MainWindow
                 stack.Children.Add(new TextBlock { Text = note, Classes = { "hint", check == Core.Outfits.LoadoutCheck.ServerChecks ? "warning" : "muted" }, Margin = new Thickness(28, 0, 4, 2) });
                 AddWide(stack);
             }
+            if (session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.ItemCustomization) && session.CustomizationOf(job, groupId, loadoutId) is { } entry)
+                AddCustomization(job, groupId, loadout, entry);
         }
+    }
+
+    /// <summary>
+    /// Euphoria's name, description and colour for a chosen loadout, with the limits the game applies
+    /// when the character spawns. Only loadouts that give a single item can be customised.
+    /// </summary>
+    private void AddCustomization(string job, string groupId, Core.Outfits.LoadoutInfo loadout, LoadoutEntry entry)
+    {
+        var panel = new StackPanel { Spacing = 3, Margin = new Thickness(28, 0, 6, 4) };
+        if (Core.Outfits.OutfitCatalog.SpawnCount(loadout) != 1)
+        {
+            panel.Children.Add(new TextBlock { Text = "Gives more than one item, so the game will not rename or colour it.", Classes = { "hint" }, TextWrapping = TextWrapping.Wrap });
+            AddWide(panel);
+            return;
+        }
+
+        void Save(LoadoutEntry changed) => Apply(s => s.SetCustomization(job, groupId, changed));
+        var name = new TextBox { Text = entry.Name ?? "", PlaceholderText = "Custom name", MaxLength = 96 };
+        CommitOnEnterOrLeave(name, text => Save(entry with { Name = string.IsNullOrWhiteSpace(text) ? null : text }));
+        var description = new TextBox { Text = entry.Description ?? "", PlaceholderText = "Custom description", MaxLength = 512, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 44 };
+        CommitOnEnterOrLeave(description, text => Save(entry with { Description = string.IsNullOrWhiteSpace(text) ? null : text }));
+
+        var tinted = Rgba.TryParse(entry.Color, out var current);
+        var tint = new CheckBox { Content = "Colour tint", IsChecked = tinted, MinHeight = 0 };
+        tint.IsCheckedChanged += (_, _) =>
+        {
+            if (!_refreshing && (tint.IsChecked == true) != tinted)
+                Save(entry with { Color = tint.IsChecked == true ? Rgba.White.ToHex() : null });
+        };
+        var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        colorRow.Children.Add(tint);
+        if (tinted)
+            colorRow.Children.Add(ColorField(current, color => Save(entry with { Color = Core.Editing.EditorSession.CustomizationColor(color).ToHex() })));
+
+        panel.Children.Add(name);
+        panel.Children.Add(description);
+        panel.Children.Add(colorRow);
+        panel.Children.Add(new TextBlock { Text = "The game keeps colours solid and between dark grey and white in lightness.", Classes = { "hint" }, TextWrapping = TextWrapping.Wrap });
+        AddWide(panel);
     }
 
     private void InspectTraits()

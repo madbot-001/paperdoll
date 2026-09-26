@@ -460,7 +460,49 @@ public sealed class EditorSession : IAsyncDisposable
         ShowClothes && DressedJob() is { } job && RequireContent().Outfits.Jobs.TryGetValue(job, out var info) ? info.PreviewEntity : null;
 
     public SKBitmap Render(Direction direction = Direction.South, double seconds = 0) =>
-        PreviewEntity() is { } entity ? Renderer!.RenderEntity(entity, direction, seconds) : Renderer!.Render(Look!, direction, Outfit(), seconds);
+        PreviewEntity() is { } entity ? Renderer!.RenderEntity(entity, direction, seconds) : Renderer!.Render(Look!, direction, Outfit(), seconds, OutfitTints());
+
+    /// <summary>
+    /// Worn items coloured by Euphoria's loadout tint, by slot: a chosen loadout with a colour that
+    /// spawns one item, when that item is what the preview shows in its slot.
+    /// </summary>
+    public IReadOnlyDictionary<string, Rgba>? OutfitTints()
+    {
+        if (!Fork!.Extras.HasFlag(ProfileExtras.ItemCustomization) || Outfit() is not { } outfit || DressedJob() is not { } job)
+            return null;
+        var outfits = RequireContent().Outfits;
+        var role = OutfitCatalog.RoleFor(job);
+        var tints = new Dictionary<string, Rgba>(StringComparer.Ordinal);
+        foreach (var (group, _) in LoadoutFor(job).Groups)
+        {
+            foreach (var entry in RequireFile().LoadoutEntries(role, group))
+            {
+                if (entry.Color == null || !Rgba.TryParse(entry.Color, out var color) || !outfits.Loadouts.TryGetValue(entry.Prototype, out var loadout)
+                    || OutfitCatalog.SpawnCount(loadout) != 1 || loadout.Equipment.Count != 1)
+                    continue;
+                var (slot, item) = loadout.Equipment.First();
+                if (outfit.GetValueOrDefault(slot) == item)
+                    tints[slot] = CustomizationColor(color);
+            }
+        }
+        return tints;
+    }
+
+    /// <summary>A loadout colour as the game uses it: solid (a see-through one shows pink), lightness from 0.25 to 1.</summary>
+    public static Rgba CustomizationColor(Rgba color)
+    {
+        if (color.A < 1f)
+            color = new Rgba(1f, 192 / 255f, 203 / 255f);
+        var (h, s, l, _) = color.ToHsl();
+        return l is >= 0.25f and <= 1f ? color : Rgba.FromHsl(h, s, Math.Clamp(l, 0.25f, 1f));
+    }
+
+    /// <summary>A chosen loadout's name, description and colour, as saved.</summary>
+    public LoadoutEntry? CustomizationOf(string jobId, string groupId, string loadoutId) =>
+        RequireFile().LoadoutEntries(OutfitCatalog.RoleFor(jobId), groupId).FirstOrDefault(e => e.Prototype == loadoutId);
+
+    public IReadOnlyList<RuleFix> SetCustomization(string jobId, string groupId, LoadoutEntry entry) =>
+        Edit(f => f.SetLoadoutCustomization(OutfitCatalog.RoleFor(jobId), groupId, entry));
 
     /// <summary>Whether anything on the character moves, facing any way (animated markings or clothes).</summary>
     public bool IsAnimated()

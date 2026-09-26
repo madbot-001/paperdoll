@@ -68,6 +68,9 @@ public enum ProfileExtras
 
     /// <summary>Allergies to reagents (<c>cosmaticDriftAllergies</c>), in Euphoria.</summary>
     Allergies = 4,
+
+    /// <summary>A name, description and colour for each chosen loadout item (Floof Station's, in Euphoria).</summary>
+    ItemCustomization = 8,
 }
 
 /// <summary>How a fork sizes characters on screen.</summary>

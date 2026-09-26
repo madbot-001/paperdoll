@@ -286,6 +286,13 @@ public sealed class OutfitCatalog
         return new SpawnGear(worn, inHand, stored.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<GearItem>)kv.Value));
     }
 
+    /// <summary>
+    /// How many items a loadout spawns (its own equipment, items in hand and items put in storage).
+    /// Euphoria only applies a custom name, description or colour when this is one.
+    /// </summary>
+    public static int SpawnCount(LoadoutInfo loadout) =>
+        loadout.Equipment.Count + loadout.Contents.InHand.Count + loadout.Contents.Storage.Values.Sum(items => items.Count);
+
     /// <summary>Whether an item can hold others (it has a <c>Storage</c> component).</summary>
     public bool CanHold(string entityId) => Component(entityId, "Storage") != null;
 

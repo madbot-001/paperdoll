@@ -13,7 +13,7 @@ namespace Paperdoll.Core.Profiles;
 /// </summary>
 internal static class LoadoutRules
 {
-    public static void Check(CharacterFile file, OutfitCatalog outfits, string species, List<RuleFix> fixes)
+    public static void Check(CharacterFile file, OutfitCatalog outfits, string species, List<RuleFix> fixes, bool customizable = false)
     {
         if (!file.Profile.Children.TryGetValue(new YamlScalarNode("_loadouts"), out var node) || node is not YamlMappingNode roles)
             return;
@@ -41,6 +41,8 @@ internal static class LoadoutRules
 
             CheckName(role, roleId, outfits, notes);
             CheckGroups(role, roleId, groupIds, outfits, species, notes);
+            if (customizable)
+                WriteCustomizationFields(role);
         }
 
         if (notes.Count > 0)
@@ -71,6 +73,26 @@ internal static class LoadoutRules
             return;
         role.Children[new YamlScalarNode("entityName")] = kept == null ? CharacterFile.Null() : CharacterFile.Text(kept);
         notes.Add(outfits.NamedRoles.ContainsKey(roleId) ? $"the {roleId} name was trimmed to fit" : $"{roleId} takes no custom name, so it was cleared");
+    }
+
+    // Euphoria saves every chosen loadout with its name, description and colour, null when unset;
+    // entries that lack them get them, as the game would write them.
+    private static void WriteCustomizationFields(YamlMappingNode role)
+    {
+        if (!role.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected) || selected is not YamlMappingNode groups)
+            return;
+        foreach (var list in groups.Children.Values.OfType<YamlSequenceNode>())
+        {
+            for (var i = 0; i < list.Children.Count; i++)
+            {
+                if (list.Children[i] is YamlMappingNode entry && CharacterFile.Scalar(entry, "prototype") is { } id
+                    && !new[] { "colorOverride", "descriptionOverride", "nameOverride" }.All(k => entry.Children.ContainsKey(new YamlScalarNode(k))))
+                {
+                    list.Children[i] = CharacterFile.CustomizedEntry(new LoadoutEntry(id,
+                        CharacterFile.NullableScalar(entry, "nameOverride"), CharacterFile.NullableScalar(entry, "descriptionOverride"), CharacterFile.NullableScalar(entry, "colorOverride")));
+                }
+            }
+        }
     }
 
     private static void CheckGroups(YamlMappingNode role, string roleId, IReadOnlyList<string> groupIds, OutfitCatalog outfits, string species, List<string> notes)

@@ -44,8 +44,13 @@ public partial class MainWindow
         string From(GearItem item) => item.Loadout == null ? "Job gear"
             : groupOf.TryGetValue(item.Loadout, out var group) && outfits.Groups.TryGetValue(group, out var info) ? session.Content.Strings.Get(info.NameKey)
             : session.LoadoutName(item.Loadout);
+        // Euphoria's custom name for a loadout's item goes first, with the item's own after it.
+        string ItemName(GearItem item) =>
+            item.Loadout != null && groupOf.TryGetValue(item.Loadout, out var group) && session.CustomizationOf(job, group, item.Loadout)?.Name is { } custom
+                ? $"{custom} ({session.EntityName(item.Entity)})"
+                : session.EntityName(item.Entity);
         GearRow Row(string where, GearItem item) =>
-            new(where, session.EntityName(item.Entity), From(item), item.Entity, item.Loadout != null ? groupOf.GetValueOrDefault(item.Loadout) : null);
+            new(where, ItemName(item), From(item), item.Entity, item.Loadout != null ? groupOf.GetValueOrDefault(item.Loadout) : null);
 
         var rows = new List<GearRow>();
         foreach (var (slot, item) in gear.Worn.OrderBy(kv => SlotOrder(kv.Key)))

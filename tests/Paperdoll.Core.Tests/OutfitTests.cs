@@ -588,4 +588,39 @@ public class LoadoutRulesTests
         Assert.Empty(Profiles.CharacterRules.EnsureValid(again, Catalog, Fork, outfits: Outfits));
         Assert.Equal(file.ToYaml(), again.ToYaml());
     }
+
+    [Fact]
+    public void Euphoria_saves_each_chosen_item_with_its_customisation_fields()
+    {
+        var euphoriaLike = Fork with { Extras = Forks.ProfileExtras.ItemCustomization };
+        var file = File("");
+        file.SetLoadoutGroup("JobJanitor", "JanitorHat", ["Cap"]);
+        Profiles.CharacterRules.EnsureValid(file, Catalog, euphoriaLike, outfits: Outfits);
+
+        Assert.Contains("""
+                    JanitorHat:
+                    - colorOverride: null
+                      descriptionOverride: null
+                      nameOverride: null
+                      prototype: Cap
+            """.ReplaceLineEndings("\n"), file.ToYaml());
+
+        file.SetLoadoutCustomization("JobJanitor", "JanitorHat", new Profiles.LoadoutEntry("Cap", "Lucky cap", null, "#336699FF"));
+        var again = Profiles.CharacterFile.Parse(file.ToYaml());
+        Assert.Equal(new Profiles.LoadoutEntry("Cap", "Lucky cap", null, "#336699FF"), Assert.Single(again.LoadoutEntries("JobJanitor", "JanitorHat")));
+        // Forks without it keep plain entries.
+        var plain = File("");
+        plain.SetLoadoutGroup("JobJanitor", "JanitorHat", ["Cap"]);
+        Profiles.CharacterRules.EnsureValid(plain, Catalog, Fork, outfits: Outfits);
+        Assert.DoesNotContain("colorOverride", plain.ToYaml());
+    }
+
+    [Fact]
+    public void Loadout_colours_are_solid_and_not_too_dark()
+    {
+        Assert.Equal(Rendering.Rgba.Parse("#FFC0CB"), Editing.EditorSession.CustomizationColor(Rendering.Rgba.Parse("#11223380")));
+        var dark = Editing.EditorSession.CustomizationColor(Rendering.Rgba.Parse("#050505"));
+        Assert.Equal(0.25f, dark.ToHsl().L, 0.01f);
+        Assert.Equal(Rendering.Rgba.Parse("#3366AA"), Editing.EditorSession.CustomizationColor(Rendering.Rgba.Parse("#3366AA")));
+    }
 }

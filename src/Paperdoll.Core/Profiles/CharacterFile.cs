@@ -6,6 +6,9 @@ using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Profiles;
 
+/// <summary>A chosen loadout, with the name, description and colour Euphoria lets players give it.</summary>
+public sealed record LoadoutEntry(string Prototype, string? Name = null, string? Description = null, string? Color = null);
+
 /// <summary>
 /// A character as the lobby's Export writes it: <c>forkId</c>, <c>version</c> and <c>profile</c>.
 /// The whole file is kept as read, so keys Paperdoll does not know (a fork's extras) are written
@@ -202,6 +205,39 @@ public sealed class CharacterFile
         roles.Children[new YamlScalarNode(role)] = made;
         return made;
     }
+
+    /// <summary>The chosen loadouts of a job's group as saved, with Euphoria's name, description and colour for each.</summary>
+    public IReadOnlyList<LoadoutEntry> LoadoutEntries(string role, string group) =>
+        RoleLoadout(role, create: false) is { } map && map.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected)
+        && selected is YamlMappingNode groups && groups.Children.TryGetValue(new YamlScalarNode(group), out var list) && list is YamlSequenceNode entries
+            ? entries.Children.OfType<YamlMappingNode>().Where(e => Scalar(e, "prototype") != null)
+                .Select(e => new LoadoutEntry(Scalar(e, "prototype")!, NullableScalar(e, "nameOverride"), NullableScalar(e, "descriptionOverride"), NullableScalar(e, "colorOverride")))
+                .ToList()
+            : [];
+
+    /// <summary>
+    /// Sets a chosen loadout's name, description and colour (null for none), writing its fields in
+    /// the order Euphoria saves them: colour, description, name, then the loadout.
+    /// </summary>
+    public void SetLoadoutCustomization(string role, string group, LoadoutEntry entry)
+    {
+        if (RoleLoadout(role, create: false) is not { } map || !map.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected)
+            || selected is not YamlMappingNode groups || !groups.Children.TryGetValue(new YamlScalarNode(group), out var list) || list is not YamlSequenceNode entries)
+            return;
+        for (var i = 0; i < entries.Children.Count; i++)
+        {
+            if (entries.Children[i] is YamlMappingNode e && Scalar(e, "prototype") == entry.Prototype)
+                entries.Children[i] = CustomizedEntry(entry);
+        }
+    }
+
+    internal static YamlMappingNode CustomizedEntry(LoadoutEntry entry) => new()
+    {
+        { "colorOverride", entry.Color == null ? Null() : Text(entry.Color) },
+        { "descriptionOverride", entry.Description == null ? Null() : Text(entry.Description) },
+        { "nameOverride", entry.Name == null ? Null() : Text(entry.Name) },
+        { "prototype", entry.Prototype },
+    };
 
     /// <summary>The name the character takes in a role that allows one, such as a borg's; null for none.</summary>
     public string? RoleName(string role) => RoleLoadout(role, create: false) is { } map ? NullableScalar(map, "entityName") : null;

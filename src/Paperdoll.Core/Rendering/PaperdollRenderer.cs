@@ -29,7 +29,8 @@ public interface ITextureSource
 }
 
 /// <summary>One drawn layer, bottom to top: what the preview shows and the credits list.</summary>
-public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null);
+/// <param name="Greyscale">Drawn in grey before the colour, as Euphoria's colour tint for loadout items does.</param>
+public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null, bool Greyscale = false);
 
 /// <summary>
 /// Draws a character from a fork's data as the game's lobby preview does, facing one way:
@@ -99,6 +100,7 @@ public sealed class PaperdollRenderer
         public SpriteRef? Sprite { get; set; }
         public Rgba Color { get; set; } = Rgba.White;
         public DisplacementRef? Displacement { get; set; }
+        public bool Greyscale { get; set; }
 
         /// <summary>The body layer this slot draws for, so clothing can hide it.</summary>
         public string? BodyLayer { get; set; }
@@ -106,7 +108,8 @@ public sealed class PaperdollRenderer
 
     /// <summary>The layers the character is drawn with, bottom to top.</summary>
     /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
-    public IReadOnlyList<DrawnLayer> Layers(CharacterLook look, IReadOnlyDictionary<string, string>? outfit = null)
+    /// <param name="tints">Colours for worn items by slot (Euphoria's loadout colour), drawn over a grey version of the item.</param>
+    public IReadOnlyList<DrawnLayer> Layers(CharacterLook look, IReadOnlyDictionary<string, string>? outfit = null, IReadOnlyDictionary<string, Rgba>? tints = null)
     {
         if (!catalog.Species.TryGetValue(look.Species, out var species))
             throw new ArgumentException($"No species {look.Species}.", nameof(look));
@@ -131,11 +134,11 @@ public sealed class PaperdollRenderer
             InsertMarkings(slots, organ, look);
 
         if (outfit != null)
-            Dress(slots, species, look.Sex, outfit);
+            Dress(slots, species, look.Sex, outfit, tints);
 
         return slots
             .Where(s => s.Sprite is { State: not null })
-            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement))
+            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement, s.Greyscale))
             .ToList();
     }
 
@@ -145,7 +148,7 @@ public sealed class PaperdollRenderer
 
     // Worn items' layers go right after their slot's layer, fitted by the species' clothing map for
     // the slot and sex (unless drawn in a species version); body layers they cover are hidden.
-    private void Dress(List<Slot> slots, SpeciesInfo species, string sex, IReadOnlyDictionary<string, string> outfit)
+    private void Dress(List<Slot> slots, SpeciesInfo species, string sex, IReadOnlyDictionary<string, string> outfit, IReadOnlyDictionary<string, Rgba>? tints)
     {
         var hidden = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (slot, entity) in outfit)
@@ -157,13 +160,16 @@ public sealed class PaperdollRenderer
             if (index < 0)
                 continue;
             var displacement = species.ClothingDisplacement(slot, sex);
+            // A tint replaces the layers' own colours and greys them first, as the game's paint does.
+            var tint = tints != null && tints.TryGetValue(slot, out var tinted) ? tinted : (Rgba?)null;
             for (var i = 0; i < visual.Layers.Count; i++)
             {
                 var layer = visual.Layers[i];
                 slots.Insert(index + 1 + i, new Slot([$"{slot}-{i}"])
                 {
                     Sprite = layer.Sprite,
-                    Color = layer.Color,
+                    Color = tint ?? layer.Color,
+                    Greyscale = tint != null,
                     Displacement = layer.SpeciesSpecific ? null : displacement,
                 });
             }
@@ -186,8 +192,9 @@ public sealed class PaperdollRenderer
     /// <summary>The character as an image, one frame, facing the given way.</summary>
     /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
     /// <param name="seconds">How far into their animations animated sprites are, as they loop in the game.</param>
-    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null, double seconds = 0) =>
-        Compose(Layers(look, outfit), direction, seconds);
+    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null,
+        double seconds = 0, IReadOnlyDictionary<string, Rgba>? tints = null) =>
+        Compose(Layers(look, outfit, tints), direction, seconds);
 
     /// <summary>A plain entity, such as a borg, drawn from its sprite's layers.</summary>
     public SKBitmap RenderEntity(string entityId, Direction direction = Direction.South, double seconds = 0) =>
@@ -198,7 +205,7 @@ public sealed class PaperdollRenderer
 
     private SKBitmap Compose(IReadOnlyList<DrawnLayer> layers, Direction direction, double seconds)
     {
-        var frames = new List<(Pixels Frame, Rgba Color)>();
+        var frames = new List<(Pixels Frame, Rgba Color, bool Greyscale)>();
         foreach (var layer in layers)
         {
             var index = FrameIndex(layer.Sprite, direction, seconds);
@@ -206,7 +213,7 @@ public sealed class PaperdollRenderer
                 continue;
             if (layer.Displacement?.For(frame.Width) is { } map)
                 frame = Displaced(layer.Sprite, frame, map, direction, index) ?? frame;
-            frames.Add((frame, layer.Color));
+            frames.Add((frame, layer.Color, layer.Greyscale));
         }
 
         var width = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Width);
@@ -214,7 +221,7 @@ public sealed class PaperdollRenderer
         var result = new Pixels(width, height, new SKColor[width * height]);
         Array.Fill(result.Data, SKColors.Transparent);
 
-        foreach (var (frame, color) in frames)
+        foreach (var (frame, color, greyscale) in frames)
         {
             var offsetX = (width - frame.Width) / 2;
             var offsetY = (height - frame.Height) / 2;
@@ -223,7 +230,8 @@ public sealed class PaperdollRenderer
                 for (var x = 0; x < frame.Width; x++)
                 {
                     var i = (y + offsetY) * width + x + offsetX;
-                    result.Data[i] = Over(Tint(frame.Data[y * frame.Width + x], color), result.Data[i]);
+                    var pixel = frame.Data[y * frame.Width + x];
+                    result.Data[i] = Over(Tint(greyscale ? Grey(pixel) : pixel, color), result.Data[i]);
                 }
             }
         }
@@ -402,6 +410,13 @@ public sealed class PaperdollRenderer
             }
         }
         return result;
+    }
+
+    // The engine's zGrayscale (Rec. BT.709 weights).
+    private static SKColor Grey(SKColor pixel)
+    {
+        var grey = (byte)Math.Round(Math.Clamp(0.2126 * pixel.Red + 0.7152 * pixel.Green + 0.0722 * pixel.Blue, 0, 255));
+        return new SKColor(grey, grey, grey, pixel.Alpha);
     }
 
     private static SKColor Tint(SKColor pixel, Rgba color) => new(

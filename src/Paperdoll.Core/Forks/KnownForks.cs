@@ -10,7 +10,7 @@ public static class KnownForks
         new("upstream", "Wizard's Den (upstream)", "space-wizards/space-station-14", "master", AppearanceModel.New, false, ["wizards", "wizards-testing"]),
         new("deltav", "Delta-V", "DeltaV-Station/Delta-v", "master", AppearanceModel.New, false, ["delta-v"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin, SizeRule = SizeRule.SpeciesScaleTimesHeight, TraitRules = Traits.TraitRules.DeltaV, Extras = ProfileExtras.Records },
         new("euphoria", "Euphoria", "Floof-Station/Panta-Rhei", "master", AppearanceModel.New, false, ["euphoria"]) { HiddenSpecies = ["Motorkind"], NameRule = Profiles.NameRule.AccentedLatin, SizeRule = SizeRule.SpeciesScaleTimesHeight, TraitRules = Traits.TraitRules.DeltaV,
-            DefaultHeights = (0.7f, 1.25f), Extras = ProfileExtras.CustomSpeciesName | ProfileExtras.Records | ProfileExtras.Allergies },
+            DefaultHeights = (0.7f, 1.25f), Extras = ProfileExtras.CustomSpeciesName | ProfileExtras.Records | ProfileExtras.Allergies | ProfileExtras.ItemCustomization },
         new("trauma", "Trauma", "Trauma-Station/Trauma-Station", "master", AppearanceModel.New, false, ["Trauma"]),
         new("carpmosia", "Carpmosia", "carpmosia/carpmosia", "dev", AppearanceModel.New, false, ["carpmosia"]),
         new("floof", "Floof", "Floof-Station-SS14/Floof-Station", "master", AppearanceModel.New, false, ["floof-ss14", "floof-station-nova"]) { TraitRules = Traits.TraitRules.DeltaV },
