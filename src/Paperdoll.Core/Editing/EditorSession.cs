@@ -446,8 +446,54 @@ public sealed class EditorSession : IAsyncDisposable
     }
 
     /// <summary>A random name for the species and pronouns, as the game makes them.</summary>
+    /// <summary>A random name for the species, already in the form the game's name rule leaves it (so "Vish'ra" is "Vish'Ra").</summary>
     public string RandomName(SpeciesInfo species, string? gender) =>
-        new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender);
+        CharacterRules.CheckName(new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender), Fork!.NameRule);
+
+    /// <summary>
+    /// Randomises the chosen parts as the lobby's randomise button does, keeping the rest (its
+    /// locks). Unlike the game's, which starts a fresh profile, jobs, loadouts, traits, antagonists,
+    /// records and the description are kept.
+    /// </summary>
+    public IReadOnlyList<RuleFix> Randomize(RandomParts parts, Random? random = null) => Edit(file =>
+    {
+        var catalog = RequireContent().Characters;
+        var randomizer = new Randomizer(catalog, random ??= Random.Shared);
+        var current = file.ReadLook(catalog);
+        var choices = Selectable();
+        var species = parts.HasFlag(RandomParts.Species) && choices.Count > 0
+            ? choices[random.Next(choices.Count)]
+            : catalog.Species.GetValueOrDefault(current.Species) ?? catalog.Species[CharacterRules.DefaultSpecies];
+        var sex = parts.HasFlag(RandomParts.Sex) ? randomizer.Sex(species) : file.Sex ?? species.Sexes[0];
+        var gender = parts.HasFlag(RandomParts.Pronouns) ? Randomizer.PronounsFor(sex) : file.Gender;
+
+        file.Species = species.Id;
+        file.Sex = sex;
+        file.Gender = gender;
+        // The game always gives a randomised character the species' voice for its sex.
+        if (catalog.HasVoices && species.DefaultVoice(sex) is { } voice)
+            file.Voice = voice;
+        if (parts.HasFlag(RandomParts.Name))
+            file.Name = RandomName(species, gender);
+        if (parts.HasFlag(RandomParts.Age))
+            file.Age = randomizer.Age(species);
+
+        // Kept colours stand in for the palette's, so random markings match them.
+        var palette = randomizer.RandomPalette(species);
+        palette = palette with
+        {
+            Skin = parts.HasFlag(RandomParts.Skin) ? palette.Skin : current.SkinColor,
+            Eyes = parts.HasFlag(RandomParts.Eyes) ? palette.Eyes : current.EyeColor,
+        };
+        file.WriteLook(new CharacterLook
+        {
+            Species = species.Id,
+            Sex = sex,
+            SkinColor = palette.Skin,
+            EyeColor = palette.Eyes,
+            Markings = parts.HasFlag(RandomParts.Markings) ? randomizer.Markings(species, sex, palette) : current.Markings,
+        });
+    });
 
     /// <summary>Gives the character a new random name.</summary>
     public IReadOnlyList<RuleFix> RandomizeName() => Edit(f =>

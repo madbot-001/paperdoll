@@ -11,6 +11,7 @@
         <MenuItem Header="_New Character" Click="OnNew" InputGesture="Ctrl+N" HotKey="Ctrl+N" />
         <MenuItem Header="_Open..." Click="OnOpen" InputGesture="Ctrl+O" HotKey="Ctrl+O" />
         <MenuItem Header="_Save" Click="OnSave" InputGesture="Ctrl+S" HotKey="Ctrl+S" />
+        <MenuItem Header="_Randomise" Click="OnRandom" InputGesture="Ctrl+R" HotKey="Ctrl+R" />
         <MenuItem Header="_Export..." Click="OnExport" InputGesture="Ctrl+E" HotKey="Ctrl+E" />
         <MenuItem Name="AutosaveItem" Header="_Autosave" ToggleType="CheckBox" IsChecked="True" />
         <Separator />
@@ -39,6 +40,15 @@
         <Button Classes="tool" Content="New" Click="OnNew" ToolTip.Tip="New character (Ctrl+N)" />
         <Button Classes="tool" Content="Open..." Click="OnOpen" ToolTip.Tip="Open an exported character (Ctrl+O)" />
         <Button Classes="tool" Content="Export..." Click="OnExport" ToolTip.Tip="Export for the lobby's Import button (Ctrl+E)" />
+        <Rectangle Classes="divider" />
+        <Button Classes="tool" Content="Random" Click="OnRandom" ToolTip.Tip="Randomise the character as the lobby does (Ctrl+R). Jobs, loadouts, traits and records are kept." />
+        <Button Name="RandomPartsButton" Classes="tool" Content="▾" Padding="3,2" ToolTip.Tip="Choose what Random changes">
+          <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft">
+              <StackPanel Name="RandomPartsPanel" Spacing="2" Margin="4" />
+            </Flyout>
+          </Button.Flyout>
+        </Button>
         <Rectangle Classes="divider" />
         <TextBlock Classes="hint" Text="Fork" Margin="2,0,6,0" />
         <ComboBox Name="ForkBox" Width="210" SelectionChanged="OnForkChosen" />

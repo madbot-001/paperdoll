@@ -110,7 +110,11 @@ public sealed record LayerLimit(
     bool Required,
     bool? OnlyGroupWhitelisted,
     IReadOnlyList<string> Default,
-    IReadOnlyList<string> NudityDefault);
+    IReadOnlyList<string> NudityDefault)
+{
+    /// <summary>The chance, per marking the layer takes, that a random character gets one (<c>weight</c>).</summary>
+    public float Weight { get; init; } = 0.6f;
+}
 
 public sealed record MarkingsGroupInfo(string Id, bool OnlyGroupWhitelisted, IReadOnlyDictionary<string, LayerLimit> Limits);
 
@@ -125,6 +129,9 @@ public sealed record MarkingInfo(
 {
     /// <summary>Whether the organ's displacement map for this layer applies (the game's <c>canBeDisplaced</c>).</summary>
     public bool CanBeDisplaced { get; init; } = true;
+
+    /// <summary>How likely random characters are to get this marking, against the others (<c>randomWeight</c>).</summary>
+    public float RandomWeight { get; init; } = 1f;
 }
 
 /// <summary>
@@ -381,7 +388,10 @@ public sealed class CharacterCatalog
                     Bool(limit, "required") ?? false,
                     Bool(limit, "onlyGroupWhitelisted"),
                     Strings(limit, "default") ?? [],
-                    Strings(limit, "nudityDefault") ?? []);
+                    Strings(limit, "nudityDefault") ?? [])
+                {
+                    Weight = Float(limit, "weight") ?? 0.6f,
+                };
             }
         }
         return new MarkingsGroupInfo(id, Bool(node, "onlyGroupWhitelisted") ?? false, limits);
@@ -408,6 +418,7 @@ public sealed class CharacterCatalog
             node)
         {
             CanBeDisplaced = Bool(node, "canBeDisplaced") ?? true,
+            RandomWeight = Float(node, "randomWeight") ?? 1f,
         };
     }
 

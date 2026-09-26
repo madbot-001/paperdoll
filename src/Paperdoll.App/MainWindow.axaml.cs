@@ -254,6 +254,49 @@ public partial class MainWindow : Window
         SetStatus("New character. Give it a name in the inspector.");
     }
 
+    private void OnRandom(object? sender, RoutedEventArgs e)
+    {
+        if (_session?.File == null)
+            return;
+        var parts = _settings.RandomParts;
+        if (parts == Core.Characters.RandomParts.None)
+        {
+            SetStatus("Nothing to randomise: choose what Random changes with the arrow next to it.");
+            return;
+        }
+        _selected = new Node(NodeKind.Character);
+        Apply(s => s.Randomize(parts));
+        SetStatus($"Randomised {_session.File.Name}. Jobs, loadouts, traits and records were kept.");
+    }
+
+    // The check boxes under Random's arrow: what it changes, kept between runs.
+    private void BuildRandomParts()
+    {
+        RandomPartsPanel.Children.Clear();
+        RandomPartsPanel.Children.Add(new TextBlock { Text = "Random changes:", Classes = { "hint" }, Margin = new Avalonia.Thickness(2, 0, 2, 2) });
+        (Core.Characters.RandomParts Part, string Label)[] parts =
+        [
+            (Core.Characters.RandomParts.Species, "Species"),
+            (Core.Characters.RandomParts.Sex, "Sex"),
+            (Core.Characters.RandomParts.Pronouns, "Pronouns"),
+            (Core.Characters.RandomParts.Name, "Name"),
+            (Core.Characters.RandomParts.Age, "Age"),
+            (Core.Characters.RandomParts.Skin, "Skin colour"),
+            (Core.Characters.RandomParts.Eyes, "Eye colour"),
+            (Core.Characters.RandomParts.Markings, "Markings, hair included"),
+        ];
+        foreach (var (part, label) in parts)
+        {
+            var box = new CheckBox { Content = label, IsChecked = _settings.RandomParts.HasFlag(part) };
+            box.IsCheckedChanged += (_, _) =>
+            {
+                _settings = _settings with { RandomParts = box.IsChecked == true ? _settings.RandomParts | part : _settings.RandomParts & ~part };
+                SaveSettings();
+            };
+            RandomPartsPanel.Children.Add(box);
+        }
+    }
+
     private void OnShowTab(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { Tag: string tag } && int.TryParse(tag, out var index))

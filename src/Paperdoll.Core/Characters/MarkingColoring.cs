@@ -37,6 +37,26 @@ public static class MarkingColoring
         return colors;
     }
 
+    /// <summary>
+    /// Colours for a randomly picked marking, as the game's randomiser gives them: a sprite whose
+    /// colouring names a type is coloured by it, any other gets <paramref name="untyped"/>.
+    /// </summary>
+    public static List<Rgba> RandomColors(MarkingInfo marking, Rgba skin, Rgba eyes, IReadOnlyList<MarkingEntry> otherMarkings, Func<Rgba> untyped)
+    {
+        var coloring = marking.Node.Children.TryGetValue(new YamlScalarNode("coloring"), out var node) ? node as YamlMappingNode : null;
+        var defaultDef = Definition(Child(coloring, "default"));
+        var layers = Child(coloring, "layers") as YamlMappingNode;
+        var colors = new List<Rgba>();
+        foreach (var sprite in marking.Sprites)
+        {
+            var definition = layers != null && sprite.State != null && layers.Children.TryGetValue(new YamlScalarNode(sprite.State), out var layerNode)
+                ? Definition(layerNode)
+                : defaultDef;
+            colors.Add(definition.Type != null ? definition.Color(skin, eyes, otherMarkings) : untyped());
+        }
+        return colors;
+    }
+
     private sealed record ColoringDefinition(YamlNode? Type, IReadOnlyList<YamlNode>? FallbackTypes, Rgba FallbackColor)
     {
         public Rgba Color(Rgba? skin, Rgba? eyes, IReadOnlyList<MarkingEntry> others)

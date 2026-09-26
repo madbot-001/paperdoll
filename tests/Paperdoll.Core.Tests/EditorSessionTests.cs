@@ -49,6 +49,18 @@ public sealed class EditorSessionTests : IDisposable
         using var image = session.Render();
         Assert.True(image.Width >= 32);
 
+        // Random characters already pass the game's rules: nothing needs removing or changing
+        // beyond what the game's own randomiser leaves to its checks (required markings).
+        for (var seed = 0; seed < 30; seed++)
+        {
+            session.Randomize(Characters.RandomParts.All, new Random(seed));
+            var problems = session.LastFixes.Where(f => f.Field != "markings" || f.Message.Contains("removed")).ToList();
+            Assert.True(problems.Count == 0, $"seed {seed}, {session.Look!.Species}, name '{session.File!.Name}': " + string.Join("; ", problems.Select(p => p.Message)));
+            Assert.Empty(Profiles.CharacterRules.EnsureValid(Profiles.CharacterFile.Parse(session.File!.ToYaml()), session.Content.Characters, session.Fork!));
+        }
+        session.Edit(f => f.Name = "urist mchands");
+        session.ChangeSpecies("Harpy");
+
         // Loading the fork again (as Update does) keeps the character open.
         await session.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
         Assert.Equal("Urist Mchands", session.File!.Name);

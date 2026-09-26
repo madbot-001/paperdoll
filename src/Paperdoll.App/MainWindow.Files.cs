@@ -14,6 +14,9 @@ public sealed record AppSettings
 
     /// <summary>The file the character was last opened from or saved to, for Save.</summary>
     public string? WorkingFile { get; init; }
+
+    /// <summary>What Random changes; the rest is kept, like the lobby's locks.</summary>
+    public Core.Characters.RandomParts RandomParts { get; init; } = Core.Characters.RandomParts.All;
 }
 
 public partial class MainWindow
@@ -65,6 +68,7 @@ public partial class MainWindow
             SetStatus($"Could not read settings, using the defaults: {e.Message}");
         }
         AutosaveItem.IsChecked = _settings.Autosave;
+        BuildRandomParts();
     }
 
     private void SaveSettings()
