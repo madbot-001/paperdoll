@@ -18,9 +18,10 @@ public static class HeadlessApp
 public class ScreenshotTests
 {
     /// <summary>
-    /// Loads Delta-V, opens the main window on it (optionally on a character file) and saves a
-    /// picture. Set PAPERDOLL_SCREENSHOT_OUT to a folder, PAPERDOLL_STORE to reuse a download, and
-    /// PAPERDOLL_SCREENSHOT_FILE to show a character file. Needs the network the first time.
+    /// Loads Delta-V (or the fork PAPERDOLL_SCREENSHOT_FORK names), opens the main window on it
+    /// (optionally on a character file) and saves a picture. Set PAPERDOLL_SCREENSHOT_OUT to a
+    /// folder, PAPERDOLL_STORE to reuse a download, and PAPERDOLL_SCREENSHOT_FILE to show a
+    /// character file. Needs the network the first time.
     /// </summary>
     [Fact]
     public async Task Main_window_screenshot()
@@ -30,13 +31,17 @@ public class ScreenshotTests
         var ct = TestContext.Current.CancellationToken;
 
         await using var editor = await EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE"), ct);
-        await editor.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
+        var fork = KnownForks.Find(Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_FORK") ?? "deltav")
+            ?? throw new InvalidOperationException("PAPERDOLL_SCREENSHOT_FORK names no known fork.");
+        await editor.LoadForkAsync(fork, update: false, ct: ct);
         if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_FILE") is { } path)
             editor.Open(await File.ReadAllTextAsync(path, ct));
         if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_SPECIES") is { } species)
             editor.ChangeSpecies(species);
 
-        using var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        // Not disposed: disposing the headless session never returns once the window has run
+        // (seen with Avalonia 12.1), and its thread ends with the test process anyway.
+        var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
         await session.Dispatch(() =>
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
