@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using Paperdoll.Core.Forks;
+using Paperdoll.Core.Characters;
 using Paperdoll.Core.Store;
 
 namespace Paperdoll.Core.Tests;
@@ -41,6 +42,49 @@ public sealed class NetworkTests : IDisposable
             $"Delta-V {commit[..8]}: {entries.Count} files, {fetched} fetched in {timer.Elapsed.TotalSeconds:F1}s");
         Assert.Contains("id: Harpy", text);
         Assert.Empty(await store.MissingAsync(entries.Select(e => e.ObjectId), ct));
+    }
+
+    [Theory]
+    [InlineData("deltav", 21, 20)]
+    [InlineData("upstream", 9, 9)]
+    public async Task Forks_load_with_the_species_counted_in_the_survey(string forkId, int roundStart, int selectable)
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("PAPERDOLL_NETWORK_TESTS") == "1",
+            "Set PAPERDOLL_NETWORK_TESTS=1 to run tests that use the network.");
+        var ct = TestContext.Current.CancellationToken;
+        var store = new GitForkStore(Path.Combine(_root, "store.git"));
+        await store.InitializeAsync(ct);
+        var fork = KnownForks.Find(forkId)!;
+        var timer = Stopwatch.StartNew();
+
+        await store.SyncAsync(fork, ct);
+        var content = await ForkContent.LoadAsync(store, fork, ct: ct);
+
+        TestContext.Current.SendDiagnosticMessage(
+            $"{fork.Name}: {content.Prototypes.Count} prototypes, {content.Strings.Count} strings, " +
+            $"{content.TextureFiles.Count} sprite files in {timer.Elapsed.TotalSeconds:F1}s");
+        Assert.Empty(content.Prototypes.Problems);
+        Assert.Equal(roundStart, content.Characters.Species.Values.Count(s => s.RoundStart));
+        Assert.Equal(selectable, content.Characters.Selectable(fork.HiddenSpecies).Count());
+        Assert.Equal("Human", content.Strings.Get(content.Characters.Species["Human"].NameKey));
+        Assert.All(content.Characters.Selectable(fork.HiddenSpecies), s => Assert.NotEmpty(s.Organs));
+        Assert.Contains("Mobs/Species/Human/parts.rsi/meta.json", content.TextureFiles.Keys);
+    }
+
+    [Fact]
+    public async Task Delta_v_harpy_wings_have_their_own_layer()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("PAPERDOLL_NETWORK_TESTS") == "1",
+            "Set PAPERDOLL_NETWORK_TESTS=1 to run tests that use the network.");
+        var ct = TestContext.Current.CancellationToken;
+        var store = new GitForkStore(Path.Combine(_root, "store.git"));
+        await store.InitializeAsync(ct);
+        var fork = KnownForks.Find("deltav")!;
+        await store.SyncAsync(fork, ct);
+
+        var content = await ForkContent.LoadAsync(store, fork, ct: ct);
+
+        Assert.Contains("RArmExtension", content.Characters.Species["Harpy"].Organs.SelectMany(o => o.MarkingLayers));
     }
 
     [Fact]

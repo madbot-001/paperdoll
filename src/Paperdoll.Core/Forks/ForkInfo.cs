@@ -27,4 +27,11 @@ public sealed record ForkInfo(
     string Branch,
     AppearanceModel Model,
     bool Supported,
-    IReadOnlyList<string> ServerForkIds);
+    IReadOnlyList<string> ServerForkIds)
+{
+    /// <summary>
+    /// Round-start species the fork hides by default through a server setting (Delta-V's
+    /// <c>species.hidden</c>), so <c>roundStart: true</c> alone would list them wrongly.
+    /// </summary>
+    public IReadOnlyList<string> HiddenSpecies { get; init; } = [];
+}
