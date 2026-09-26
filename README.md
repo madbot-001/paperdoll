@@ -2,49 +2,56 @@
 
 # Paperdoll
 
-A character editor for Space Station 14 that runs on your own computer. Make and edit characters
-without joining a server, see them drawn as the game draws them, and save them as the `.yml` file
-the lobby's character editor imports.
+A character editor for Space Station 14. You can make and edit characters without joining a
+server, see them drawn the way the game draws them, and save them as the `.yml` file the lobby's
+Import button takes.
 
-- **No server needed.** No player slot is taken while you work.
-- **Your characters stay on your computer.** Paperdoll only downloads game data from GitHub. It
-  never uploads, shares or collects character files, and it never reads other players' characters.
-- **Knows your fork.** Species, markings, colours and loadouts come from the fork's own files on
-  GitHub, so the options match what the game offers. Delta-V first, then upstream.
-- **Uses the game's own format.** Export a character here, then use **Import** in the lobby editor.
+Species, markings, colours, loadouts and traits are read from each fork's own repository, so the
+choices match that fork. Delta-V and Euphoria get the most attention, then upstream.
 
-Status: early. Delta-V and upstream (and other forks on the new appearance model) can be
-downloaded, drawn facing any way, edited and exported.
+Paperdoll only downloads game data. Your characters stay on your computer: nothing is uploaded or
+shared, and it never reads other players' characters.
 
-The first start opens Fork > Forks: pick a fork and press Download. Fork files are kept in
-your local application data folder (`~/.local/share/Paperdoll/store` on Linux), about 10 to 30 MB
-per fork, and files forks share are kept once. With git 2.45 or newer installed Paperdoll uses it;
-otherwise it downloads through the GitHub API, which allows only 60 requests an hour.
+It's early. Forks on the new appearance model (Delta-V, Euphoria, upstream and a few others) can
+be downloaded, previewed from all four sides, edited and exported. Older forks aren't supported
+yet. So far it has only been run on Linux.
 
-## Building
+## Running it
 
-Needs the .NET 10 SDK.
+You need the .NET 10 SDK.
+
+```sh
+dotnet run --project src/Paperdoll.App
+```
+
+The first time, pick a fork under Fork > Forks and download it. Fork data goes in
+`~/.local/share/Paperdoll/store` on Linux (your local application data folder elsewhere), 10 to
+30 MB per fork. If you have git 2.45 or newer it's used; otherwise downloads go through the GitHub
+API, which allows 60 requests an hour.
+
+## Building and testing
 
 ```sh
 dotnet build
 dotnet test
-dotnet run --project src/Paperdoll.App
 ```
+
+Some tests are skipped unless you ask for them. `PAPERDOLL_NETWORK_TESTS=1` runs the ones that
+download from GitHub. Exported characters you put in `tests/private/` (ignored by git) are opened
+and checked against their forks. `PAPERDOLL_SCREENSHOT_OUT=<folder>` saves a screenshot of the
+window.
 
 ## Layout
 
-- `src/Paperdoll.Core`: everything that is not UI (downloading fork data, reading prototypes,
-  character rules, import and export).
-- `src/Paperdoll.App`: the desktop program (Avalonia).
-- `tests/Paperdoll.Core.Tests`: tests. Tests that need private character files look in
-  `tests/private/`, which git ignores, and are skipped when the files are missing. Tests that
-  download from GitHub run only with `PAPERDOLL_NETWORK_TESTS=1`.
-- `tests/Paperdoll.App.Tests`: a headless screenshot of the window, taken when
-  `PAPERDOLL_SCREENSHOT_OUT` names a folder.
+- `src/Paperdoll.Core`: everything that isn't UI (fork downloads, prototypes, character rules,
+  drawing, import and export)
+- `src/Paperdoll.App`: the Avalonia desktop app
+- `tests/`: unit tests, and tests that drive the window headlessly
 
 ## Licence
 
-Paperdoll's code is MIT (see [LICENSE](LICENSE)).
+MIT, see [LICENSE](LICENSE). Some logic is ported from Space Station 14 and RobustToolbox, which
+are MIT too; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-Not affiliated with Space Wizards or any fork. Game sprites are downloaded from each fork's
-repository when needed and keep their own licences, shown with each sprite.
+Not affiliated with Space Wizards or any fork. Sprites are downloaded from each fork when needed
+and keep their own licences, listed in the Credits tab.
