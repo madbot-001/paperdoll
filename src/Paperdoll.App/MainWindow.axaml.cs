@@ -118,12 +118,17 @@ public partial class MainWindow : Window
     /// <summary>A fork's data changed: rebuild what depends on the fork, then the rest.</summary>
     private void OnForkLoaded()
     {
-        _session!.PreviewJob = null;
+        var session = _session!;
+        if (session.PreviewJob != null && !session.Content!.Outfits.Jobs.ContainsKey(session.PreviewJob))
+            session.PreviewJob = null;
         BuildJobList();
         BuildPortraits();
         _selected = new Node(NodeKind.Character);
         RefreshAll();
-        SetStatus($"{_session!.Fork!.Name} loaded. Pick a species in the Species table below, then work through the character on the left.");
+        var changes = session.LastFixes.Count;
+        SetStatus(changes == 0
+            ? $"{session.Fork!.Name} loaded. Work through {session.File?.Name ?? "the character"} on the left, or pick a species in the Species table."
+            : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.");
     }
 
     private async Task RefreshForkBoxAsync()

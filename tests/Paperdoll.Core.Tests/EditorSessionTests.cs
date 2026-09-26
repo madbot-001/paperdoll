@@ -43,5 +43,10 @@ public sealed class EditorSessionTests : IDisposable
         Assert.NotEmpty(session.Credits());
         using var image = session.Render();
         Assert.True(image.Width >= 32);
+
+        // Loading the fork again (as Update does) keeps the character open.
+        await session.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
+        Assert.Equal("Urist Mchands", session.File!.Name);
+        Assert.Equal("Harpy", session.Look!.Species);
     }
 }

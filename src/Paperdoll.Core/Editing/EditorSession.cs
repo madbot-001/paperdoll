@@ -60,7 +60,8 @@ public sealed class EditorSession : IAsyncDisposable
 
     /// <summary>
     /// Makes a fork the one being edited: downloads it if it never was (or when asked to update),
-    /// reads its data and sprites, and starts a new character.
+    /// reads its data and sprites. A character already open stays open and is checked against the
+    /// new data, as if it had been opened there; otherwise a new character is started.
     /// </summary>
     public async Task LoadForkAsync(ForkInfo fork, bool update, IProgress<string>? progress = null, CancellationToken ct = default)
     {
@@ -81,9 +82,14 @@ public sealed class EditorSession : IAsyncDisposable
         Fork = fork;
         Content = content;
         Renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
-        NewCharacter(content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
-            ? CharacterRules.DefaultSpecies
-            : Selectable().First().Id);
+        if (File != null)
+            ApplyRules();
+        else
+        {
+            NewCharacter(content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
+                ? CharacterRules.DefaultSpecies
+                : Selectable().First().Id);
+        }
         progress?.Report($"{fork.Name} ready");
     }
 
