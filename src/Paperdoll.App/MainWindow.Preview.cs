@@ -44,6 +44,46 @@ public partial class MainWindow
         }
     }
 
+    private List<(string Id, string Name)> _jobs = [];
+
+    /// <summary>Fills the job list for the loaded fork and selects the job being shown.</summary>
+    private void BuildJobList()
+    {
+        var session = _session!;
+        _jobs = session.Content!.Outfits.SelectableJobs()
+            .Select(j => (j.Id, session.Content.Strings.Get(j.NameKey)))
+            .OrderBy(j => j.Item2, StringComparer.CurrentCulture)
+            .ToList();
+        var wasRefreshing = _refreshing;
+        _refreshing = true;
+        JobBox.ItemsSource = _jobs.Select(j => j.Name).ToList();
+        SelectDressedJob();
+        _refreshing = wasRefreshing;
+    }
+
+    private void SelectDressedJob()
+    {
+        var dressed = _session?.DressedJob();
+        JobBox.SelectedIndex = _jobs.FindIndex(j => j.Id == dressed);
+    }
+
+    private void OnJobChosen(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_refreshing || _session == null || JobBox.SelectedIndex < 0)
+            return;
+        _session.PreviewJob = _jobs[JobBox.SelectedIndex].Id;
+        RefreshAll();
+    }
+
+    private void OnClothesToggled(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_session == null)
+            return;
+        _session.ShowClothes = ClothesBox.IsChecked == true;
+        if (!_refreshing)
+            RefreshAll();
+    }
+
     private void OnZoomChosen(object? sender, SelectionChangedEventArgs e)
     {
         if (ZoomBox.SelectedItem is string text && int.TryParse(text.TrimEnd('x'), out var zoom))

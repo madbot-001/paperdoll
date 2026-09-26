@@ -1,5 +1,6 @@
 using Paperdoll.Core.Characters;
 using Paperdoll.Core.Forks;
+using Paperdoll.Core.Outfits;
 using Paperdoll.Core.Profiles;
 using Paperdoll.Core.Rendering;
 using Paperdoll.Core.Store;
@@ -111,6 +112,36 @@ public sealed class EditorSession : IAsyncDisposable
             CharacterSize.WriteHeight(file, CharacterSize.CheckHeight(species.DefaultHeight, species));
         File = file;
         ApplyRules();
+    }
+
+    /// <summary>The job whose clothes the preview shows; null means the one the lobby would pick.</summary>
+    public string? PreviewJob { get; set; }
+
+    /// <summary>Whether the preview shows clothes at all.</summary>
+    public bool ShowClothes { get; set; } = true;
+
+    /// <summary>The job the preview dresses for: the chosen one, else the character's High priority job, else the fallback job.</summary>
+    public string? DressedJob()
+    {
+        var outfits = RequireContent().Outfits;
+        foreach (var candidate in new[] { PreviewJob, File?.HighPriorityJob, OutfitCatalog.FallbackJob })
+        {
+            if (candidate != null && outfits.Jobs.ContainsKey(candidate))
+                return candidate;
+        }
+        return outfits.SelectableJobs().FirstOrDefault()?.Id;
+    }
+
+    /// <summary>The job's loadout as the character has it, with defaults where nothing is saved.</summary>
+    public RoleLoadout LoadoutFor(string jobId) =>
+        RequireContent().Outfits.LoadoutFor(jobId, Look!.Species, RequireFile().Loadouts.GetValueOrDefault(OutfitCatalog.RoleFor(jobId)));
+
+    /// <summary>What the preview puts on the character, slot to item; null when clothes are off.</summary>
+    public IReadOnlyDictionary<string, string>? Outfit()
+    {
+        if (!ShowClothes || DressedJob() is not { } job)
+            return null;
+        return RequireContent().Outfits.OutfitFor(job, LoadoutFor(job));
     }
 
     /// <summary>How much the character is scaled on screen, across and up.</summary>
@@ -248,14 +279,14 @@ public sealed class EditorSession : IAsyncDisposable
         Species = look.Species, Sex = look.Sex, SkinColor = look.SkinColor, EyeColor = color, Markings = look.Markings,
     });
 
-    public SKBitmap Render(Direction direction = Direction.South) => Renderer!.Render(Look!, direction);
+    public SKBitmap Render(Direction direction = Direction.South) => Renderer!.Render(Look!, direction, Outfit());
 
     /// <summary>Each sprite folder on screen with its licence and credit, in drawing order.</summary>
     public IReadOnlyList<CreditLine> Credits()
     {
         if (Renderer == null || Look == null)
             return [];
-        return Renderer.Layers(Look)
+        return Renderer.Layers(Look, Outfit())
             .Select(l => l.Sprite.Rsi)
             .Distinct(StringComparer.Ordinal)
             .Select(rsi => Renderer.Meta(rsi) is { } meta ? new CreditLine(rsi, meta.License, meta.Copyright) : new CreditLine(rsi, null, null))

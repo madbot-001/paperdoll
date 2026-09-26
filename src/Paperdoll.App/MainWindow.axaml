@@ -69,7 +69,12 @@
             <Border Classes="caption" DockPanel.Dock="Top">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5">
-                  <TextBlock Classes="hint" Text="Zoom" />
+                  <CheckBox Name="ClothesBox" Content="Clothes" IsChecked="True" FontSize="11" MinHeight="18"
+                            IsCheckedChanged="OnClothesToggled" ToolTip.Tip="Dress the character as the lobby does" />
+                  <TextBlock Classes="hint" Text="Job" Margin="6,0,0,0" />
+                  <ComboBox Name="JobBox" Width="170" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
+                            SelectionChanged="OnJobChosen" ToolTip.Tip="The job whose clothes and loadout to show" />
+                  <TextBlock Classes="hint" Text="Zoom" Margin="6,0,0,0" />
                   <ComboBox Name="ZoomBox" Width="62" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
                             SelectionChanged="OnZoomChosen" />
                 </StackPanel>

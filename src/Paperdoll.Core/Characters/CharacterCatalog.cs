@@ -42,6 +42,22 @@ public sealed record SpeciesInfo(
     public float MinHeight { get; init; } = 0.8f;
     public float MaxHeight { get; init; } = 1.2f;
     public float DefaultHeight { get; init; } = 1f;
+
+    /// <summary>The name clothing states use for this species' versions (the doll's <c>Inventory.speciesId</c>).</summary>
+    public string? ClothingSpeciesId { get; init; }
+
+    /// <summary>Maps that fit clothing to the body, by slot; the male and female sets replace the default when present.</summary>
+    public IReadOnlyDictionary<string, DisplacementRef> ClothingDisplacements { get; init; } = new Dictionary<string, DisplacementRef>();
+    public IReadOnlyDictionary<string, DisplacementRef> MaleClothingDisplacements { get; init; } = new Dictionary<string, DisplacementRef>();
+    public IReadOnlyDictionary<string, DisplacementRef> FemaleClothingDisplacements { get; init; } = new Dictionary<string, DisplacementRef>();
+
+    /// <summary>The map fitting clothing in a slot to this body and sex, as the game picks it.</summary>
+    public DisplacementRef? ClothingDisplacement(string slot, string sex) => sex switch
+    {
+        "Male" when MaleClothingDisplacements.Count > 0 => MaleClothingDisplacements.GetValueOrDefault(slot),
+        "Female" when FemaleClothingDisplacements.Count > 0 => FemaleClothingDisplacements.GetValueOrDefault(slot),
+        _ => ClothingDisplacements.GetValueOrDefault(slot),
+    };
 }
 
 /// <summary>
@@ -62,6 +78,10 @@ public sealed record OrganInfo(
 
     /// <summary>Maps reshaping markings on the organ's layers, by layer.</summary>
     public IReadOnlyDictionary<string, DisplacementRef> MarkingsDisplacement { get; init; } = new Dictionary<string, DisplacementRef>();
+
+    /// <summary>Layers of this organ that clothing may hide, and layers hidden along with each.</summary>
+    public IReadOnlyList<string> HideableLayers { get; init; } = [];
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> DependentHidingLayers { get; init; } = new Dictionary<string, IReadOnlyList<string>>();
 }
 
 /// <summary>How many markings a layer takes, and which it starts with.</summary>
@@ -132,6 +152,11 @@ public sealed class CharacterCatalog
             foreach (var map in organ.MarkingsDisplacement.Values.Append(organ.Displacement).OfType<DisplacementRef>())
                 folders.UnionWith(map.SizeMaps.Values.Select(m => m.Rsi));
         }
+        foreach (var species in Species.Values)
+        {
+            foreach (var map in species.ClothingDisplacements.Values.Concat(species.MaleClothingDisplacements.Values).Concat(species.FemaleClothingDisplacements.Values))
+                folders.UnionWith(map.SizeMaps.Values.Select(m => m.Rsi));
+        }
         return folders;
     }
 
@@ -169,6 +194,7 @@ public sealed class CharacterCatalog
         var doll = Str(node, "dollPrototype");
         // Old-model species name base sprites under "sprites" and have no organs.
         var organs = doll != null && Get(node, "sprites") == null ? ReadOrgans(index, doll) : [];
+        var inventory = doll != null ? Component(index.Resolve("entity", doll), "Inventory") : null;
 
         return new SpeciesInfo(
             id,
@@ -191,7 +217,25 @@ public sealed class CharacterCatalog
             MinHeight = Float(node, "minHeight") ?? 0.8f,
             MaxHeight = Float(node, "maxHeight") ?? 1.2f,
             DefaultHeight = Float(node, "defaultHeight") ?? 1f,
+            ClothingSpeciesId = Str(inventory, "speciesId"),
+            ClothingDisplacements = Displacements(inventory, "displacements"),
+            MaleClothingDisplacements = Displacements(inventory, "maleDisplacements"),
+            FemaleClothingDisplacements = Displacements(inventory, "femaleDisplacements"),
         };
+    }
+
+    private static Dictionary<string, DisplacementRef> Displacements(YamlMappingNode? inventory, string key)
+    {
+        var result = new Dictionary<string, DisplacementRef>(StringComparer.Ordinal);
+        if (Get(inventory, key) is YamlMappingNode bySlot)
+        {
+            foreach (var (slot, data) in bySlot.Children)
+            {
+                if (ReadDisplacement(data as YamlMappingNode) is { } map)
+                    result[((YamlScalarNode)slot).Value!] = map;
+            }
+        }
+        return result;
     }
 
     // "1.1, 1.1" as the game writes a two-number vector.
@@ -269,6 +313,12 @@ public sealed class CharacterCatalog
             {
                 Displacement = displacement,
                 MarkingsDisplacement = markingsDisplacement,
+                HideableLayers = (marks != null ? Strings(marks, "hideableLayers") : null)?.Select(l => Layer(l)!).ToList() ?? [],
+                DependentHidingLayers = marks != null && Get(marks, "dependentHidingLayers") is YamlMappingNode dependent
+                    ? dependent.Children.ToDictionary(
+                        kv => Layer(((YamlScalarNode)kv.Key).Value)!,
+                        kv => (IReadOnlyList<string>)((kv.Value as YamlSequenceNode)?.Children.OfType<YamlScalarNode>().Select(v => Layer(v.Value)!).ToList() ?? []))
+                    : new Dictionary<string, IReadOnlyList<string>>(),
             });
         }
         return result;

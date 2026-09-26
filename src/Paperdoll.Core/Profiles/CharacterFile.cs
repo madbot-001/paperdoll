@@ -83,6 +83,37 @@ public sealed class CharacterFile
         || Appearance.Children.ContainsKey(new YamlScalarNode("facialHair"))
         || (Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var m) && m is YamlSequenceNode);
 
+    /// <summary>Job preferences, job id to High, Medium or Low (upstream's <c>_jobPriorities</c>).</summary>
+    public IReadOnlyDictionary<string, string> JobPriorities =>
+        Profile.Children.TryGetValue(new YamlScalarNode("_jobPriorities"), out var node) && node is YamlMappingNode map
+            ? map.Children.Where(kv => kv.Value is YamlScalarNode).ToDictionary(kv => ((YamlScalarNode)kv.Key).Value!, kv => ((YamlScalarNode)kv.Value).Value!)
+            : new Dictionary<string, string>();
+
+    /// <summary>The job with High priority, if any: the one the lobby previews.</summary>
+    public string? HighPriorityJob => JobPriorities.FirstOrDefault(kv => kv.Value == "High").Key;
+
+    /// <summary>Saved loadouts: role (such as <c>JobPassenger</c>) to group to selected loadout ids.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> Loadouts
+    {
+        get
+        {
+            var result = new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>>(StringComparer.Ordinal);
+            if (!Profile.Children.TryGetValue(new YamlScalarNode("_loadouts"), out var node) || node is not YamlMappingNode roles)
+                return result;
+            foreach (var (roleKey, roleNode) in roles.Children)
+            {
+                if (roleNode is not YamlMappingNode role || !role.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected)
+                    || selected is not YamlMappingNode groups)
+                    continue;
+                result[((YamlScalarNode)roleKey).Value!] = groups.Children.ToDictionary(
+                    kv => ((YamlScalarNode)kv.Key).Value!,
+                    kv => (IReadOnlyList<string>)((kv.Value as YamlSequenceNode)?.Children.OfType<YamlMappingNode>()
+                        .Select(m => Scalar(m, "prototype")).OfType<string>().ToList() ?? []));
+            }
+            return result;
+        }
+    }
+
     /// <summary>Any single value in the profile by key, such as a fork's own <c>height</c>.</summary>
     public string? GetValue(string key) => Scalar(Profile, key);
 

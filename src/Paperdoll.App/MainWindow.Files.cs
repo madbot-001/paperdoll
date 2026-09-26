@@ -25,6 +25,10 @@ public partial class MainWindow
             var text = await new StreamReader(stream).ReadToEndAsync();
             var wasOld = Core.Profiles.CharacterFile.Parse(text).IsOldModel;
             _session.Open(text);
+            _session.PreviewJob = null;
+            _refreshing = true;
+            SelectDressedJob();
+            _refreshing = false;
             RefreshAll();
             SetStatus($"Opened {files[0].Name}" + (wasOld ? ", converted from the old appearance model." : "."));
         }

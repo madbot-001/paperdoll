@@ -1,6 +1,7 @@
 using System.Text;
 using Paperdoll.Core.Characters;
 using Paperdoll.Core.Locale;
+using Paperdoll.Core.Outfits;
 using Paperdoll.Core.Prototypes;
 using Paperdoll.Core.Store;
 
@@ -18,6 +19,7 @@ public sealed class ForkContent
     public required PrototypeIndex Prototypes { get; init; }
     public required FluentStrings Strings { get; init; }
     public required CharacterCatalog Characters { get; init; }
+    public required OutfitCatalog Outfits { get; init; }
 
     /// <summary>Every file under the character sprite folders, by path, once fetched.</summary>
     public required IReadOnlyDictionary<string, string> TextureFiles { get; init; }
@@ -54,9 +56,17 @@ public sealed class ForkContent
         progress?.Report("Reading prototypes");
         var prototypes = PrototypeIndex.Load(sources);
         var characters = CharacterCatalog.Build(prototypes);
+        var outfits = OutfitCatalog.Build(prototypes);
 
-        progress?.Report("Downloading character sprites");
-        var textures = await FetchSpritesAsync(store, fork.Id, characters.SpriteFolders(), ct);
+        // Clothing folders come from the items' prototypes; whether a sprite has a species version
+        // is only known once its meta.json is here, so no meta is needed to list them.
+        var folders = new HashSet<string>(characters.SpriteFolders(), StringComparer.Ordinal);
+        var clothing = new ClothingResolver(prototypes, _ => null);
+        foreach (var entity in outfits.AllGearEntities())
+            folders.UnionWith(clothing.SpriteFolders(entity));
+
+        progress?.Report("Downloading character and clothing sprites");
+        var textures = await FetchSpritesAsync(store, fork.Id, folders, ct);
 
         return new ForkContent
         {
@@ -65,6 +75,7 @@ public sealed class ForkContent
             Prototypes = prototypes,
             Strings = strings,
             Characters = characters,
+            Outfits = outfits,
             TextureFiles = textures,
         };
     }

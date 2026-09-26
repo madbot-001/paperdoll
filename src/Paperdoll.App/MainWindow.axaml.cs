@@ -101,6 +101,8 @@ public partial class MainWindow : Window
     /// <summary>A fork's data changed: rebuild what depends on the fork, then the rest.</summary>
     private void OnForkLoaded()
     {
+        _session!.PreviewJob = null;
+        BuildJobList();
         BuildPortraits();
         _selected = new Node(NodeKind.Character);
         RefreshAll();

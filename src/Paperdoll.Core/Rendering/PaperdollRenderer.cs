@@ -3,6 +3,7 @@
 // Federation, MIT licence. See THIRD-PARTY-NOTICES.md.
 
 using Paperdoll.Core.Characters;
+using Paperdoll.Core.Outfits;
 using Paperdoll.Core.Prototypes;
 using SkiaSharp;
 using YamlDotNet.RepresentationModel;
@@ -45,10 +46,22 @@ public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, Displa
 /// </list>
 /// Not drawn yet: marking shaders and the nudity-censoring defaults.
 /// </summary>
-public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex prototypes, ITextureSource textures)
+public sealed class PaperdollRenderer
 {
     private const string LayerPrefix = "enum.HumanoidVisualLayers.";
     private readonly Dictionary<string, RsiMeta?> _metas = new(StringComparer.Ordinal);
+    private readonly CharacterCatalog catalog;
+    private readonly PrototypeIndex prototypes;
+    private readonly ITextureSource textures;
+    private readonly ClothingResolver _clothing;
+
+    public PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex prototypes, ITextureSource textures)
+    {
+        this.catalog = catalog;
+        this.prototypes = prototypes;
+        this.textures = textures;
+        _clothing = new ClothingResolver(prototypes, Meta);
+    }
 
     private sealed class Slot(IReadOnlyList<string> keys)
     {
@@ -56,10 +69,14 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
         public SpriteRef? Sprite { get; set; }
         public Rgba Color { get; set; } = Rgba.White;
         public DisplacementRef? Displacement { get; set; }
+
+        /// <summary>The body layer this slot draws for, so clothing can hide it.</summary>
+        public string? BodyLayer { get; set; }
     }
 
     /// <summary>The layers the character is drawn with, bottom to top.</summary>
-    public IReadOnlyList<DrawnLayer> Layers(CharacterLook look)
+    /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
+    public IReadOnlyList<DrawnLayer> Layers(CharacterLook look, IReadOnlyDictionary<string, string>? outfit = null)
     {
         if (!catalog.Species.TryGetValue(look.Species, out var species))
             throw new ArgumentException($"No species {look.Species}.", nameof(look));
@@ -77,10 +94,14 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
             slots[index].Sprite = sprite with { State = state };
             slots[index].Color = organ.Layer == "Eyes" ? look.EyeColor : look.SkinColor;
             slots[index].Displacement = organ.Displacement;
+            slots[index].BodyLayer = organ.Layer;
         }
 
         foreach (var organ in species.Organs)
             InsertMarkings(slots, organ, look);
+
+        if (outfit != null)
+            Dress(slots, species, look.Sex, outfit);
 
         return slots
             .Where(s => s.Sprite is { State: not null })
@@ -88,11 +109,56 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
             .ToList();
     }
 
+    /// <summary>What each worn item looks like on this species, by slot.</summary>
+    public ClothingVisual? Clothing(string entityId, string slot, SpeciesInfo species) =>
+        _clothing.Resolve(entityId, slot, species.ClothingSpeciesId);
+
+    // Worn items' layers go right after their slot's layer, fitted by the species' clothing map for
+    // the slot and sex (unless drawn in a species version); body layers they cover are hidden.
+    private void Dress(List<Slot> slots, SpeciesInfo species, string sex, IReadOnlyDictionary<string, string> outfit)
+    {
+        var hidden = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (slot, entity) in outfit)
+        {
+            if (Clothing(entity, slot, species) is not { } visual)
+                continue;
+            hidden.UnionWith(visual.HiddenLayers);
+            var index = slots.FindIndex(s => s.Keys.Contains(slot));
+            if (index < 0)
+                continue;
+            var displacement = species.ClothingDisplacement(slot, sex);
+            for (var i = 0; i < visual.Layers.Count; i++)
+            {
+                var layer = visual.Layers[i];
+                slots.Insert(index + 1 + i, new Slot([$"{slot}-{i}"])
+                {
+                    Sprite = layer.Sprite,
+                    Color = layer.Color,
+                    Displacement = layer.SpeciesSpecific ? null : displacement,
+                });
+            }
+        }
+
+        // Only layers an organ lets clothing hide, and the layers hidden along with them.
+        var hideable = species.Organs.SelectMany(o => o.HideableLayers).ToHashSet(StringComparer.Ordinal);
+        var effective = hidden.Where(hideable.Contains).ToHashSet(StringComparer.Ordinal);
+        foreach (var organ in species.Organs)
+        {
+            foreach (var layer in effective.ToList())
+            {
+                if (organ.DependentHidingLayers.TryGetValue(layer, out var dependents))
+                    effective.UnionWith(dependents);
+            }
+        }
+        slots.RemoveAll(s => s.BodyLayer != null && effective.Contains(s.BodyLayer));
+    }
+
     /// <summary>The character as an image, one frame, facing the given way.</summary>
-    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South)
+    /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
+    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null)
     {
         var frames = new List<(SKBitmap Frame, Rgba Color)>();
-        foreach (var layer in Layers(look))
+        foreach (var layer in Layers(look, outfit))
         {
             if (LoadFrame(layer.Sprite, direction) is not { } frame)
                 continue;
@@ -179,6 +245,7 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
                         Sprite = marking.Sprites[i],
                         Color = color,
                         Displacement = displacement,
+                        BodyLayer = marking.Layer,
                     });
                 }
             }
