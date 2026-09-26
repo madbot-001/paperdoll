@@ -42,7 +42,7 @@ public sealed class GitForkStoreTests : IDisposable
         var store = await NewStoreAsync();
 
         var commit = await store.SyncAsync(Fork("a"), source.Url, ct);
-        var entries = await store.ListAsync(commit, ["Resources/Prototypes"], ct);
+        var entries = await store.ListAsync("a", ["Resources/Prototypes"], ct);
 
         Assert.Equal(source.Head, commit);
         Assert.Equal(["Resources/Prototypes/species.yml"], entries.Select(e => e.Path));
@@ -59,11 +59,11 @@ public sealed class GitForkStoreTests : IDisposable
             ["Resources/Textures/big.png"] = "not needed",
         });
         var store = await NewStoreAsync();
-        var commit = await store.SyncAsync(Fork("a"), source.Url, ct);
-        var wanted = await store.ListAsync(commit, ["Resources/Prototypes"], ct);
-        var unwanted = await store.ListAsync(commit, ["Resources/Textures"], ct);
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        var wanted = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        var unwanted = await store.ListAsync("a", ["Resources/Textures"], ct);
 
-        var fetched = await store.FetchAsync("a", wanted.Select(e => e.ObjectId), ct);
+        var fetched = await store.FetchAsync("a", wanted, ct);
 
         await using var reader = store.OpenReader();
         Assert.Equal(1, fetched);
@@ -80,10 +80,10 @@ public sealed class GitForkStoreTests : IDisposable
         var b = SourceRepo.Create(_root, "b", new() { ["Resources/Textures/x.png"] = shared, ["Resources/Textures/b.png"] = "b only" });
         var store = await NewStoreAsync();
 
-        var commitA = await store.SyncAsync(Fork("a"), a.Url, ct);
-        var fromA = await store.FetchAsync("a", (await store.ListAsync(commitA, ["Resources"], ct)).Select(e => e.ObjectId), ct);
-        var commitB = await store.SyncAsync(Fork("b"), b.Url, ct);
-        var fromB = await store.FetchAsync("b", (await store.ListAsync(commitB, ["Resources"], ct)).Select(e => e.ObjectId), ct);
+        await store.SyncAsync(Fork("a"), a.Url, ct);
+        var fromA = await store.FetchAsync("a", await store.ListAsync("a", ["Resources"], ct), ct);
+        await store.SyncAsync(Fork("b"), b.Url, ct);
+        var fromB = await store.FetchAsync("b", await store.ListAsync("b", ["Resources"], ct), ct);
 
         Assert.Equal(2, fromA);
         Assert.Equal(1, fromB);
@@ -111,8 +111,8 @@ public sealed class GitForkStoreTests : IDisposable
         var ct = TestContext.Current.CancellationToken;
         var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "one" });
         var store = await NewStoreAsync();
-        var commit = await store.SyncAsync(Fork("a"), source.Url, ct);
-        await store.FetchAsync("a", (await store.ListAsync(commit, ["Resources"], ct)).Select(e => e.ObjectId), ct);
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        await store.FetchAsync("a", await store.ListAsync("a", ["Resources"], ct), ct);
 
         await store.RemoveAsync("a", ct);
 

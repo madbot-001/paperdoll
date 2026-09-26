@@ -7,7 +7,7 @@ namespace Paperdoll.Core.Store;
 /// Reads files from the store through one long-running <c>git cat-file --batch</c>.
 /// Safe to share between threads; reads are served one at a time.
 /// </summary>
-public sealed class BlobReader : IAsyncDisposable
+internal sealed class BlobReader : IBlobReader
 {
     private readonly Process _process;
     private readonly Stream _output;
@@ -22,7 +22,6 @@ public sealed class BlobReader : IAsyncDisposable
         _ = _process.StandardError.ReadToEndAsync();
     }
 
-    /// <summary>The file's bytes, or null when the store does not have it.</summary>
     public async Task<byte[]?> ReadAsync(string objectId, CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
