@@ -93,6 +93,29 @@ public sealed class EditorSession : IAsyncDisposable
 
     public Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default) => Store.RemoveAsync(fork.Id, ct);
 
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+
+    /// <summary>
+    /// Loads the fork a server runs, at the commit it was built from, so the choices match that
+    /// server rather than the fork's newest code. Update goes back to the newest.
+    /// </summary>
+    public async Task<(ForkInfo Fork, string Commit)> MatchServerAsync(string address, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        progress?.Report("Asking the server what it runs");
+        var build = await new Servers.GameServers(Http).BuildAsync(address, ct);
+        var fork = KnownForks.FindByServerForkId(build.ForkId ?? "")
+            ?? throw new InvalidOperationException($"This server runs {build.ForkId ?? "a fork it does not name"}, which Paperdoll does not know.");
+        if (fork.Model != AppearanceModel.New)
+            throw new InvalidOperationException($"This server runs {fork.Name}, which uses the old appearance model Paperdoll cannot edit yet.");
+        if (!build.IsCommit)
+            throw new InvalidOperationException($"This server gives its version as {build.Version ?? "nothing"}, not a git commit, so it cannot be matched.");
+
+        progress?.Report($"Getting {fork.Name} at the server's version");
+        var commit = await Store.SyncToCommitAsync(fork, build.Version!, ct);
+        await LoadForkAsync(fork, update: false, progress, ct);
+        return (fork, commit);
+    }
+
     /// <summary>Frees space old fork versions left behind. Returns the bytes freed.</summary>
     public async Task<long> CleanUpStoreAsync(CancellationToken ct = default)
     {

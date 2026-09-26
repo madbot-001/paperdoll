@@ -106,6 +106,26 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_fork_can_be_moved_to_an_older_commit_such_as_a_servers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "server's" });
+        var serverCommit = source.Head;
+        source.Commit(new() { ["Resources/Prototypes/a.yml"] = "newest" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+
+        var commit = await store.SyncToCommitAsync(Fork("a"), source.Url, serverCommit, ct);
+        var files = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", files, ct);
+
+        Assert.Equal(serverCommit, commit);
+        Assert.Equal(serverCommit, await store.CommitOfAsync("a", ct));
+        await using var reader = store.OpenReader();
+        Assert.Equal("server's", Encoding.UTF8.GetString((await reader.ReadAsync(files.Single().ObjectId, ct))!));
+    }
+
+    [Fact]
     public async Task Cleaning_up_drops_an_older_versions_files()
     {
         var ct = TestContext.Current.CancellationToken;

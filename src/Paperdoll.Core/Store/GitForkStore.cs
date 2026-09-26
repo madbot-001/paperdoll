@@ -41,7 +41,18 @@ public sealed class GitForkStore : IForkStore
 
     /// <inheritdoc cref="SyncAsync(ForkInfo, CancellationToken)"/>
     /// <param name="url">Where to fetch from, in place of the fork's GitHub repository.</param>
-    public async Task<string> SyncAsync(ForkInfo fork, string url, CancellationToken ct = default)
+    public Task<string> SyncAsync(ForkInfo fork, string url, CancellationToken ct = default) =>
+        FetchRefAsync(fork, url, $"refs/heads/{fork.Branch}", ct);
+
+    public Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default) =>
+        SyncToCommitAsync(fork, $"https://github.com/{fork.Repository}.git", commit, ct);
+
+    /// <param name="url">Where to fetch from, in place of the fork's GitHub repository.</param>
+    public Task<string> SyncToCommitAsync(ForkInfo fork, string url, string commit, CancellationToken ct = default) =>
+        FetchRefAsync(fork, url, commit, ct);
+
+    // Fetches one commit, named by branch or by id, without its history or file contents.
+    private async Task<string> FetchRefAsync(ForkInfo fork, string url, string source, CancellationToken ct)
     {
         var remotes = (await _git.RunTextAsync(["remote"], ct: ct)).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
@@ -55,7 +66,7 @@ public sealed class GitForkStore : IForkStore
 
         await _git.RunAsync(
             ["fetch", "--quiet", "--no-tags", "--depth", "1", "--filter=blob:none", fork.Id,
-             $"+refs/heads/{fork.Branch}:{RefFor(fork.Id)}"],
+             $"+{source}:{RefFor(fork.Id)}"],
             ct: ct);
 
         return (await _git.RunTextAsync(["rev-parse", RefFor(fork.Id)], ct: ct)).Trim();

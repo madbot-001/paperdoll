@@ -179,7 +179,9 @@ public partial class MainWindow : Window
             RefreshTables();
 
             UpdateTitle();
-            StatusFork.Text = $"{_session.Fork!.Name} {_session.Content.Commit[..8]} via {_session.StoreKind}";
+            var matched = _settings.MatchedServers.TryGetValue(_session.Fork!.Id, out var server) && server.Commit == _session.Content.Commit
+                ? $", as on {server.Name}" : "";
+            StatusFork.Text = $"{_session.Fork!.Name} {_session.Content.Commit[..8]}{matched} via {_session.StoreKind}";
             StatusCounts.Text = $"{_session.Selectable().Count} species, {_session.Content.Characters.Markings.Count} markings";
         }
         finally
@@ -220,6 +222,31 @@ public partial class MainWindow : Window
         if (_refreshing || ForkBox.SelectedItem is not ForkInfo fork || fork.Id == _session?.Fork?.Id)
             return;
         await LoadForkAsync(fork, update: false);
+    }
+
+    private async void OnMatchServer(object? sender, RoutedEventArgs e)
+    {
+        if (_session == null || await new ServersWindow().ShowDialog<ServerChoice?>(this) is not { } choice)
+            return;
+        IsEnabled = false;
+        try
+        {
+            var progress = new Progress<string>(SetStatus);
+            var (fork, commit) = await Task.Run(() => _session.MatchServerAsync(choice.Address, progress));
+            _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
+            SaveSettings();
+            await RefreshForkBoxAsync();
+            OnForkLoaded();
+            SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not match {choice.Name}: {ex.Message}");
+        }
+        finally
+        {
+            IsEnabled = true;
+        }
     }
 
     private async void OnUpdateFork(object? sender, RoutedEventArgs e)

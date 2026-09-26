@@ -21,6 +21,7 @@
       <MenuItem Header="F_ork">
         <MenuItem Header="_Forks..." Click="OnForks" />
         <MenuItem Header="_Update This Fork" Click="OnUpdateFork" />
+        <MenuItem Header="_Match a Server..." Click="OnMatchServer" />
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+1" HotKey="Ctrl+1" />

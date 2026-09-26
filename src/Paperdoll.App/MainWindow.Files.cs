@@ -15,9 +15,14 @@ public sealed record AppSettings
     /// <summary>The file the character was last opened from or saved to, for Save.</summary>
     public string? WorkingFile { get; init; }
 
+    /// <summary>Servers each fork was matched to: fork id to the server's name and the commit it ran.</summary>
+    public Dictionary<string, MatchedServer> MatchedServers { get; init; } = [];
+
     /// <summary>What Random changes; the rest is kept, like the lobby's locks.</summary>
     public Core.Characters.RandomParts RandomParts { get; init; } = Core.Characters.RandomParts.All;
 }
+
+public sealed record MatchedServer(string Name, string Commit);
 
 public partial class MainWindow
 {

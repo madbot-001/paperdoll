@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Paperdoll.App"
+        x:Class="Paperdoll.App.ServersWindow"
+        Icon="/Assets/icon.png"
+        Title="Match a server"
+        Width="620" Height="460" CanResize="True" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="10">
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,6"
+               Text="Pick the server you play on. Paperdoll reads which fork and version it runs from its public info page and loads exactly that, so the choices match the server." />
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5">
+        <Button Name="MatchButton" Content="Match" Width="80" Click="OnMatch" IsEnabled="False" />
+        <Button Content="Close" Width="80" Click="OnClose" />
+      </StackPanel>
+      <TextBlock Name="StatusText" Classes="hint" VerticalAlignment="Center" TextWrapping="Wrap" />
+    </DockPanel>
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+      <TextBlock DockPanel.Dock="Left" Text="Or an address" Classes="hint" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <TextBox Name="AddressBox" PlaceholderText="ss14://example.org" Classes="mono" />
+    </DockPanel>
+    <TextBox DockPanel.Dock="Top" Name="FilterBox" PlaceholderText="Search servers" Margin="0,0,0,4" />
+    <DataGrid Name="ServerGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:ServerRow" DoubleTapped="OnServerDoubleTapped">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Server" Binding="{Binding Name}" Width="*" />
+        <DataGridTextColumn Header="Players" Binding="{Binding Players}" Width="70" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

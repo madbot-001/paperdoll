@@ -18,6 +18,9 @@ public interface IForkStore
     /// <summary>Finds the newest commit of the fork's branch and returns its id.</summary>
     Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default);
 
+    /// <summary>Moves the fork to a given commit, such as the one a server runs. Returns its full id.</summary>
+    Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default);
+
     /// <summary>The commit a fork was last synced to, or null if it never was.</summary>
     Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default);
 

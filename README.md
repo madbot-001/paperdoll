@@ -7,7 +7,9 @@ server, see them drawn the way the game draws them, and save them as the `.yml` 
 Import button takes.
 
 Species, markings, colours, loadouts and traits are read from each fork's own repository, so the
-choices match that fork. Delta-V and Euphoria get the most attention, then upstream.
+choices match that fork. Delta-V and Euphoria get the most attention, then upstream. Fork > Match
+a Server loads the exact version a server runs, read from its public info page, since servers
+often lag behind a fork's newest code.
 
 Paperdoll only downloads game data. Your characters stay on your computer: nothing is uploaded or
 shared, and it never reads other players' characters.

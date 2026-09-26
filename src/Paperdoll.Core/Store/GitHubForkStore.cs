@@ -57,9 +57,14 @@ public sealed class GitHubForkStore : IForkStore
         return Task.CompletedTask;
     }
 
-    public async Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default)
+    public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default) => SyncToAsync(fork, fork.Branch, ct);
+
+    public Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default) => SyncToAsync(fork, commit, ct);
+
+    // Resolves a branch or a commit id to the full commit id and records it for the fork.
+    private async Task<string> SyncToAsync(ForkInfo fork, string branchOrCommit, CancellationToken ct)
     {
-        using var request = ApiRequest($"repos/{fork.Repository}/commits/{Uri.EscapeDataString(fork.Branch)}");
+        using var request = ApiRequest($"repos/{fork.Repository}/commits/{Uri.EscapeDataString(branchOrCommit)}");
         request.Headers.Accept.ParseAdd("application/vnd.github.sha");
         var commit = (await SendAsync(request, ct)).Trim();
 
