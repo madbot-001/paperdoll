@@ -341,6 +341,8 @@ public partial class MainWindow
         InspectorTitle.Text = $"Marking: {session.MarkingName(entry.Id)}";
 
         AddCategory("Marking");
+        if (MarkingPicture(organ.Category, layer, entry.Id, 64) is { } picture)
+            AddRow("Picture", new Image { Source = picture, Width = 64, Height = 64, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 2) });
         AddRow("Name", Text(session.MarkingName(entry.Id)));
         AddRow("Id", Mono(entry.Id));
         AddRow("Layer", Mono(marking.Layer));
@@ -586,7 +588,7 @@ public partial class MainWindow
             using var sprite = _session!.LoadoutPicture(loadoutId);
             if (sprite != null)
             {
-                using var icon = Preview.ItemIcon.Fit(sprite, 32);
+                using var icon = Preview.Thumbnail.Fit(sprite, 32);
                 picture = Preview.FloorCanvas.ToAvalonia(icon);
             }
         }
@@ -596,6 +598,21 @@ public partial class MainWindow
         }
         _loadoutPictures[loadoutId] = picture;
         return picture;
+    }
+
+    // A marking alone in the colours it has (or would get), cut to what is drawn and enlarged to fill a square.
+    private Avalonia.Media.Imaging.Bitmap? MarkingPicture(string organ, string layer, string markingId, int size)
+    {
+        try
+        {
+            using var sprite = _session!.MarkingPicture(organ, layer, markingId);
+            using var icon = Preview.Thumbnail.Fit(sprite, size);
+            return Preview.FloorCanvas.ToAvalonia(icon);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>Euphoria's custom name, description and colour tint for a loadout item. Only single-item loadouts can be customised.</summary>
@@ -737,18 +754,18 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>One applied marking in a layer's list: order buttons, name, colours, remove.</summary>
+    /// <summary>One applied marking in a layer's list: picture, name with its colours below, order buttons, remove.</summary>
     private Control MarkingLine(string organ, string layer, int index, MarkingEntry entry, int count)
     {
         var row = new DockPanel { Margin = new Thickness(6, 2, 4, 2) };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         buttons.Children.Add(ActionButton("↑", index > 0, () => Apply(s => s.MoveMarking(organ, layer, index, -1)), "Move up (drawn above the next)"));
         buttons.Children.Add(ActionButton("↓", index < count - 1, () => Apply(s => s.MoveMarking(organ, layer, index, 1)), "Move down"));
         buttons.Children.Add(ActionButton("×", true, () => Apply(s => s.RemoveMarking(organ, layer, index)), "Remove"));
         DockPanel.SetDock(buttons, Dock.Right);
         row.Children.Add(buttons);
 
-        var colors = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Margin = new Thickness(4, 0) };
+        var colors = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Margin = new Thickness(4, 1, 4, 0) };
         var marking = _session!.Content!.Characters.Markings.GetValueOrDefault(entry.Id);
         for (var c = 0; c < entry.Colors.Count; c++)
         {
@@ -757,13 +774,19 @@ public partial class MainWindow
             var colorIndex = c;
             colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true));
         }
-        DockPanel.SetDock(colors, Dock.Right);
-        row.Children.Add(colors);
+
+        var picture = new Border { Width = 32, Height = 32, Margin = new Thickness(0, 0, 4, 0), Child = MarkingPicture(organ, layer, entry.Id, 32) is { } image ? new Image { Source = image } : null };
+        DockPanel.SetDock(picture, Dock.Left);
+        row.Children.Add(picture);
 
         var name = new Button { Classes = { "crumb" }, Content = _session!.MarkingName(entry.Id), HorizontalAlignment = HorizontalAlignment.Left };
         var target = new Node(NodeKind.Marking, organ, layer, index);
         name.Click += (_, _) => Select(target);
-        row.Children.Add(name);
+        var details = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        details.Children.Add(name);
+        if (colors.Children.Count > 0)
+            details.Children.Add(colors);
+        row.Children.Add(details);
         return row;
     }
 

@@ -485,6 +485,17 @@ public sealed class EditorSession : IAsyncDisposable
     public SKBitmap RenderWithMarking(string organ, string layer, string markingId) =>
         Renderer!.Render(WithMarking(Look!, organ, layer, markingId, preview: true));
 
+    /// <summary>
+    /// The marking alone, facing the way that shows the most of it, as the character wears it on
+    /// that layer or, if it does not, as it would once added; for pictures in lists.
+    /// </summary>
+    public SKBitmap MarkingPicture(string organ, string layer, string markingId)
+    {
+        var look = Look!;
+        var worn = look.Markings.GetValueOrDefault(organ)?.GetValueOrDefault(layer)?.Any(e => e.Id == markingId) == true;
+        return Renderer!.RenderMarking(worn ? look : WithMarking(look, organ, layer, markingId, preview: true), markingId);
+    }
+
     private CharacterLook WithMarking(CharacterLook look, string organ, string layer, string markingId, bool preview)
     {
         var catalog = RequireContent().Characters;

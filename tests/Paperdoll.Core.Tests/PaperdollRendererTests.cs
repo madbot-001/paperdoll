@@ -91,6 +91,12 @@ public class PaperdollRendererTests
           - sprite: /Textures/Mobs/big.rsi
             state: tail
         - type: marking
+          id: Side
+          bodyPart: Chest
+          sprites:
+          - sprite: Mobs/side.rsi
+            state: side
+        - type: marking
           id: SplitTail
           bodyPart: Tail
           layering:
@@ -119,6 +125,9 @@ public class PaperdollRendererTests
             ["Mobs/markings.rsi/meta.json"] = Meta(32, "a", "b"),
             ["Mobs/markings.rsi/a.png"] = Png(32, 32, (x, y) => x == 1 && y == 1 ? SKColors.White : SKColors.Transparent),
             ["Mobs/markings.rsi/b.png"] = Png(32, 32, (x, y) => x == 1 && y == 1 ? SKColors.White : SKColors.Transparent),
+            // Four facings: one pixel from the south, three from the east.
+            ["Mobs/side.rsi/meta.json"] = Encoding.UTF8.GetBytes("""{"version":1,"license":"CC0-1.0","copyright":"test","size":{"x":32,"y":32},"states":[{"name":"side","directions":4}]}"""),
+            ["Mobs/side.rsi/side.png"] = Png(128, 32, (x, y) => y == 2 && (x == 1 || x is >= 66 and <= 68) ? SKColors.White : SKColors.Transparent),
             ["Mobs/big.rsi/meta.json"] = Meta(64, "tail"),
             ["Mobs/big.rsi/tail.png"] = Png(64, 64, (x, y) => x == 0 && y == 0 ? SKColors.White : SKColors.Transparent),
         });
@@ -221,6 +230,17 @@ public class PaperdollRendererTests
         Assert.Equal(["SplitTail-back", "enum.HumanoidVisualLayers.Chest", "enum.HumanoidVisualLayers.Eyes", "SplitTail-front"],
             layers.Select(l => l.Key));
         Assert.All(layers.Where(l => l.Key.StartsWith("SplitTail", StringComparison.Ordinal)), l => Assert.Equal(Rgba.Parse("#0000FF"), l.Color));
+    }
+
+    [Fact]
+    public void A_marking_picture_is_the_marking_alone_facing_the_way_that_shows_the_most()
+    {
+        var (renderer, _) = Build();
+
+        using var image = renderer.RenderMarking(Look("Male", ("Side", Rgba.Parse("#FF0000")), ("StripeA", Rgba.White)), "Side");
+
+        Assert.Equal(3, image.Pixels.Count(p => p.Alpha > 0));
+        Assert.Equal(new SKColor(255, 0, 0), image.GetPixel(3, 2));
     }
 
     [Fact]

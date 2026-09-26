@@ -2,8 +2,11 @@ using SkiaSharp;
 
 namespace Paperdoll.App.Preview;
 
-/// <summary>Pictures of items for lists, which draw most items small in the middle of their frame.</summary>
-public static class ItemIcon
+/// <summary>
+/// Pictures for lists, of items and markings, which sprites mostly draw small in the middle of
+/// their frame.
+/// </summary>
+public static class Thumbnail
 {
     /// <summary>
     /// The drawn part of the sprite, centred in a square of <paramref name="size"/> pixels and

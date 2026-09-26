@@ -386,4 +386,10 @@ public sealed record GearRow(string Where, string Item, string From, string Id, 
 public sealed record JobRow(string Id, string Name, string Department, string Priority, int Groups);
 
 public sealed record MarkingRow(string Id, string Name, string Layer, int Sprites, string Coloring, string Restriction,
-    string License, string Source, string OrganCategory, string LayerKey);
+    string License, string Source, string OrganCategory, string LayerKey)
+{
+    /// <summary>Draws the row's picture when the table first shows the row.</summary>
+    public Lazy<Avalonia.Media.Imaging.Bitmap?>? PictureSource { get; init; }
+
+    public Avalonia.Media.Imaging.Bitmap? Picture => PictureSource?.Value;
+}

@@ -170,8 +170,15 @@
                 </DockPanel>
               </Border>
               <DataGrid Name="MarkingGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:MarkingRow"
-                        DoubleTapped="OnMarkingDoubleTapped">
+                        DoubleTapped="OnMarkingDoubleTapped" RowHeight="36">
                 <DataGrid.Columns>
+                  <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="app:MarkingRow">
+                        <Image Source="{Binding Picture}" Width="32" Height="32" RenderOptions.BitmapInterpolationMode="None" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
                   <DataGridTextColumn Header="Marking" Binding="{Binding Name}" Width="170" />
                   <DataGridTextColumn Header="Layer" Binding="{Binding Layer}" Width="100" />
                   <DataGridTextColumn Header="Sprites" Binding="{Binding Sprites}" Width="56" />

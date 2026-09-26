@@ -269,7 +269,10 @@ public partial class MainWindow
             license,
             session.SourceOf("marking", marking.Id) ?? "",
             organ.Category,
-            layer);
+            layer)
+        {
+            PictureSource = new(() => MarkingPicture(organ.Category, layer, marking.Id, 32)),
+        };
     }
 
     private void FilterMarkings()

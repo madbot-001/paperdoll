@@ -207,6 +207,34 @@ public sealed partial class PaperdollRenderer
         double seconds = 0, IReadOnlyDictionary<string, Rgba>? tints = null) =>
         Compose(Layers(look, outfit, tints), direction, seconds);
 
+    /// <summary>
+    /// Only a marking's own sprites, drawn as they are on the character (their colours, forced
+    /// colours and links, their order), without the body; for pictures in lists. It faces the way
+    /// that shows the most of it (a tail from the side, a back marking from behind), south first.
+    /// </summary>
+    public SKBitmap RenderMarking(CharacterLook look, string markingId)
+    {
+        var keys = catalog.Markings.TryGetValue(markingId, out var marking)
+            ? marking.Sprites.Select(s => $"{markingId}-{s.State}").ToHashSet(StringComparer.Ordinal)
+            : [];
+        var layers = Layers(look).Where(l => keys.Contains(l.Key)).ToList();
+        SKBitmap? best = null;
+        var bestDrawn = -1;
+        foreach (var direction in new[] { Direction.South, Direction.East, Direction.West, Direction.North })
+        {
+            var image = Compose(layers, direction, 0);
+            var drawn = image.Pixels.Count(p => p.Alpha > 0);
+            if (drawn > bestDrawn)
+            {
+                best?.Dispose();
+                (best, bestDrawn) = (image, drawn);
+            }
+            else
+                image.Dispose();
+        }
+        return best!;
+    }
+
     /// <summary>A plain entity, such as a borg, drawn from its sprite's layers.</summary>
     public SKBitmap RenderEntity(string entityId, Direction direction = Direction.South, double seconds = 0) =>
         Compose(EntitySprite.Layers(prototypes, entityId), direction, seconds);
