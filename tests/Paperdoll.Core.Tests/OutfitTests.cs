@@ -292,4 +292,35 @@ public class OutfitEditingTests
         Assert.False(file.JobPriorities.ContainsKey("Wizard"));
         Assert.Contains(fixes, f => f.Field == "jobs");
     }
+
+    [Fact]
+    public void The_rules_keep_only_antagonists_players_can_choose()
+    {
+        var outfits = OutfitCatalog.Build(PrototypeIndex.Load([new PrototypeSource("a.yml", Encoding.UTF8.GetBytes("""
+            - type: antag
+              id: Traitor
+              name: roles-antag-syndicate-agent-name
+              objective: roles-antag-syndicate-agent-objective
+              setPreference: true
+              requirements:
+              - !type:OverallPlaytimeRequirement
+                time: 3600
+            - type: antag
+              id: Thief
+              setPreference: true
+            - type: antag
+              id: Zombie
+              setPreference: false
+            """))]));
+        var catalog = Characters.CharacterCatalog.Build(PrototypeIndex.Load([new PrototypeSource("s.yml", Encoding.UTF8.GetBytes(
+            "- type: species\n  id: Human\n  name: x\n  roundStart: true\n  dollPrototype: D\n- type: entity\n  id: D\n"))]));
+        var file = Profiles.CharacterFile.Parse(File.Replace("profile:", "profile:\n  _antagPreferences: [ Traitor, Zombie, Wizard, Thief, Traitor ]"));
+
+        var fixes = Profiles.CharacterRules.EnsureValid(file, catalog,
+            new Forks.ForkInfo("t", "T", "o/r", "main", Forks.AppearanceModel.New, false, []), outfits: outfits);
+
+        Assert.Equal(["Traitor", "Thief"], file.AntagPreferences);
+        Assert.True(outfits.Antags["Traitor"].HasRequirements);
+        Assert.Contains(fixes, f => f.Field == "antags" && f.Message.Contains("Zombie") && f.Message.Contains("Wizard"));
+    }
 }

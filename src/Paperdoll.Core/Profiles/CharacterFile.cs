@@ -88,6 +88,16 @@ public sealed class CharacterFile
             ? list.Children.OfType<YamlScalarNode>().Select(s => s.Value ?? "").ToList()
             : [];
 
+    /// <summary>Antagonist roles the character is willing to be (<c>_antagPreferences</c>).</summary>
+    public IReadOnlyList<string> AntagPreferences =>
+        Profile.Children.TryGetValue(new YamlScalarNode("_antagPreferences"), out var node) && node is YamlSequenceNode list
+            ? list.Children.OfType<YamlScalarNode>().Select(s => s.Value ?? "").ToList()
+            : [];
+
+    public void SetAntagPreferences(IEnumerable<string> antags) =>
+        Profile.Children[new YamlScalarNode("_antagPreferences")] =
+            new YamlSequenceNode(antags.Select(a => (YamlNode)new YamlScalarNode(a)));
+
     public void SetTraitPreferences(IEnumerable<string> traits) =>
         Profile.Children[new YamlScalarNode("_traitPreferences")] =
             new YamlSequenceNode(traits.Select(t => (YamlNode)new YamlScalarNode(t)));

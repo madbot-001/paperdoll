@@ -20,6 +20,7 @@ public partial class MainWindow
         LoadoutGroup,
         Traits,
         TraitCategory,
+        Antags,
     }
 
     /// <summary>
@@ -34,7 +35,7 @@ public partial class MainWindow
         {
             NodeKind.Marking => new Node(NodeKind.Layer, Organ, Layer),
             NodeKind.Layer => new Node(NodeKind.Organ, Organ),
-            NodeKind.Organ or NodeKind.Outfit or NodeKind.Traits => new Node(NodeKind.Character),
+            NodeKind.Organ or NodeKind.Outfit or NodeKind.Traits or NodeKind.Antags => new Node(NodeKind.Character),
             NodeKind.LoadoutGroup => new Node(NodeKind.Outfit),
             NodeKind.TraitCategory => new Node(NodeKind.Traits),
             _ => null,
@@ -93,6 +94,19 @@ public partial class MainWindow
                 traitsItem.Items.Add(categoryItem);
             }
             root.Items.Add(traitsItem);
+        }
+
+        var antags = session.Content.Outfits.Antags.Values.Where(a => a.SetPreference).ToList();
+        if (antags.Count > 0)
+        {
+            var wanted = session.File!.AntagPreferences;
+            var antagsItem = Item(new Node(NodeKind.Antags), HeaderFor("Antagonists", $"{wanted.Count} wanted"), false, items);
+            foreach (var id in wanted)
+            {
+                var name = session.Content.Outfits.Antags.TryGetValue(id, out var antag) ? session.Content.Strings.Get(antag.NameKey) : id;
+                antagsItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = name }, Tag = new Node(NodeKind.Antags), Focusable = false });
+            }
+            root.Items.Add(antagsItem);
         }
 
         foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
@@ -219,6 +233,8 @@ public partial class MainWindow
             steps.Add(("Outfit", new Node(NodeKind.Outfit)));
         if (_selected.Kind is NodeKind.Traits or NodeKind.TraitCategory)
             steps.Add(("Traits", new Node(NodeKind.Traits)));
+        if (_selected.Kind is NodeKind.Antags)
+            steps.Add(("Antagonists", new Node(NodeKind.Antags)));
         if (_selected is { Kind: NodeKind.TraitCategory, Group: { } categoryId } && session.Content.Traits.Categories.TryGetValue(categoryId, out var shownCategory))
             steps.Add((session.Content.Strings.Get(shownCategory.NameKey), _selected));
         if (_selected is { Kind: NodeKind.LoadoutGroup, Group: { } groupId } && session.Content.Outfits.Groups.TryGetValue(groupId, out var shownGroup))
@@ -262,7 +278,8 @@ public partial class MainWindow
     public void ShowPart(string path, int tab)
     {
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var node = parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
+        var node = parts is ["Antagonists"] ? new Node(NodeKind.Antags)
+            : parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
             : parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
         {
             0 => new Node(NodeKind.Character),

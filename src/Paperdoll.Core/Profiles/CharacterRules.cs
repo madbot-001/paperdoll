@@ -152,7 +152,10 @@ public static partial class CharacterRules
         }
 
         if (outfits != null)
+        {
             CheckJobPriorities(file, outfits, fixes);
+            CheckAntags(file, outfits, fixes);
+        }
         if (traits != null)
             CheckTraits(file, traits, fork.TraitRules, fixes);
 
@@ -196,6 +199,21 @@ public static partial class CharacterRules
             file.SetJobPriority(job, "Never");
         foreach (var (job, priority) in kept)
             file.SetJobPriority(job, priority);
+    }
+
+    // Only antagonists the fork has and lets players choose are kept.
+    private static void CheckAntags(CharacterFile file, Outfits.OutfitCatalog outfits, List<RuleFix> fixes)
+    {
+        var written = file.AntagPreferences;
+        var kept = written.Distinct(StringComparer.Ordinal)
+            .Where(id => outfits.Antags.TryGetValue(id, out var antag) && antag.SetPreference).ToList();
+        if (kept.SequenceEqual(written))
+            return;
+        var dropped = written.Where(id => !kept.Contains(id)).Distinct().ToList();
+        fixes.Add(new("antags", dropped.Count > 0
+            ? $"Antagonist choices this fork does not have were removed: {string.Join(", ", dropped)}."
+            : "Repeated antagonist choices were merged."));
+        file.SetAntagPreferences(kept);
     }
 
     // Old Einstein Engines-style entries are repaired; unknown traits and ones over a category's

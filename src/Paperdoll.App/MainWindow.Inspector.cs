@@ -48,6 +48,9 @@ public partial class MainWindow
             case NodeKind.TraitCategory when _selected.Group != null && _session.Content.Traits.Categories.ContainsKey(_selected.Group):
                 InspectTraitCategory(_selected.Group);
                 break;
+            case NodeKind.Antags:
+                InspectAntags();
+                break;
             default:
                 InspectCharacter(species);
                 break;
@@ -474,6 +477,35 @@ public partial class MainWindow
             if (category.MaxPoints is { } categoryPoints)
                 limits.Add($"{inCategory.Sum(t => t.Cost)} of {categoryPoints} points");
             AddRow("", open, string.Join("; ", limits));
+        }
+    }
+
+    /// <summary>Antagonists the character is willing to be, as the lobby's Antags tab lists them.</summary>
+    private void InspectAntags()
+    {
+        var session = _session!;
+        var strings = session.Content!.Strings;
+        var wanted = session.File!.AntagPreferences;
+        InspectorTitle.Text = "Antagonists";
+
+        AddCategory("Willing to be");
+        foreach (var antag in session.Content.Outfits.Antags.Values.Where(a => a.SetPreference).OrderBy(a => strings.Get(a.NameKey), StringComparer.CurrentCulture))
+        {
+            var isWanted = wanted.Contains(antag.Id);
+            var box = new CheckBox { Content = strings.Get(antag.NameKey), IsChecked = isWanted, Margin = new Thickness(6, 2, 4, 0) };
+            ToolTip.SetTip(box, antag.Id);
+            box.IsCheckedChanged += (_, _) =>
+            {
+                if (!_refreshing && (box.IsChecked == true) != isWanted)
+                    Apply(s => s.ToggleAntag(antag.Id));
+            };
+            var stack = new StackPanel();
+            stack.Children.Add(box);
+            if (antag.ObjectiveKey != null)
+                stack.Children.Add(new TextBlock { Text = strings.Get(antag.ObjectiveKey), Classes = { "hint" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(28, 0, 6, 2) });
+            if (antag.HasRequirements)
+                stack.Children.Add(new TextBlock { Text = "Needs playtime; the server checks and may turn this off.", Classes = { "hint", "warning" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(28, 0, 6, 3) });
+            AddWide(stack);
         }
     }
 

@@ -12,6 +12,9 @@ public sealed record JobInfo(string Id, string NameKey, string? StartingGear, bo
 
 public sealed record DepartmentInfo(string Id, string NameKey, IReadOnlyList<string> Roles);
 
+/// <summary>An antagonist role players can say they want (<c>setPreference</c>); the server checks any playtime it needs.</summary>
+public sealed record AntagInfo(string Id, string NameKey, string? ObjectiveKey, bool SetPreference, bool HasRequirements);
+
 public sealed record LoadoutGroupInfo(string Id, string NameKey, int MinLimit, int MaxLimit, int DefaultSelected, bool Hidden, IReadOnlyList<string> Loadouts);
 
 /// <summary>A loadout: gear it equips (its starting gear first, then its own), and its conditions.</summary>
@@ -48,6 +51,7 @@ public sealed class OutfitCatalog
     public required IReadOnlyDictionary<string, IReadOnlyList<string>> RoleLoadouts { get; init; }
     public required IReadOnlyDictionary<string, LoadoutGroupInfo> Groups { get; init; }
     public required IReadOnlyDictionary<string, LoadoutInfo> Loadouts { get; init; }
+    public IReadOnlyDictionary<string, AntagInfo> Antags { get; init; } = new Dictionary<string, AntagInfo>();
 
     public static OutfitCatalog Build(PrototypeIndex index)
     {
@@ -81,6 +85,12 @@ public sealed class OutfitCatalog
             {
                 var node = index.Resolve("loadout", p.Id)!;
                 return new LoadoutInfo(p.Id, Str(node, "startingGear"), Equipment(node), node);
+            }, StringComparer.Ordinal),
+            Antags = index.OfKind("antag").ToDictionary(p => p.Id, p =>
+            {
+                var node = index.Resolve("antag", p.Id)!;
+                return new AntagInfo(p.Id, Str(node, "name") ?? p.Id, Str(node, "objective"),
+                    Str(node, "setPreference") is "true" or "True", node.Children.ContainsKey(new YamlScalarNode("requirements")));
             }, StringComparer.Ordinal),
         };
     }

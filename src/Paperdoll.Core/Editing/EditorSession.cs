@@ -258,6 +258,15 @@ public sealed class EditorSession : IAsyncDisposable
 
     public IReadOnlyList<RuleFix> SetVoice(string voice) => Edit(f => f.Voice = voice);
 
+    /// <summary>Adds or removes an antagonist the character is willing to be.</summary>
+    public IReadOnlyList<RuleFix> ToggleAntag(string antagId) => Edit(f =>
+    {
+        var wanted = f.AntagPreferences.ToList();
+        if (!wanted.Remove(antagId))
+            wanted.Add(antagId);
+        f.SetAntagPreferences(wanted);
+    });
+
     /// <summary>A voice's name as the lobby shows it (Masculine, Feminine, Neutral).</summary>
     public string VoiceName(string voice) =>
         Content?.Characters.VoiceNames.TryGetValue(voice, out var key) == true ? Content.Strings[key] ?? voice : voice;
