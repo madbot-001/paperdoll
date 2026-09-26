@@ -437,7 +437,26 @@ public partial class MainWindow
         AddRow("Takes", Text(group.MinLimit == group.MaxLimit ? $"{group.MaxLimit}" : $"{group.MinLimit} to {group.MaxLimit}"));
         AddRow("Id", Mono(groupId));
 
-        AddCategory(group.MaxLimit == 1 ? "Choose one" : $"Choose up to {group.MaxLimit}");
+        AddCategory(group.MaxLimit == 1 ? group.MinLimit > 0 ? "Choose one (required)" : "Choose one or nothing" : $"Choose up to {group.MaxLimit}");
+        if (group.MinLimit > 0)
+            AddWide(new TextBlock
+            {
+                Text = $"The game needs at least {group.MinLimit} here; with fewer, it puts back the first it can.",
+                Classes = { "hint" },
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(6, 2),
+            });
+        else if (group.MaxLimit == 1)
+        {
+            // An optional pick-one group can be emptied, which a radio button alone cannot do.
+            var nothing = new RadioButton { Content = "Nothing", IsChecked = chosen.Count == 0, GroupName = "loadout-" + groupId, Margin = new Thickness(6, 1) };
+            nothing.IsCheckedChanged += (_, _) =>
+            {
+                if (!_refreshing && nothing.IsChecked == true && chosen.Count > 0)
+                    Apply(s => s.ToggleLoadout(job, groupId, chosen[0]));
+            };
+            AddWide(nothing);
+        }
         foreach (var loadoutId in group.Loadouts)
         {
             if (!outfits.Loadouts.TryGetValue(loadoutId, out var loadout))
