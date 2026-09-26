@@ -26,6 +26,18 @@ public partial class MainWindow : Window
         InitializeComponent();
         SetUpPreview();
         SetUpTables();
+        _liveColor = (color, apply) =>
+        {
+            _keepInspector = true;
+            try
+            {
+                apply(color);
+            }
+            finally
+            {
+                _keepInspector = false;
+            }
+        };
         Opened += (_, _) =>
         {
             if (_session == null)
@@ -145,6 +157,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _keepInspector;
+
     /// <summary>Runs an edit through the session and shows the result, or the error.</summary>
     private void Apply(Func<EditorSession, IReadOnlyList<RuleFix>> edit, bool keepInspector = false)
     {
@@ -153,7 +167,7 @@ public partial class MainWindow : Window
         try
         {
             var fixes = edit(_session);
-            RefreshAll(keepInspector);
+            RefreshAll(keepInspector || _keepInspector);
             if (fixes.Count > 0)
                 SetStatus(fixes[^1].Message);
         }

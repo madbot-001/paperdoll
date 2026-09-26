@@ -484,11 +484,23 @@ public partial class MainWindow
             if (Rgba.TryParse(value.Trim(), out var parsed))
                 changed(parsed);
         });
+        // While dragging in the picker only the preview follows; the inspector is rebuilt when it closes.
+        var swatch = Controls.ColorPicker.Swatch(color, (picked, live) =>
+        {
+            text.Text = picked.ToHex()[..7];
+            if (live)
+                _liveColor?.Invoke(picked, changed);
+            else
+                changed(picked);
+        });
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
-        panel.Children.Add(Swatch(color));
+        panel.Children.Add(swatch);
         panel.Children.Add(text);
         return panel;
     }
+
+    /// <summary>Applies a colour while a picker is open, without rebuilding the inspector under it.</summary>
+    private static Action<Rgba, Action<Rgba>>? _liveColor;
 
     private static Border Swatch(Rgba color) => new()
     {
