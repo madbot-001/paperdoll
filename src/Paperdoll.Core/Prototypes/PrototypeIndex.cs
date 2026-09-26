@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Prototypes;
@@ -137,6 +138,32 @@ public sealed class PrototypeIndex
         }
 
         visiting.Remove(id);
+        RemoveNulls(node);
         return _resolved[(kind, id)] = node;
+    }
+
+    /// <summary>
+    /// Drops fields written as a bare <c>null</c> (or <c>~</c>), which the game reads as no value:
+    /// Delta-V's <c>groupWhitelist: null</c> lifts a restriction rather than naming a group called
+    /// "null". This runs after merging, so a child's null still overrides its parent's value.
+    /// </summary>
+    private static void RemoveNulls(YamlNode node)
+    {
+        switch (node)
+        {
+            case YamlMappingNode map:
+                foreach (var (key, value) in map.Children.ToList())
+                {
+                    if (value is YamlScalarNode { Style: ScalarStyle.Plain or ScalarStyle.Any, Value: "null" or "~" } scalar && scalar.Tag.IsEmpty)
+                        map.Children.Remove(key);
+                    else
+                        RemoveNulls(value);
+                }
+                break;
+            case YamlSequenceNode seq:
+                foreach (var item in seq.Children)
+                    RemoveNulls(item);
+                break;
+        }
     }
 }

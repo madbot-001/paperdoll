@@ -38,6 +38,29 @@ public class PrototypeIndexTests
     }
 
     [Fact]
+    public void A_bare_null_means_no_value_and_still_overrides_a_parent()
+    {
+        var index = Load(("m.yml", """
+            - type: marking
+              id: Base
+              groupWhitelist: [ Human ]
+            - type: marking
+              parent: Base
+              id: Anyone
+              groupWhitelist: null # Delta-V's way of lifting the restriction
+            - type: marking
+              id: Quoted
+              sexRestriction: 'null'
+            """));
+
+        Assert.Null(Get(index.Resolve("marking", "Anyone")!, "groupWhitelist"));
+        Assert.False(index.Resolve("marking", "Anyone")!.Children.ContainsKey(new YamlScalarNode("groupWhitelist")));
+        Assert.NotNull(index.Resolve("marking", "Base")!.Children[new YamlScalarNode("groupWhitelist")]);
+        // Only a bare null counts: a quoted one is the text "null".
+        Assert.Equal("null", Get(index.Resolve("marking", "Quoted")!, "sexRestriction"));
+    }
+
+    [Fact]
     public void Keeps_tagged_values()
     {
         var index = Load(("a.yml", "- type: skinColoration\n  id: Tone\n  strategy: !type:HumanToned\n    min: 1\n"));
