@@ -132,6 +132,7 @@ public partial class MainWindow
         BuildSpeciesTable();
         RefreshMarkingTable();
         BuildJobTable();
+        BuildGearTable();
         BuildTraitTable();
         CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
 

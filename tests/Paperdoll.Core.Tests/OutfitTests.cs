@@ -324,3 +324,121 @@ public class OutfitEditingTests
         Assert.Contains(fixes, f => f.Field == "antags" && f.Message.Contains("Zombie") && f.Message.Contains("Wizard"));
     }
 }
+
+public class SpawnGearTests
+{
+    // A job whose gear puts a flash in the backpack; loadouts for the backpack and a survival box.
+    private const string Yaml = """
+        - type: job
+          id: Janitor
+          startingGear: JanitorGear
+        - type: startingGear
+          id: JanitorGear
+          equipment:
+            id: JanitorPDA
+            jumpsuit: JobSuit
+          storage:
+            back: [ Flash ]
+        - type: roleLoadout
+          id: JobJanitor
+          groups: [ Backpack, Survival, Hat ]
+        - type: loadoutGroup
+          id: Backpack
+          loadouts: [ CommonBackpack ]
+        - type: loadoutGroup
+          id: Survival
+          loadouts: [ EmergencyOxygen ]
+        - type: loadoutGroup
+          id: Hat
+          loadouts: [ JanitorHat ]
+        - type: loadout
+          id: CommonBackpack
+          equipment: { back: ClothingBackpack }
+        - type: loadout
+          id: EmergencyOxygen
+          storage:
+            back: [ BoxSurvival ]
+        - type: loadout
+          id: JanitorHat
+          equipment: { head: Cap, jumpsuit: LoadoutSuit }
+          inhand: [ Mop, Bucket, Sign ]
+          storage:
+            head: [ Coin ]
+        - type: entity
+          id: ClothingBackpack
+          components:
+          - type: Storage
+        - type: entity
+          id: BoxSurvival
+          components:
+          - type: Storage
+          - type: StorageFill
+            contents:
+            - id: OxygenTank
+            - id: Glowstick
+              amount: 2
+              prob: 0.5
+        - type: entity
+          id: Cap
+        - type: entity
+          id: JaniBelt
+          components:
+          - type: Storage
+          - type: EntityTableContainerFill
+            containers:
+              storagebase: !type:AllSelector
+                children:
+                - !type:NestedSelector
+                  tableId: Soaps
+                - id: Spray
+                - id: Grenade
+                  amount: 2
+                  prob: 0.5
+        - type: entityTable
+          id: Soaps
+          table: !type:GroupSelector
+            children:
+            - id: SoapGreen
+            - id: SoapBlue
+        """;
+
+    private static readonly OutfitCatalog Outfits =
+        OutfitCatalog.Build(PrototypeIndex.Load([new PrototypeSource("g.yml", Encoding.UTF8.GetBytes(Yaml))]));
+
+    [Fact]
+    public void Loadouts_go_on_before_the_jobs_gear_and_fill_the_backpack_in_that_order()
+    {
+        var gear = Outfits.GearAtSpawn("Janitor", Outfits.LoadoutFor("Janitor", "Human", null));
+
+        Assert.Equal("ClothingBackpack", gear.Worn["back"].Entity);
+        // The loadout's jumpsuit goes on first; the job's own is left out.
+        Assert.Equal(new GearItem("LoadoutSuit", "JanitorHat"), gear.Worn["jumpsuit"]);
+        Assert.Equal(new GearItem("JanitorPDA", null), gear.Worn["id"]);
+        Assert.Equal(["BoxSurvival", "Flash"], gear.Stored["back"].Select(i => i.Entity));
+        // Two hands; the cap cannot hold a coin.
+        Assert.Equal(["Mop", "Bucket"], gear.InHand.Select(i => i.Entity));
+        Assert.False(gear.Stored.ContainsKey("head"));
+        Assert.Equal([new FillItem("OxygenTank", 1, 1f), new FillItem("Glowstick", 2, 0.5f)], Outfits.FillOf("BoxSurvival"));
+    }
+
+    [Fact]
+    public void Entity_table_fills_open_nested_tables_and_mark_groups()
+    {
+        var fill = Outfits.FillOf("JaniBelt");
+
+        Assert.Equal(["SoapGreen", "SoapBlue", "Spray", "Grenade"], fill.Select(f => f.Entity));
+        Assert.True(fill[0].OneOf && fill[1].OneOf);
+        Assert.False(fill[2].OneOf);
+        Assert.Equal((2, 0.5f), (fill[3].Amount, fill[3].Chance));
+    }
+
+    [Fact]
+    public void Items_for_a_bag_are_lost_when_the_bag_comes_later()
+    {
+        var loadout = new RoleLoadout("JobJanitor", [("Survival", ["EmergencyOxygen"]), ("Backpack", ["CommonBackpack"])]);
+
+        var gear = Outfits.GearAtSpawn("Janitor", loadout);
+
+        Assert.Equal(["Flash"], gear.Stored["back"].Select(i => i.Entity));
+    }
+}

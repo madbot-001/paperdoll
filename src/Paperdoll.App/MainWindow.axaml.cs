@@ -323,6 +323,9 @@ public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string
 /// <summary>A traits table row.</summary>
 public sealed record TraitRow(string Id, string Name, string Category, int Cost, string Picked, string Status, string Source);
 
+/// <summary>An outfit table row: where an item is, what it is, and the loadout group it came from (if any).</summary>
+public sealed record GearRow(string Where, string Item, string From, string Id, string? Group);
+
 /// <summary>A jobs table row.</summary>
 public sealed record JobRow(string Id, string Name, string Department, string Priority, int Groups);
 

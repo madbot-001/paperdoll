@@ -420,6 +420,8 @@ public partial class MainWindow
             open.Click += (_, _) => Select(target);
             AddRow("", open, chosen.Count == 0 ? "Nothing" : string.Join(", ", chosen.Select(session.LoadoutName)));
         }
+
+        AddSpawnList();
     }
 
     private void InspectLoadoutGroup(string groupId)

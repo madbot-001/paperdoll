@@ -145,6 +145,10 @@ public sealed class EditorSession : IAsyncDisposable
     public RoleLoadout LoadoutFor(string jobId) =>
         RequireContent().Outfits.LoadoutFor(jobId, Look!.Species, RequireFile().Loadouts.GetValueOrDefault(OutfitCatalog.RoleFor(jobId)));
 
+    /// <summary>Everything the character spawns with in the job the preview shows, as the game equips it.</summary>
+    public SpawnGear? GearAtSpawn() =>
+        DressedJob() is { } job ? RequireContent().Outfits.GearAtSpawn(job, LoadoutFor(job)) : null;
+
     /// <summary>What the preview puts on the character, slot to item; null when clothes are off.</summary>
     public IReadOnlyDictionary<string, string>? Outfit()
     {

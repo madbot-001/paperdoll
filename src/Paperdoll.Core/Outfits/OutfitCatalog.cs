@@ -18,7 +18,36 @@ public sealed record AntagInfo(string Id, string NameKey, string? ObjectiveKey, 
 public sealed record LoadoutGroupInfo(string Id, string NameKey, int MinLimit, int MaxLimit, int DefaultSelected, bool Hidden, IReadOnlyList<string> Loadouts);
 
 /// <summary>A loadout: gear it equips (its starting gear first, then its own), and its conditions.</summary>
-public sealed record LoadoutInfo(string Id, string? StartingGear, IReadOnlyDictionary<string, string> Equipment, YamlMappingNode Node);
+public sealed record LoadoutInfo(string Id, string? StartingGear, IReadOnlyDictionary<string, string> Equipment, YamlMappingNode Node)
+{
+    /// <summary>Items it puts in the hands and into the item in a slot (usually the backpack).</summary>
+    public GearContents Contents { get; init; } = GearContents.Empty;
+}
+
+/// <summary>What a set of gear carries besides what it wears: items for the hands, and items put into the item in a slot.</summary>
+public sealed record GearContents(IReadOnlyList<string> InHand, IReadOnlyDictionary<string, IReadOnlyList<string>> Storage)
+{
+    public static readonly GearContents Empty = new([], new Dictionary<string, IReadOnlyList<string>>());
+}
+
+/// <summary>One item a character starts with, and the gear or loadout it came from (null for the job's own gear).</summary>
+public sealed record GearItem(string Entity, string? Loadout);
+
+/// <summary>
+/// Everything a character spawns with: worn items by slot, items in hand, and items put into the
+/// item in a slot (the backpack, a belt) by that slot.
+/// </summary>
+public sealed record SpawnGear(IReadOnlyDictionary<string, GearItem> Worn, IReadOnlyList<GearItem> InHand, IReadOnlyDictionary<string, IReadOnlyList<GearItem>> Stored);
+
+/// <summary>An item an entity spawns holding: how many, and the chance when not certain.</summary>
+public sealed record FillItem(string Entity, int Amount, float Chance)
+{
+    /// <summary>One of several items of which only one is picked (an entity table's group).</summary>
+    public bool OneOf { get; init; }
+
+    /// <summary>A random count, such as "1 to 3", when the amount is not fixed.</summary>
+    public string? AmountRange { get; init; }
+}
 
 /// <summary>Whether a loadout can be picked, as far as Paperdoll can tell.</summary>
 public enum LoadoutCheck
@@ -48,6 +77,7 @@ public sealed class OutfitCatalog
     public required IReadOnlyDictionary<string, JobInfo> Jobs { get; init; }
     public required IReadOnlyList<DepartmentInfo> Departments { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> StartingGear { get; init; }
+    public IReadOnlyDictionary<string, GearContents> StartingGearContents { get; init; } = new Dictionary<string, GearContents>();
     public required IReadOnlyDictionary<string, IReadOnlyList<string>> RoleLoadouts { get; init; }
     public required IReadOnlyDictionary<string, LoadoutGroupInfo> Groups { get; init; }
     public required IReadOnlyDictionary<string, LoadoutInfo> Loadouts { get; init; }
@@ -72,6 +102,8 @@ public sealed class OutfitCatalog
                 return new DepartmentInfo(p.Id, Str(node, "name") ?? p.Id, Strings(node, "roles"));
             }).ToList(),
             StartingGear = gear,
+            StartingGearContents = index.OfKind("startingGear").Where(p => !p.Abstract)
+                .ToDictionary(p => p.Id, p => Contents(index.Resolve("startingGear", p.Id)!), StringComparer.Ordinal),
             RoleLoadouts = index.OfKind("roleLoadout")
                 .ToDictionary(p => p.Id, p => (IReadOnlyList<string>)Strings(index.Resolve("roleLoadout", p.Id)!, "groups"), StringComparer.Ordinal),
             Groups = index.OfKind("loadoutGroup").Where(p => !p.Abstract).ToDictionary(p => p.Id, p =>
@@ -84,7 +116,7 @@ public sealed class OutfitCatalog
             Loadouts = index.OfKind("loadout").ToDictionary(p => p.Id, p =>
             {
                 var node = index.Resolve("loadout", p.Id)!;
-                return new LoadoutInfo(p.Id, Str(node, "startingGear"), Equipment(node), node);
+                return new LoadoutInfo(p.Id, Str(node, "startingGear"), Equipment(node), node) { Contents = Contents(node) };
             }, StringComparer.Ordinal),
             Antags = index.OfKind("antag").ToDictionary(p => p.Id, p =>
             {
@@ -201,6 +233,119 @@ public sealed class OutfitCatalog
         return outfit;
     }
 
+    /// <summary>
+    /// What the character spawns with, as the game equips it (<c>StationSpawningSystem</c>): each
+    /// selected loadout in the role's group order, then the job's own gear. Each fills only empty
+    /// slots, then puts its items in the hands (two at most) and into the item already worn in a
+    /// slot, if that item can hold things.
+    /// </summary>
+    public SpawnGear GearAtSpawn(string jobId, RoleLoadout loadout)
+    {
+        var worn = new Dictionary<string, GearItem>(StringComparer.Ordinal);
+        var inHand = new List<GearItem>();
+        var stored = new Dictionary<string, List<GearItem>>(StringComparer.Ordinal);
+
+        void Apply(IReadOnlyDictionary<string, string> equipment, GearContents contents, string? source)
+        {
+            foreach (var (slot, item) in equipment)
+                worn.TryAdd(slot, new GearItem(item, source));
+            foreach (var item in contents.InHand)
+            {
+                if (inHand.Count < 2)
+                    inHand.Add(new GearItem(item, source));
+            }
+            foreach (var (slot, items) in contents.Storage)
+            {
+                if (items.Count == 0 || !worn.TryGetValue(slot, out var holder) || !CanHold(holder.Entity))
+                    continue;
+                if (!stored.TryGetValue(slot, out var list))
+                    stored[slot] = list = [];
+                list.AddRange(items.Select(i => new GearItem(i, source)));
+            }
+        }
+
+        foreach (var (_, loadoutIds) in loadout.Groups)
+        {
+            foreach (var id in loadoutIds)
+            {
+                if (Loadouts.TryGetValue(id, out var info))
+                    Apply(info.Equipment, info.Contents, id);
+            }
+        }
+        if (Jobs.TryGetValue(jobId, out var job) && job.StartingGear != null && StartingGear.TryGetValue(job.StartingGear, out var gear))
+            Apply(gear, StartingGearContents.GetValueOrDefault(job.StartingGear) ?? GearContents.Empty, null);
+
+        return new SpawnGear(worn, inHand, stored.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<GearItem>)kv.Value));
+    }
+
+    /// <summary>Whether an item can hold others (it has a <c>Storage</c> component).</summary>
+    public bool CanHold(string entityId) => Component(entityId, "Storage") != null;
+
+    /// <summary>
+    /// What an item spawns holding, such as a survival box's contents: an older <c>StorageFill</c>
+    /// list, or an entity table (<c>EntityTableContainerFill</c>), whose nested tables are opened and
+    /// whose groups, which pick one item, are marked.
+    /// </summary>
+    public IReadOnlyList<FillItem> FillOf(string entityId)
+    {
+        var result = new List<FillItem>();
+        if (Component(entityId, "StorageFill") is { } fill && fill.Children.TryGetValue(new YamlScalarNode("contents"), out var contents) && contents is YamlSequenceNode list)
+        {
+            foreach (var entry in list.Children.OfType<YamlMappingNode>().Where(e => Str(e, "id") != null))
+                result.Add(new FillItem(Str(entry, "id")!, Int(entry, "amount") ?? 1, Chance(entry)));
+        }
+        if (Component(entityId, "EntityTableContainerFill") is { } table && table.Children.TryGetValue(new YamlScalarNode("containers"), out var containers) && containers is YamlMappingNode byContainer)
+        {
+            foreach (var selector in byContainer.Children.Values)
+                Walk(selector, 1f, false, 0, result);
+        }
+        return result;
+    }
+
+    // An entity table selector: all of its children, one of them (a group), another table, or an item.
+    private void Walk(YamlNode node, float chance, bool oneOf, int depth, List<FillItem> result)
+    {
+        if (depth > 8 || node is not YamlMappingNode map)
+            return;
+        chance *= Chance(map);
+        var tag = map.Tag.IsEmpty ? "" : map.Tag.Value;
+        switch (tag)
+        {
+            case "!type:AllSelector" or "!type:GroupSelector":
+                if (map.Children.TryGetValue(new YamlScalarNode("children"), out var children) && children is YamlSequenceNode seq)
+                {
+                    foreach (var child in seq.Children)
+                        Walk(child, chance, oneOf || tag == "!type:GroupSelector", depth + 1, result);
+                }
+                break;
+            case "!type:NestedSelector":
+                if (Str(map, "tableId") is { } tableId && _prototypes.Resolve("entityTable", tableId) is { } nested
+                    && nested.Children.TryGetValue(new YamlScalarNode("table"), out var inner))
+                    Walk(inner, chance, oneOf, depth + 1, result);
+                break;
+            default:
+                if (Str(map, "id") is { } id)
+                {
+                    var amount = map.Children.TryGetValue(new YamlScalarNode("amount"), out var amountNode) ? amountNode : null;
+                    var range = amount is YamlMappingNode ranged && Str(ranged, "range") is { } text ? text.Replace(",", " to", StringComparison.Ordinal) : null;
+                    result.Add(new FillItem(id, amount is YamlScalarNode { Value: { } n } && int.TryParse(n, out var count) ? count : 1, chance)
+                    {
+                        OneOf = oneOf,
+                        AmountRange = range,
+                    });
+                }
+                break;
+        }
+    }
+
+    private static float Chance(YamlMappingNode node) =>
+        float.TryParse(Str(node, "prob"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var chance) ? chance : 1f;
+
+    private YamlMappingNode? Component(string entityId, string type) =>
+        _prototypes.Resolve("entity", entityId) is { } entity && entity.Children.TryGetValue(new YamlScalarNode("components"), out var components) && components is YamlSequenceNode list
+            ? list.Children.OfType<YamlMappingNode>().FirstOrDefault(c => Str(c, "type") == type)
+            : null;
+
     /// <summary>Every entity any starting gear or loadout puts on, for fetching their sprites.</summary>
     public IReadOnlySet<string> AllGearEntities()
     {
@@ -231,6 +376,20 @@ public sealed class OutfitCatalog
             else
                 yield return new Effect(tag, item);
         }
+    }
+
+    private static GearContents Contents(YamlMappingNode node)
+    {
+        var storage = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        if (node.Children.TryGetValue(new YamlScalarNode("storage"), out var storageNode) && storageNode is YamlMappingNode map)
+        {
+            foreach (var (slot, items) in map.Children)
+            {
+                if (items is YamlSequenceNode seq)
+                    storage[((YamlScalarNode)slot).Value!] = seq.Children.OfType<YamlScalarNode>().Select(s => s.Value!).ToList();
+            }
+        }
+        return new GearContents(Strings(node, "inhand"), storage);
     }
 
     private static Dictionary<string, string> Equipment(YamlMappingNode node)
