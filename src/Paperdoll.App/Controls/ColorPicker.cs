@@ -8,9 +8,8 @@ using Paperdoll.Core.Rendering;
 namespace Paperdoll.App.Controls;
 
 /// <summary>
-/// A swatch button that opens a small picker: hue, saturation and value sliders, a preview, a hex
-/// field and recently used colours. Changes are reported while dragging (<c>live</c> true) and
-/// once more when the picker closes.
+/// Colour swatch that opens a hue/saturation/value picker with a hex field and recent colours.
+/// The callback fires with <c>true</c> while dragging, then once more with <c>false</c> on close.
 /// </summary>
 public static class ColorPicker
 {

@@ -38,8 +38,8 @@ public static class MarkingColoring
     }
 
     /// <summary>
-    /// Colours for a randomly picked marking, as the game's randomiser gives them: a sprite whose
-    /// colouring names a type is coloured by it, any other gets <paramref name="untyped"/>.
+    /// Colours for a randomly picked marking. Sprites whose colouring names a type use it; the
+    /// rest get <paramref name="untyped"/>.
     /// </summary>
     public static List<Rgba> RandomColors(MarkingInfo marking, Rgba skin, Rgba eyes, IReadOnlyList<MarkingEntry> otherMarkings, Func<Rgba> untyped)
     {

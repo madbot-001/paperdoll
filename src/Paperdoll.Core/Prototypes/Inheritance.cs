@@ -21,7 +21,6 @@ namespace Paperdoll.Core.Prototypes;
 /// </summary>
 public static class Inheritance
 {
-    /// <summary>Fields that are never taken from a parent.</summary>
     private static readonly HashSet<string> NeverInherited = ["abstract", "parent", "id", "type"];
 
     /// <summary>Prototype fields that merge with the parent's value (by prototype kind).</summary>

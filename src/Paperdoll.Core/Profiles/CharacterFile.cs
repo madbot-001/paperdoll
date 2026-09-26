@@ -10,7 +10,7 @@ namespace Paperdoll.Core.Profiles;
 public sealed record LoadoutEntry(string Prototype, string? Name = null, string? Description = null, string? Color = null);
 
 /// <summary>
-/// A character as the lobby's Export writes it: <c>forkId</c>, <c>version</c> and <c>profile</c>.
+/// A file from the lobby's Export: <c>forkId</c>, <c>version</c> and <c>profile</c>.
 /// The whole file is kept as read, so keys Paperdoll does not know (a fork's extras) are written
 /// back unchanged; only the fields Paperdoll edits are touched.
 /// </summary>
@@ -57,8 +57,8 @@ public sealed class CharacterFile
     public string? ForkId { get => Scalar(_root, "forkId"); set => SetScalar(_root, "forkId", value); }
 
     /// <summary>
-    /// Labels the file with the fork it is exported for, as the game's Export does. The game never
-    /// reads the label on import; it only records where the file came from.
+    /// Labels the file with the fork it is exported for. The game never reads this label on
+    /// import; it only records where the file came from.
     /// </summary>
     public void LabelFor(Forks.ForkInfo fork) => ForkId = fork.ServerForkIds.FirstOrDefault() ?? fork.Id;
     public string? Version { get => Scalar(_root, "version"); set => SetScalar(_root, "version", value); }
@@ -139,7 +139,7 @@ public sealed class CharacterFile
 
     /// <summary>
     /// Sets a job's priority (High, Medium, Low), or removes it for Never. Setting High moves any
-    /// other High job to Medium, as the lobby does.
+    /// other High job to Medium.
     /// </summary>
     public void SetJobPriority(string jobId, string priority)
     {
@@ -180,8 +180,8 @@ public sealed class CharacterFile
     }
 
     /// <summary>
-    /// A job's saved loadout, made if asked for as the game writes one: <c>entityName</c>,
-    /// <c>selectedLoadouts</c> and <c>role</c>, in that order.
+    /// A job's saved loadout, made with the game's field order if it does not exist yet:
+    /// <c>entityName</c>, <c>selectedLoadouts</c> and <c>role</c>.
     /// </summary>
     public YamlMappingNode? RoleLoadout(string role, bool create)
     {
@@ -245,7 +245,7 @@ public sealed class CharacterFile
     public void SetRoleName(string role, string? name) =>
         RoleLoadout(role, create: true)!.Children[new YamlScalarNode("entityName")] = name == null ? Null() : Text(name);
 
-    /// <summary>A written <c>null</c>, as the game saves an empty value.</summary>
+    /// <summary>A plain <c>null</c>, which is what the game writes for no value.</summary>
     internal static YamlScalarNode Null() => new("null");
 
     /// <summary>A scalar that may be written as a bare <c>null</c>; quoted "null" stays text.</summary>
@@ -360,7 +360,7 @@ public sealed class CharacterFile
                     { "markingId", m.Id },
                 })));
             }
-            // Organs with no markings are written as {}, as the game does.
+            // Empty organs still get written, as {}.
             organs.Add(organ, layers);
         }
         appearance.Children[new YamlScalarNode("markings")] = organs;
@@ -415,7 +415,7 @@ public sealed class CharacterFile
             node.Children[new YamlScalarNode(key)] = Text(value);
     }
 
-    /// <summary>A text value as the game writes it: an empty one as <c>""</c>, others as the writer sees fit.</summary>
+    /// <summary>Empty strings go out as <c>""</c> to match the game's files.</summary>
     internal static YamlScalarNode Text(string value) =>
         value.Length == 0 ? new YamlScalarNode(value) { Style = YamlDotNet.Core.ScalarStyle.DoubleQuoted } : new YamlScalarNode(value);
 }

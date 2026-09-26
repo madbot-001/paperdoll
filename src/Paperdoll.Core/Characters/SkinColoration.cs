@@ -33,8 +33,7 @@ public abstract class SkinColoration
         throw new InvalidOperationException("This skin rule has no slider.");
 
     /// <summary>
-    /// The colour, if it is allowed or within one 8-bit step of allowed, as the game checks it;
-    /// otherwise the nearest allowed colour.
+    /// The colour if it's allowed (or within one 8-bit step of it), else the nearest allowed one.
     /// </summary>
     public Rgba EnsureValid(Rgba color)
     {
@@ -52,7 +51,7 @@ public abstract class SkinColoration
         return Closest(color);
     }
 
-    /// <summary>A new character's skin colour, as the game picks it.</summary>
+    /// <summary>Default skin colour for a new character.</summary>
     public static Rgba DefaultFor(SpeciesInfo species, SkinColoration rule)
     {
         if (rule.IsUnary)

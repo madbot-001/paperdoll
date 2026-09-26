@@ -70,7 +70,7 @@
 
     <Grid RowDefinitions="*,5,210" Margin="5,5,5,4">
       <Grid ColumnDefinitions="230,5,*,5,360">
-        <!-- Explorer: the character, organ by organ, layer by layer. -->
+        <!-- Explorer: the character's parts and layers. -->
         <Border Classes="pane" Grid.Column="0">
           <DockPanel>
             <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Explorer" /></Border>
@@ -79,7 +79,7 @@
         </Border>
         <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
-        <!-- Preview: the character on station floor, the four facings below. -->
+        <!-- Preview: character on the station floor, facings below. -->
         <Border Classes="pane" Grid.Column="2">
           <DockPanel>
             <Border Classes="caption" DockPanel.Dock="Top">
@@ -112,7 +112,6 @@
         </Border>
         <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
 
-        <!-- Inspector: the selected part of the character in detail. -->
         <Border Classes="pane" Grid.Column="4">
           <DockPanel>
             <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Name="InspectorTitle" Text="Inspector" /></Border>
@@ -125,7 +124,6 @@
 
       <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-      <!-- Tables: species, markings, credits, messages, and the file itself. -->
       <Border Classes="pane" Grid.Row="2">
         <TabControl Name="BottomTabs" TabStripPlacement="Bottom">
           <TabItem Header="Species">

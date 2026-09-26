@@ -12,7 +12,6 @@ public static partial class ForkStores
     /// </summary>
     public static readonly Version MinimumGit = new(2, 45);
 
-    /// <summary>Paperdoll's default folder for fork files.</summary>
     public static string DefaultDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Paperdoll", "store");
 

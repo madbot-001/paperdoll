@@ -38,7 +38,6 @@ public sealed record ForkInfo(
     /// <summary>Which characters names may contain.</summary>
     public Profiles.NameRule NameRule { get; init; } = Profiles.NameRule.Upstream;
 
-    /// <summary>How the fork sizes characters.</summary>
     public SizeRule SizeRule { get; init; } = SizeRule.None;
 
     /// <summary>Which trait system the fork has, and its overall limits.</summary>
@@ -50,7 +49,6 @@ public sealed record ForkInfo(
     /// </summary>
     public (float Min, float Max) DefaultHeights { get; init; } = (0.8f, 1.2f);
 
-    /// <summary>Character fields the fork saves beyond upstream's.</summary>
     public ProfileExtras Extras { get; init; } = ProfileExtras.None;
 }
 

@@ -5,10 +5,8 @@ using Paperdoll.Core.Forks;
 
 namespace Paperdoll.App;
 
-/// <summary>What the Forks dialog asked for: open a fork, updating it first or not.</summary>
 public sealed record ForkChoice(ForkInfo Fork, bool Update);
 
-/// <summary>A row of the Forks table.</summary>
 public sealed record ForkRow(ForkInfo Fork, string Name, string Model, string Editable, string Commit, string Repository);
 
 /// <summary>Lists the known forks; opens, updates or removes them.</summary>

@@ -2,12 +2,12 @@ using System.Globalization;
 
 namespace Paperdoll.Core.Rendering;
 
-/// <summary>A colour as the game stores it: red, green, blue and alpha from 0 to 1.</summary>
+/// <summary>RGBA colour, 0 to 1 per channel.</summary>
 public readonly record struct Rgba(float R, float G, float B, float A = 1f)
 {
     public static readonly Rgba White = new(1, 1, 1);
 
-    /// <summary>Reads <c>#RRGGBB</c> or <c>#RRGGBBAA</c>, as the game writes colours.</summary>
+    /// <summary>Reads <c>#RRGGBB</c> or <c>#RRGGBBAA</c>.</summary>
     public static Rgba Parse(string hex)
     {
         var text = hex.TrimStart('#');

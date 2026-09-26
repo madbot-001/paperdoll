@@ -292,7 +292,7 @@ public partial class MainWindow
             SetStatus($"{Words(row.OrganCategory)} › {row.Layer} already holds {max}; remove one first.");
             return;
         }
-        // A layer that takes one marking swaps it, as the game's picker does.
+        // One-marking layers swap instead of refusing, like the lobby picker.
         var replaced = limit == 1 && applied.Count == 1 ? session.MarkingName(applied[0].Id) : null;
         _selected = new Node(NodeKind.Marking, row.OrganCategory, row.LayerKey, replaced != null ? 0 : applied.Count);
         Apply(s => s.AddMarking(row.OrganCategory, row.LayerKey, row.Id));

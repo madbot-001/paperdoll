@@ -15,7 +15,7 @@ public sealed record ClothingLayer(SpriteRef Sprite, Rgba Color, bool SpeciesSpe
 public sealed record ClothingVisual(string Entity, IReadOnlyList<ClothingLayer> Layers, IReadOnlySet<string> HiddenLayers);
 
 /// <summary>
-/// Works out how a worn item is drawn, as the game does:
+/// How a worn item is drawn:
 /// <list type="bullet">
 /// <item>The item's <c>clothingVisuals</c> for the slot (a species version first, such as
 /// <c>jumpsuit-vox</c>), each layer from its own sprite or the item's.</item>

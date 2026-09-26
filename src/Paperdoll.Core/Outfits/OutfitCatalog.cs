@@ -57,7 +57,6 @@ public enum LoadoutCheck
     /// <summary>Needs playtime or a whitelist, which only the server knows.</summary>
     ServerChecks,
 
-    /// <summary>Not for this species.</summary>
     WrongSpecies,
 }
 
@@ -143,7 +142,7 @@ public sealed class OutfitCatalog
 
     /// <summary>
     /// What a loadout puts on, slot by slot: its starting gear's items, then its own, each only
-    /// into a slot that is still empty (as the game equips them).
+    /// into a slot that is still empty.
     /// </summary>
     public IReadOnlyDictionary<string, string> GearOf(LoadoutInfo loadout)
     {
@@ -181,9 +180,9 @@ public sealed class OutfitCatalog
     }
 
     /// <summary>
-    /// The character's loadout for a job as the lobby shows it: what they saved, with groups they
-    /// have nothing saved for given their defaults (<c>RoleLoadout.SetDefault</c>). Defaults skip
-    /// loadouts that need playtime, as a new player would see.
+    /// The character's loadout for a job: what they saved, with groups they have nothing saved
+    /// for given their defaults (<c>RoleLoadout.SetDefault</c>), which skip loadouts that need
+    /// playtime.
     /// </summary>
     public RoleLoadout LoadoutFor(string jobId, string species, IReadOnlyDictionary<string, IReadOnlyList<string>>? saved)
     {
@@ -242,10 +241,9 @@ public sealed class OutfitCatalog
     }
 
     /// <summary>
-    /// What the character spawns with, as the game equips it (<c>StationSpawningSystem</c>): each
-    /// selected loadout in the role's group order, then the job's own gear. Each fills only empty
-    /// slots, then puts its items in the hands (two at most) and into the item already worn in a
-    /// slot, if that item can hold things.
+    /// What the character spawns with (<c>StationSpawningSystem</c>): each selected loadout in
+    /// the role's group order, then the job's own gear. Each fills only empty slots, then puts
+    /// items in the hands (two at most) and into whichever worn item in a slot can hold things.
     /// </summary>
     public SpawnGear GearAtSpawn(string jobId, RoleLoadout loadout)
     {

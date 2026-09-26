@@ -60,7 +60,6 @@ public sealed record SpeciesInfo(
     /// <summary>The default voice for Male, Female and Unsexed, in that order (<c>defaultSoundsBySex</c>).</summary>
     public IReadOnlyList<string> DefaultVoices { get; init; } = [];
 
-    /// <summary>The voice a character of this sex gets by default.</summary>
     public string? DefaultVoice(string sex) => DefaultVoices.Count < 3 ? null : DefaultVoices[sex switch
     {
         "Female" => 1,
@@ -68,7 +67,7 @@ public sealed record SpeciesInfo(
         _ => 0,
     }];
 
-    /// <summary>The map fitting clothing in a slot to this body and sex, as the game picks it.</summary>
+    /// <summary>The clothing map for the slot, using the sex's override set if the species has one.</summary>
     public DisplacementRef? ClothingDisplacement(string slot, string sex) => sex switch
     {
         "Male" when MaleClothingDisplacements.Count > 0 => MaleClothingDisplacements.GetValueOrDefault(slot),
@@ -168,7 +167,6 @@ public sealed class CharacterCatalog
             ? node
             : new YamlMappingNode());
 
-    /// <summary>A new character's skin colour for the species, as the game picks it.</summary>
     public Rendering.Rgba DefaultSkin(SpeciesInfo species) => SkinColoration.DefaultFor(species, SkinRuleFor(species));
 
     /// <summary>Every RSI folder the species' organs and the markings draw from.</summary>
@@ -287,7 +285,7 @@ public sealed class CharacterCatalog
         return result;
     }
 
-    // "1.1, 1.1" as the game writes a two-number vector.
+    // Two-number vectors are written "1.1, 1.1".
     private static (float, float)? Pair(string? text)
     {
         var parts = text?.Split(',', StringSplitOptions.TrimEntries);

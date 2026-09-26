@@ -8,10 +8,9 @@ using Paperdoll.Core.Profiles;
 namespace Paperdoll.App;
 
 /// <summary>
-/// The editor window: an explorer of the character on the left, the preview in the middle, an
-/// inspector for the selected part on the right, and tables below. Everything shown comes from an
-/// <see cref="EditorSession"/>; every change goes back through it (so the game's rules apply),
-/// then the window is refreshed.
+/// Explorer on the left, preview in the middle, inspector for the selected part on the right,
+/// tables below. Changes go through <see cref="EditorSession"/> so the game's rules apply, then
+/// the window refreshes.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -125,7 +124,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>A fork's data changed: rebuild what depends on the fork, then the rest.</summary>
+    /// <summary>Rebuilds what depends on the fork, then the rest.</summary>
     private void OnForkLoaded()
     {
         var session = _session!;
@@ -154,8 +153,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Redraws every pane from the session. The inspector is kept while a control in it is being
-    /// dragged; then only the preview follows, and the other panes catch up once the dragging stops.
+    /// Redraws every pane from the session. Skips the inspector while a control in it is being
+    /// dragged, so only the preview follows until dragging stops.
     /// </summary>
     private void RefreshAll(bool keepInspector = false, bool previewOnly = false)
     {
@@ -309,7 +308,6 @@ public partial class MainWindow : Window
     private async void OnAbout(object? sender, RoutedEventArgs e) => await new AboutWindow().ShowDialog(this);
 }
 
-/// <summary>A credits table row.</summary>
 public sealed record CreditRow(string Rsi, string LicenseText, string Copyright)
 {
     public CreditRow(CreditLine line)
@@ -318,18 +316,13 @@ public sealed record CreditRow(string Rsi, string LicenseText, string Copyright)
     }
 }
 
-/// <summary>A species table row.</summary>
 public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string Sexes, string Ages, string SkinRule, int Layers, string Size, string Source);
 
-/// <summary>A traits table row.</summary>
 public sealed record TraitRow(string Id, string Name, string Category, int Cost, string Picked, string Status, string Source);
 
-/// <summary>An outfit table row: where an item is, what it is, and the loadout group it came from (if any).</summary>
 public sealed record GearRow(string Where, string Item, string From, string Id, string? Group);
 
-/// <summary>A jobs table row.</summary>
 public sealed record JobRow(string Id, string Name, string Department, string Priority, int Groups);
 
-/// <summary>A markings table row, with where the marking would go.</summary>
 public sealed record MarkingRow(string Id, string Name, string Layer, int Sprites, string Coloring, string Restriction,
     string License, string Source, string OrganCategory, string LayerKey);

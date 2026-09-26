@@ -11,7 +11,6 @@ public sealed class NameRule(string description, Regex disallowed)
     public string Description { get; } = description;
     private Regex Disallowed { get; } = disallowed;
 
-    /// <summary>Upstream: plain letters, digits, spaces, apostrophes and hyphens.</summary>
     public static readonly NameRule Upstream = new(
         "A-Z, a-z, 0-9, space, ' and -",
         new Regex(@"[^A-Za-z0-9 '\-]"));

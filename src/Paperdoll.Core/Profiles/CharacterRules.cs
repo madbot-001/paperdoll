@@ -35,8 +35,8 @@ public static partial class CharacterRules
 
     /// <summary>Applies the game's rules to the file in place and lists what changed.</summary>
     /// <param name="randomName">
-    /// Makes a random name for a species and pronouns, used when the name is empty, as the game
-    /// does. Without it an empty name is only reported.
+    /// Random name for a species and pronouns, used for an empty name. Without it an empty name
+    /// is only reported.
     /// </param>
     /// <param name="outfits">The fork's jobs, for checking job priorities; without it they are left alone.</param>
     /// <param name="traits">The fork's traits, for checking trait choices; without it they are left alone.</param>
@@ -46,8 +46,8 @@ public static partial class CharacterRules
     {
         var fixes = new List<RuleFix>();
 
-        // The look is read before the species or sex change, and checked against the sex as it
-        // was written, as the game does.
+        // The look is read before the species or sex change, and checked against the sex as
+        // written.
         var look = file.ReadLook(catalog);
 
         var speciesId = file.Species;
@@ -61,8 +61,8 @@ public static partial class CharacterRules
 
         var sex = Sexes.Contains(file.Sex) ? file.Sex! : "Male";
 
-        // The voice is checked before the sex is fitted to the species, as the game does. A file
-        // with no voice reads as the game's default, MaleHuman.
+        // Checked against the sex as written, before the sex fix below (same order as the game).
+        // No voice in the file means MaleHuman.
         if (catalog.HasVoices)
         {
             var voice = file.Voice ?? DefaultVoice;
@@ -225,7 +225,7 @@ public static partial class CharacterRules
     }
 
     // Old Einstein Engines-style entries are repaired; unknown traits and ones over a category's
-    // points are dropped, as the game does.
+    // points are dropped.
     private static void CheckTraits(CharacterFile file, Traits.TraitCatalog traits, Traits.TraitRules rules, List<RuleFix> fixes)
     {
         var written = file.TraitPreferences;

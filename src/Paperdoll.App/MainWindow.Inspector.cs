@@ -510,10 +510,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Euphoria's name, description and colour for a chosen loadout, with the limits the game applies
-    /// when the character spawns. Only loadouts that give a single item can be customised.
-    /// </summary>
+    /// <summary>Euphoria's custom name, description and colour tint for a loadout item. Only single-item loadouts can be customised.</summary>
     private void AddCustomization(string job, string groupId, Core.Outfits.LoadoutInfo loadout, LoadoutEntry entry)
     {
         var panel = new StackPanel { Spacing = 3, Margin = new Thickness(28, 0, 6, 4) };
@@ -582,7 +579,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Antagonists the character is willing to be, as the lobby's Antags tab lists them.</summary>
+    /// <summary>Antagonists the character is willing to be.</summary>
     private void InspectAntags()
     {
         var session = _session!;

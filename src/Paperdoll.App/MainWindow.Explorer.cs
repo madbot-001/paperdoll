@@ -28,10 +28,6 @@ public partial class MainWindow
         Allergies,
     }
 
-    /// <summary>
-    /// What an explorer node points at: the character, an organ, a layer, a marking on it, the
-    /// outfit, or one of its loadout groups.
-    /// </summary>
     private sealed record Node(NodeKind Kind, string? Organ = null, string? Layer = null, int Index = -1, string? Group = null)
     {
         public string Key => $"{Kind}/{Organ}/{Layer}/{Index}/{Group}";

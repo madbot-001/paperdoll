@@ -4,9 +4,8 @@ using SkiaSharp;
 namespace Paperdoll.App.Preview;
 
 /// <summary>
-/// Draws a character standing on station floor plates, at the game's scale: one plate is one
-/// 32-pixel tile, so the character is the size it is in the game. The plates are drawn here, not
-/// taken from a fork, so they need no credit.
+/// Draws station floor plates at game scale (one plate = one 32-pixel tile). Drawn here rather
+/// than taken from a fork, so they need no sprite credit.
 /// </summary>
 public static class FloorCanvas
 {
@@ -15,10 +14,7 @@ public static class FloorCanvas
     private static readonly SKColor Seam = new(0x2A, 0x2F, 0x35);
     private const int Tile = 32;
 
-    /// <summary>
-    /// A canvas of the given size with the sprite in the middle, scaled by <paramref name="zoom"/>
-    /// and by the character's own scale (species size and height), as the game scales it.
-    /// </summary>
+    /// <summary>Canvas with the sprite centred, scaled by <paramref name="zoom"/> and the character's own species/height scale.</summary>
     public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null)
     {
         var (scaleX, scaleY) = scale ?? (1f, 1f);
@@ -58,7 +54,6 @@ public static class FloorCanvas
         return bitmap;
     }
 
-    /// <summary>Converts a Skia bitmap for display.</summary>
     public static Bitmap ToAvalonia(SKBitmap bitmap)
     {
         using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);

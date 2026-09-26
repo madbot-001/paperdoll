@@ -76,7 +76,7 @@ internal static class LoadoutRules
     }
 
     // Euphoria saves every chosen loadout with its name, description and colour, null when unset;
-    // entries that lack them get them, as the game would write them.
+    // entries that lack them get them filled in.
     private static void WriteCustomizationFields(YamlMappingNode role)
     {
         if (!role.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selected) || selected is not YamlMappingNode groups)
@@ -100,7 +100,7 @@ internal static class LoadoutRules
         if (!role.Children.TryGetValue(new YamlScalarNode("selectedLoadouts"), out var selectedNode) || selectedNode is not YamlMappingNode selected)
             role.Children[new YamlScalarNode("selectedLoadouts")] = selected = new YamlMappingNode();
 
-        // Every group of the role gets an entry, as the game adds any it had not picked up.
+        // The game adds any of the role's groups that are missing.
         foreach (var groupId in groupIds.Where(g => !selected.Children.ContainsKey(new YamlScalarNode(g))))
             selected.Children[new YamlScalarNode(groupId)] = new YamlSequenceNode();
 
@@ -132,7 +132,7 @@ internal static class LoadoutRules
                 }
             }
 
-            // Too few: the first loadouts that suit, as the game fills them (skipping those that need playtime).
+            // Too few: fill from the top of the list, skipping ones that need playtime.
             foreach (var id in group.Loadouts)
             {
                 if (kept.Count >= group.MinLimit)

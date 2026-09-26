@@ -2,9 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <!--
-    A serious tool in dark steel greys, easy on the eyes: flat panel headers and toolbars, input
-    fields a step lighter than the panes with visible borders, one blue for selection and focus,
-    amber for warnings and the chosen facing. Colour marks state, not decoration.
+    Dark steel greys: flat headers and toolbars, input fields a step lighter than the panes,
+    blue for selection and focus, amber for warnings and the chosen facing.
   -->
   <Styles.Resources>
     <SolidColorBrush x:Key="FaceBrush" Color="#1B1F24" />
@@ -65,7 +64,6 @@
     <Setter Property="Background" Value="#22272D" />
   </Style>
 
-  <!-- Toolbar strip -->
   <Style Selector="Border.toolbar">
     <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
@@ -79,7 +77,6 @@
     <Setter Property="Fill" Value="{StaticResource LineBrush}" />
   </Style>
 
-  <!-- Buttons -->
   <Style Selector="Button">
     <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
     <Setter Property="BorderBrush" Value="#4A535E" />
@@ -124,7 +121,6 @@
     <Setter Property="FontSize" Value="11" />
   </Style>
 
-  <!-- Fields -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{StaticResource InputBrush}" />
     <Setter Property="BorderBrush" Value="#4A535E" />
@@ -148,7 +144,6 @@
     <Setter Property="BorderBrush" Value="#4A535E" />
   </Style>
 
-  <!-- Lists -->
   <Style Selector="ListBox">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -167,7 +162,7 @@
     <Setter Property="Foreground" Value="White" />
   </Style>
 
-  <!-- Docked panes: a thin frame with a shaded caption. -->
+  <!-- Docked panes -->
   <Style Selector="Border.pane">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
@@ -204,7 +199,6 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
-  <!-- Explorer tree -->
   <Style Selector="TreeView">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -278,7 +272,6 @@
     <Setter Property="Background" Value="{StaticResource FaceBrush}" />
   </Style>
 
-  <!-- Tables -->
   <Style Selector="DataGrid">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -305,7 +298,7 @@
     <Setter Property="Margin" Value="4,0" />
   </Style>
 
-  <!-- Bottom tabs, like an IDE's output panes. -->
+  <!-- Bottom tabs -->
   <Style Selector="TabControl">
     <Setter Property="Padding" Value="0" />
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
@@ -338,7 +331,6 @@
     <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
   </Style>
 
-  <!-- Status bar -->
   <Style Selector="Border.statusbar">
     <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />

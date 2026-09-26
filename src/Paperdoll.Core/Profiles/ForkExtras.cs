@@ -149,7 +149,7 @@ public static class CharacterRecords
                 CharacterFile.Scalar(e, "title") ?? "", CharacterFile.Scalar(e, "involved") ?? "", CharacterFile.Scalar(e, "description") ?? "")).ToList()
             : [];
 
-    /// <summary>Writes a list's entries, each as the game writes them: description, involved, title.</summary>
+    /// <summary>Entries go out as description, involved, title (the game's order).</summary>
     public static void SetEntries(CharacterFile file, string list, IEnumerable<RecordEntry> entries) =>
         Node(file).Children[new YamlScalarNode(list)] = new YamlSequenceNode(entries.Select(e => (YamlNode)new YamlMappingNode
         {
@@ -201,7 +201,7 @@ public static class Allergies
     /// <summary>A new allergy starts at this strength, as in the lobby.</summary>
     public const float DefaultAmount = 1f;
 
-    /// <summary>Every reagent, as the lobby's allergy picker offers them.</summary>
+    /// <summary>All reagents; the allergy picker lists every one.</summary>
     public static IReadOnlyList<ReagentInfo> Reagents(PrototypeIndex prototypes) =>
         prototypes.OfKind("reagent").Where(p => !p.Abstract).Select(p =>
         {

@@ -83,7 +83,7 @@ public class ForkExtrasTests
         Assert.Equal(64, CharacterRecords.Text(file, "identifyingFeatures").Length);
         Assert.Equal(8192, Assert.Single(CharacterRecords.Entries(file, "medicalEntries")).Description.Length);
         Assert.Contains(fixes, f => f.Field == CharacterRecords.Key);
-        // Entries are written as the game writes them: description, involved, title.
+        // Game order: description, involved, title.
         var yaml = file.ToYaml();
         Assert.True(yaml.IndexOf("description:", StringComparison.Ordinal) < yaml.IndexOf("involved:", StringComparison.Ordinal));
         Assert.True(yaml.IndexOf("involved:", StringComparison.Ordinal) < yaml.IndexOf("title:", StringComparison.Ordinal));

@@ -33,7 +33,7 @@ public interface ITextureSource
 public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null, bool Greyscale = false);
 
 /// <summary>
-/// Draws a character from a fork's data as the game's lobby preview does, facing one way:
+/// Draws a character the way the lobby preview does, facing one way:
 /// <list type="bullet">
 /// <item>Layers start as the species doll's sprite layers, in order.</item>
 /// <item>Each organ fills the layer named by its <c>VisualOrgan</c>, tinted with the skin colour
@@ -160,7 +160,7 @@ public sealed class PaperdollRenderer
             if (index < 0)
                 continue;
             var displacement = species.ClothingDisplacement(slot, sex);
-            // A tint replaces the layers' own colours and greys them first, as the game's paint does.
+            // A tint replaces the layers' own colours and greys them first.
             var tint = tints != null && tints.TryGetValue(slot, out var tinted) ? tinted : (Rgba?)null;
             for (var i = 0; i < visual.Layers.Count; i++)
             {
@@ -385,7 +385,7 @@ public sealed class PaperdollRenderer
     }
 
     /// <summary>
-    /// Reshapes a frame as the game's displacement shader does: each output pixel takes the source
+    /// Port of the displacement shader: each output pixel takes the source
     /// pixel moved by the map's (red - 128, green - 128), with the map's alpha as a mask.
     /// </summary>
     public static SKBitmap Displace(SKBitmap frame, SKBitmap map) => Displace(Pixels.From(frame), Pixels.From(map)).ToBitmap();

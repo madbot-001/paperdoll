@@ -21,7 +21,7 @@ public sealed record RsiState(string Name, int Directions, IReadOnlyList<int> Fr
     /// <summary>Whether the state plays more than one frame facing this way.</summary>
     public bool IsAnimated(Direction direction) => DelaysFor(direction) is { Count: > 1 };
 
-    /// <summary>The frame showing after this many seconds, the animation looping as the game plays it.</summary>
+    /// <summary>Frame index at a given time; animations loop.</summary>
     public int FrameAt(Direction direction, double seconds)
     {
         if (DelaysFor(direction) is not { Count: > 1 } delays)

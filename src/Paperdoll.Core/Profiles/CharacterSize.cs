@@ -18,7 +18,7 @@ public static class CharacterSize
     public static void WriteHeight(CharacterFile file, float height) =>
         file.SetValue(HeightKey, height.ToString("0.##", CultureInfo.InvariantCulture));
 
-    /// <summary>The height as the game keeps it: rounded to two decimals, within the species' range.</summary>
+    /// <summary>Rounded to two decimals and clamped to the species' range.</summary>
     public static float CheckHeight(float height, SpeciesInfo species) =>
         Math.Clamp(MathF.Round(height, 2), species.MinHeight, species.MaxHeight);
 

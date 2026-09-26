@@ -86,7 +86,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>The character changed: mark it unsaved and save the working copy soon.</summary>
+    /// <summary>Marks the character unsaved and schedules an autosave.</summary>
     private void MarkChanged()
     {
         _dirty = true;

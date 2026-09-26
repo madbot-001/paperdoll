@@ -24,9 +24,8 @@ public sealed record CreditLine(string Rsi, string? License, string? Copyright)
 }
 
 /// <summary>
-/// Everything the editor window works on, without the window: the fork store, the loaded fork,
-/// and the character being edited. Every edit goes through the game's rules, so the character is
-/// always one the game would accept.
+/// Everything the editor window works on, without the window. Every edit runs through the game's
+/// rules, so the character stays one the game would accept.
 /// </summary>
 public sealed class EditorSession : IAsyncDisposable
 {
@@ -59,9 +58,8 @@ public sealed class EditorSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Makes a fork the one being edited: downloads it if it never was (or when asked to update),
-    /// reads its data and sprites. A character already open stays open and is checked against the
-    /// new data, as if it had been opened there; otherwise a new character is started.
+    /// Makes a fork the one being edited: downloads it if needed, reads its data and sprites. An
+    /// open character is checked against the new data rather than replaced; otherwise a new one starts.
     /// </summary>
     public async Task LoadForkAsync(ForkInfo fork, bool update, IProgress<string>? progress = null, CancellationToken ct = default)
     {
@@ -126,7 +124,6 @@ public sealed class EditorSession : IAsyncDisposable
     /// <summary>The job whose clothes the preview shows; null means the one the lobby would pick.</summary>
     public string? PreviewJob { get; set; }
 
-    /// <summary>Whether the preview shows clothes at all.</summary>
     public bool ShowClothes { get; set; } = true;
 
     /// <summary>The job the preview dresses for: the chosen one, else the character's High priority job, else the fallback job.</summary>
@@ -145,7 +142,7 @@ public sealed class EditorSession : IAsyncDisposable
     public RoleLoadout LoadoutFor(string jobId) =>
         RequireContent().Outfits.LoadoutFor(jobId, Look!.Species, RequireFile().Loadouts.GetValueOrDefault(OutfitCatalog.RoleFor(jobId)));
 
-    /// <summary>Everything the character spawns with in the job the preview shows, as the game equips it.</summary>
+    /// <summary>Everything the character spawns with in the job the preview shows.</summary>
     public SpawnGear? GearAtSpawn() =>
         DressedJob() is { } job ? RequireContent().Outfits.GearAtSpawn(job, LoadoutFor(job)) : null;
 
@@ -157,7 +154,6 @@ public sealed class EditorSession : IAsyncDisposable
         return RequireContent().Outfits.OutfitFor(job, LoadoutFor(job));
     }
 
-    /// <summary>The traits the character has picked.</summary>
     public IReadOnlyList<string> SelectedTraits() => RequireFile().TraitPreferences;
 
     /// <summary>What trait conditions are checked against: species, the dressed job and its department.</summary>
@@ -213,7 +209,7 @@ public sealed class EditorSession : IAsyncDisposable
         return Edit(f => f.SetLoadoutGroup(OutfitCatalog.RoleFor(jobId), groupId, current));
     }
 
-    /// <summary>A loadout's name as the game shows it: its dummy or single item's name.</summary>
+    /// <summary>Display name: the dummy entity's, or the single item's.</summary>
     public string LoadoutName(string loadoutId)
     {
         var outfits = RequireContent().Outfits;
@@ -238,7 +234,6 @@ public sealed class EditorSession : IAsyncDisposable
         node.Children.TryGetValue(new YamlDotNet.RepresentationModel.YamlScalarNode(key), out var value)
             && value is YamlDotNet.RepresentationModel.YamlScalarNode scalar ? scalar.Value : null;
 
-    /// <summary>How much the character is scaled on screen, across and up.</summary>
     public (float X, float Y) SpriteScale()
     {
         // A job's own body, such as a borg, is drawn at its sprite's size.
@@ -248,12 +243,11 @@ public sealed class EditorSession : IAsyncDisposable
         return CharacterSize.SpriteScale(Fork!, species, RequireFile());
     }
 
-    /// <summary>Sets the character's height (forks with a height setting only).</summary>
     public IReadOnlyList<RuleFix> SetHeight(float height) => Edit(f => CharacterSize.WriteHeight(f, height));
 
     /// <summary>
-    /// Changes the sex as the lobby does: pronouns follow it (Male, Female, else Epicene), and
-    /// where the fork has voices, the voice becomes the species' default for that sex.
+    /// Sets the sex; pronouns follow it (Male, Female, else Epicene), and where the fork has
+    /// voices, the voice becomes the species' default for that sex.
     /// </summary>
     public IReadOnlyList<RuleFix> SetSex(string sex) => Edit(f =>
     {
@@ -301,7 +295,7 @@ public sealed class EditorSession : IAsyncDisposable
         f.SetAntagPreferences(wanted);
     });
 
-    /// <summary>A voice's name as the lobby shows it (Masculine, Feminine, Neutral).</summary>
+    /// <summary>Masculine, Feminine, Neutral and so on.</summary>
     public string VoiceName(string voice) =>
         Content?.Characters.VoiceNames.TryGetValue(voice, out var key) == true ? Content.Strings[key] ?? voice : voice;
 
@@ -314,7 +308,7 @@ public sealed class EditorSession : IAsyncDisposable
         return LastFixes;
     }
 
-    /// <summary>The character as the lobby imports it.</summary>
+    /// <summary>Text for the lobby's Import button.</summary>
     public string Export()
     {
         var file = RequireFile();
@@ -372,9 +366,9 @@ public sealed class EditorSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Adds a marking with its default colours, as the lobby's picker does
-    /// (upstream <c>MarkingsViewModel.TrySelectMarking</c>, MIT): on a layer that takes one marking
-    /// and has it, the new one replaces it; a full layer that takes more refuses.
+    /// Adds a marking with its default colours (upstream <c>MarkingsViewModel.TrySelectMarking</c>,
+    /// MIT): on a layer that takes one marking and has it, the new one replaces it; a full layer
+    /// that takes more refuses.
     /// </summary>
     public IReadOnlyList<RuleFix> AddMarking(string organ, string layer, string markingId) =>
         EditLook(look => WithMarking(look, organ, layer, markingId, preview: false));
@@ -488,7 +482,7 @@ public sealed class EditorSession : IAsyncDisposable
         return tints;
     }
 
-    /// <summary>A loadout colour as the game uses it: solid (a see-through one shows pink), lightness from 0.25 to 1.</summary>
+    /// <summary>Euphoria's spawn-time fix-up: see-through turns pink, lightness clamped to 0.25..1.</summary>
     public static Rgba CustomizationColor(Rgba color)
     {
         if (color.A < 1f)
@@ -531,9 +525,9 @@ public sealed class EditorSession : IAsyncDisposable
         CharacterRules.CheckName(new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender), Fork!.NameRule);
 
     /// <summary>
-    /// Randomises the chosen parts as the lobby's randomise button does, keeping the rest (its
-    /// locks). Unlike the game's, which starts a fresh profile, jobs, loadouts, traits, antagonists,
-    /// records and the description are kept.
+    /// Randomises the chosen parts, keeping the rest (its locks). Unlike the game's randomiser,
+    /// which starts a fresh profile, jobs, loadouts, traits, antagonists, records and the
+    /// description are kept.
     /// </summary>
     public IReadOnlyList<RuleFix> Randomize(RandomParts parts, Random? random = null) => Edit(file =>
     {
@@ -575,7 +569,6 @@ public sealed class EditorSession : IAsyncDisposable
         });
     });
 
-    /// <summary>Gives the character a new random name.</summary>
     public IReadOnlyList<RuleFix> RandomizeName() => Edit(f =>
         f.Name = RandomName(RequireContent().Characters.Species[Look!.Species], f.Gender));
 

@@ -6,7 +6,7 @@ using YamlDotNet.RepresentationModel;
 namespace Paperdoll.Core.Characters;
 
 /// <summary>
-/// Random names as the game picks them (<c>NamingSystem</c>): first names from the species' male or
+/// Random names (<c>NamingSystem</c>): first names from the species' male or
 /// female list (either, for other pronouns), last names from its last-name list, put together by
 /// the fork's <c>namepreset-&lt;naming&gt;</c> text, or first and last when the fork has none.
 /// </summary>

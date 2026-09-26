@@ -24,7 +24,7 @@ public enum RandomParts
 }
 
 /// <summary>
-/// Picks random characters as the lobby's randomise button does: a random sex, age and name for the
+/// The lobby's randomise button: a random sex, age and name for the
 /// species, a palette of three colours a set turn apart on the colour wheel (skin, hair and eyes,
 /// fitted to the species' skin rule), and markings rolled layer by layer by weight.
 /// </summary>

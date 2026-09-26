@@ -30,7 +30,7 @@ public sealed class EditorSessionTests : IDisposable
         var head = session.Content!.Characters.Species["Harpy"].Organs.First(o => o.MarkingLayers.Contains("Hair"));
         var hair = session.AvailableMarkings(head, "Hair").First();
         session.AddMarking(head.Category, "Hair", hair.Id);
-        // Hair takes one marking, so picking another swaps it, as the lobby does.
+        // Hair takes one marking, so picking another swaps it.
         var otherHair = session.AvailableMarkings(head, "Hair").First(m => m.Id != hair.Id);
         session.AddMarking(head.Category, "Hair", otherHair.Id);
         Assert.Equal(otherHair.Id, Assert.Single(session.Look!.Markings[head.Category]["Hair"]).Id);
@@ -49,8 +49,7 @@ public sealed class EditorSessionTests : IDisposable
         using var image = session.Render();
         Assert.True(image.Width >= 32);
 
-        // Random characters already pass the game's rules: nothing needs removing or changing
-        // beyond what the game's own randomiser leaves to its checks (required markings).
+        // Random characters already pass the game's rules; only required-marking fixes are expected.
         for (var seed = 0; seed < 30; seed++)
         {
             session.Randomize(Characters.RandomParts.All, new Random(seed));

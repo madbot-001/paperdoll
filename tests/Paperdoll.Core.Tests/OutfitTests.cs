@@ -583,7 +583,6 @@ public class LoadoutRulesTests
                   role: JobJanitor
             """.ReplaceLineEndings("\n"), file.ToYaml());
 
-        // Checked again, nothing changes.
         var again = Profiles.CharacterFile.Parse(file.ToYaml());
         Assert.Empty(Profiles.CharacterRules.EnsureValid(again, Catalog, Fork, outfits: Outfits));
         Assert.Equal(file.ToYaml(), again.ToYaml());
