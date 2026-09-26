@@ -28,7 +28,7 @@ public interface ITextureSource
 }
 
 /// <summary>One drawn layer, bottom to top: what the preview shows and the credits list.</summary>
-public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color);
+public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null);
 
 /// <summary>
 /// Draws a character from a fork's data as the game's lobby preview does, facing one way:
@@ -39,10 +39,11 @@ public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color);
 /// <item>Each marking is inserted just above its body part's layer, so a marking applied later
 /// on the same layer ends up below earlier ones. Markings with forced colours, or on layers that
 /// match the skin, are coloured by their rules and applied after the others.</item>
+/// <item>Displacement maps reshape an organ's layer (Dwarf bodies) or markings on a layer (hair on
+/// Vox), unless the marking opts out.</item>
 /// <item>Colours multiply the sprite's pixels. Frames are centred on each other.</item>
 /// </list>
-/// Not drawn yet: displacement maps (which reshape, for example, hair on Vox), shaders, and the
-/// nudity-censoring defaults.
+/// Not drawn yet: marking shaders and the nudity-censoring defaults.
 /// </summary>
 public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex prototypes, ITextureSource textures)
 {
@@ -54,6 +55,7 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
         public IReadOnlyList<string> Keys { get; } = keys;
         public SpriteRef? Sprite { get; set; }
         public Rgba Color { get; set; } = Rgba.White;
+        public DisplacementRef? Displacement { get; set; }
     }
 
     /// <summary>The layers the character is drawn with, bottom to top.</summary>
@@ -74,6 +76,7 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
             var state = organ.SexStates.TryGetValue(look.Sex, out var sexState) ? sexState : sprite.State;
             slots[index].Sprite = sprite with { State = state };
             slots[index].Color = organ.Layer == "Eyes" ? look.EyeColor : look.SkinColor;
+            slots[index].Displacement = organ.Displacement;
         }
 
         foreach (var organ in species.Organs)
@@ -81,7 +84,7 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
 
         return slots
             .Where(s => s.Sprite is { State: not null })
-            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color))
+            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement))
             .ToList();
     }
 
@@ -91,8 +94,16 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
         var frames = new List<(SKBitmap Frame, Rgba Color)>();
         foreach (var layer in Layers(look))
         {
-            if (LoadFrame(layer.Sprite, direction) is { } frame)
-                frames.Add((frame, layer.Color));
+            if (LoadFrame(layer.Sprite, direction) is not { } frame)
+                continue;
+            if (layer.Displacement?.For(frame.Width) is { } map && LoadFrame(map, direction) is { } displacement)
+            {
+                var displaced = Displace(frame, displacement);
+                frame.Dispose();
+                displacement.Dispose();
+                frame = displaced;
+            }
+            frames.Add((frame, layer.Color));
         }
 
         var width = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Width);
@@ -159,10 +170,16 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
                 var index = FindSlot(slots, marking.Layer);
                 if (index < 0)
                     continue;
+                var displacement = marking.CanBeDisplaced && organ.MarkingsDisplacement.TryGetValue(marking.Layer, out var map) ? map : null;
                 for (var i = 0; i < marking.Sprites.Count; i++)
                 {
                     var color = i < entry.Colors.Count ? entry.Colors[i] : Rgba.White;
-                    slots.Insert(index + i + 1, new Slot([$"{marking.Id}-{marking.Sprites[i].State}"]) { Sprite = marking.Sprites[i], Color = color });
+                    slots.Insert(index + i + 1, new Slot([$"{marking.Id}-{marking.Sprites[i].State}"])
+                    {
+                        Sprite = marking.Sprites[i],
+                        Color = color,
+                        Displacement = displacement,
+                    });
                 }
             }
         }
@@ -222,6 +239,32 @@ public sealed class PaperdollRenderer(CharacterCatalog catalog, PrototypeIndex p
             return null;
         var png = textures.Read($"{sprite.Rsi}/{sprite.State}.png");
         return png == null ? null : meta.Frame(state, png, direction);
+    }
+
+    /// <summary>
+    /// Reshapes a frame as the game's displacement shader does: each output pixel takes the source
+    /// pixel moved by the map's (red - 128, green - 128), with the map's alpha as a mask.
+    /// </summary>
+    public static SKBitmap Displace(SKBitmap frame, SKBitmap map)
+    {
+        var result = new SKBitmap(new SKImageInfo(frame.Width, frame.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        for (var y = 0; y < frame.Height; y++)
+        {
+            for (var x = 0; x < frame.Width; x++)
+            {
+                if (x >= map.Width || y >= map.Height)
+                {
+                    result.SetPixel(x, y, SKColors.Transparent);
+                    continue;
+                }
+                var d = map.GetPixel(x, y);
+                var sx = x + d.Red - 128;
+                var sy = y + d.Green - 128;
+                var source = sx >= 0 && sy >= 0 && sx < frame.Width && sy < frame.Height ? frame.GetPixel(sx, sy) : SKColors.Transparent;
+                result.SetPixel(x, y, source.WithAlpha((byte)Math.Round(source.Alpha * (d.Alpha / 255f))));
+            }
+        }
+        return result;
     }
 
     private static SKColor Tint(SKColor pixel, Rgba color) => new(

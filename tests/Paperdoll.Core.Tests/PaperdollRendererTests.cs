@@ -215,3 +215,40 @@ public class PaperdollRendererTests
         Assert.Equal([Skin], tail.Colors);
     }
 }
+
+public class DisplacementTests
+{
+    private static SKBitmap Solid(int size, Func<int, int, SKColor> pixel)
+    {
+        var bitmap = new SKBitmap(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        for (var y = 0; y < size; y++)
+        for (var x = 0; x < size; x++)
+            bitmap.SetPixel(x, y, pixel(x, y));
+        return bitmap;
+    }
+
+    [Fact]
+    public void Each_pixel_comes_from_the_source_moved_by_the_map()
+    {
+        // A red dot at (5, 5); the map says "take from one right, two down" everywhere.
+        using var frame = Solid(8, (x, y) => x == 5 && y == 5 ? SKColors.Red : SKColors.Transparent);
+        using var map = Solid(8, (_, _) => new SKColor(129, 130, 0, 255));
+
+        using var result = PaperdollRenderer.Displace(frame, map);
+
+        Assert.Equal(SKColors.Red, result.GetPixel(4, 3));
+        Assert.Equal(0, result.GetPixel(5, 5).Alpha);
+    }
+
+    [Fact]
+    public void The_maps_alpha_masks_the_layer()
+    {
+        using var frame = Solid(4, (_, _) => SKColors.Blue);
+        using var map = Solid(4, (x, _) => new SKColor(128, 128, 0, (byte)(x < 2 ? 255 : 0)));
+
+        using var result = PaperdollRenderer.Displace(frame, map);
+
+        Assert.Equal(255, result.GetPixel(1, 1).Alpha);
+        Assert.Equal(0, result.GetPixel(3, 1).Alpha);
+    }
+}

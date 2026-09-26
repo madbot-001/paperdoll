@@ -6,6 +6,17 @@ namespace Paperdoll.Core.Characters;
 /// <summary>A sprite: an RSI folder under <c>Resources/Textures</c> and a state in it.</summary>
 public readonly record struct SpriteRef(string Rsi, string? State);
 
+/// <summary>
+/// A displacement map: how the game reshapes a layer to fit a body (Dwarf bodies, hair on Vox).
+/// Each map pixel moves the layer's pixel by (red - 128, green - 128) and masks it by its alpha.
+/// Maps are chosen by the layer's frame size; 32 is the default.
+/// </summary>
+public sealed record DisplacementRef(IReadOnlyDictionary<int, SpriteRef> SizeMaps)
+{
+    public SpriteRef? For(int frameSize) =>
+        SizeMaps.TryGetValue(frameSize, out var map) ? map : SizeMaps.TryGetValue(32, out var fallback) ? fallback : null;
+}
+
 /// <summary>A species prototype (new appearance model).</summary>
 public sealed record SpeciesInfo(
     string Id,
@@ -35,7 +46,14 @@ public sealed record OrganInfo(
     SpriteRef? Sprite,
     IReadOnlyDictionary<string, string> SexStates,
     IReadOnlyList<string> MarkingLayers,
-    string? MarkingGroup);
+    string? MarkingGroup)
+{
+    /// <summary>The map reshaping the organ's own layer, if any.</summary>
+    public DisplacementRef? Displacement { get; init; }
+
+    /// <summary>Maps reshaping markings on the organ's layers, by layer.</summary>
+    public IReadOnlyDictionary<string, DisplacementRef> MarkingsDisplacement { get; init; } = new Dictionary<string, DisplacementRef>();
+}
 
 /// <summary>How many markings a layer takes, and which it starts with.</summary>
 public sealed record LayerLimit(
@@ -54,7 +72,11 @@ public sealed record MarkingInfo(
     string? SexRestriction,
     bool ForcedColoring,
     IReadOnlyList<SpriteRef> Sprites,
-    YamlMappingNode Node);
+    YamlMappingNode Node)
+{
+    /// <summary>Whether the organ's displacement map for this layer applies (the game's <c>canBeDisplaced</c>).</summary>
+    public bool CanBeDisplaced { get; init; } = true;
+}
 
 /// <summary>
 /// The character data in one fork: species with their organs, marking groups, markings and skin
@@ -96,6 +118,11 @@ public sealed class CharacterCatalog
         }
         foreach (var marking in Markings.Values)
             folders.UnionWith(marking.Sprites.Select(s => s.Rsi));
+        foreach (var organ in Species.Values.SelectMany(s => s.Organs))
+        {
+            foreach (var map in organ.MarkingsDisplacement.Values.Append(organ.Displacement).OfType<DisplacementRef>())
+                folders.UnionWith(map.SizeMaps.Values.Select(m => m.Rsi));
+        }
         return folders;
     }
 
@@ -188,6 +215,20 @@ public sealed class CharacterCatalog
             }
 
             var markingData = marks != null ? Get(marks, "markingData") as YamlMappingNode : null;
+            var markingsDisplacement = new Dictionary<string, DisplacementRef>(StringComparer.Ordinal);
+            if (marks != null && Get(marks, "markingsDisplacement") is YamlMappingNode byLayer)
+            {
+                foreach (var (layerKey, data) in byLayer.Children)
+                {
+                    if (ReadDisplacement(data as YamlMappingNode) is { } map)
+                        markingsDisplacement[Layer(((YamlScalarNode)layerKey).Value)!] = map;
+                }
+            }
+            DisplacementRef? displacement = null;
+            if (visual != null && Str(visual, "displacement") is { } displacementId
+                && index.Resolve("displacementData", displacementId) is { } displacementProto)
+                displacement = ReadDisplacement(Get(displacementProto, "displacement") as YamlMappingNode);
+
             result.Add(new OrganInfo(
                 category,
                 organId,
@@ -195,7 +236,11 @@ public sealed class CharacterCatalog
                 sprite,
                 sexStates,
                 (markingData != null ? Strings(markingData, "layers") : null)?.Select(l => Layer(l)!).ToList() ?? [],
-                markingData != null ? Str(markingData, "group") : null));
+                markingData != null ? Str(markingData, "group") : null)
+            {
+                Displacement = displacement,
+                MarkingsDisplacement = markingsDisplacement,
+            });
         }
         return result;
     }
@@ -238,7 +283,24 @@ public sealed class CharacterCatalog
             Str(node, "sexRestriction"),
             Bool(node, "forcedColoring") ?? false,
             sprites,
-            node);
+            node)
+        {
+            CanBeDisplaced = Bool(node, "canBeDisplaced") ?? true,
+        };
+    }
+
+    // A DisplacementData block: sizeMaps: { 32: { sprite: ..., state: ... } }.
+    private static DisplacementRef? ReadDisplacement(YamlMappingNode? data)
+    {
+        if (data == null || Get(data, "sizeMaps") is not YamlMappingNode sizes)
+            return null;
+        var maps = new Dictionary<int, SpriteRef>();
+        foreach (var (sizeKey, layer) in sizes.Children)
+        {
+            if (int.TryParse(((YamlScalarNode)sizeKey).Value, out var size) && layer is YamlMappingNode l && Str(l, "sprite") is { } rsi)
+                maps[size] = new SpriteRef(TexturePath(rsi), Str(l, "state"));
+        }
+        return maps.Count == 0 ? null : new DisplacementRef(maps);
     }
 
     /// <summary>
