@@ -43,6 +43,31 @@ public sealed record ForkInfo(
 
     /// <summary>Which trait system the fork has, and its overall limits.</summary>
     public Traits.TraitRules TraitRules { get; init; } = Traits.TraitRules.Upstream;
+
+    /// <summary>
+    /// The height range of species that name none (<c>SpeciesPrototype.MinHeight</c> and
+    /// <c>MaxHeight</c>): 0.8 to 1.2 in Delta-V, 0.7 to 1.25 in Euphoria.
+    /// </summary>
+    public (float Min, float Max) DefaultHeights { get; init; } = (0.8f, 1.2f);
+
+    /// <summary>Character fields the fork saves beyond upstream's.</summary>
+    public ProfileExtras Extras { get; init; } = ProfileExtras.None;
+}
+
+/// <summary>Character fields some forks add to the saved profile.</summary>
+[Flags]
+public enum ProfileExtras
+{
+    None = 0,
+
+    /// <summary>Euphoria's <c>customspeciename</c>, shown instead of the species' name.</summary>
+    CustomSpeciesName = 1,
+
+    /// <summary>Character records from Cosmatic Drift (<c>cosmaticDriftCharacterRecords</c>), in Delta-V and Euphoria.</summary>
+    Records = 2,
+
+    /// <summary>Allergies to reagents (<c>cosmaticDriftAllergies</c>), in Euphoria.</summary>
+    Allergies = 4,
 }
 
 /// <summary>How a fork sizes characters on screen.</summary>

@@ -315,6 +315,19 @@ public class CharacterSizeTests
 
     private static readonly ForkInfo Upstream = new("up", "Up", "o/r", "main", AppearanceModel.New, false, []);
 
+    [Fact]
+    public void Species_without_a_range_take_the_forks_default_heights()
+    {
+        var euphoria = CharacterCatalog.Build(PrototypeIndex.Load([new PrototypeSource("s.yml", Encoding.UTF8.GetBytes(Yaml))]), (0.7f, 1.25f));
+        var file = File("Human", "0.72");
+
+        CharacterRules.EnsureValid(file, euphoria, DeltaVLike);
+
+        Assert.Equal(0.72f, CharacterSize.ReadHeight(file));
+        Assert.Equal((0.9f, 1.1f), (euphoria.Species["Small"].MinHeight, euphoria.Species["Small"].MaxHeight));
+        Assert.Equal(0.8f, Catalog.Species["Human"].MinHeight);
+    }
+
     private static CharacterFile File(string species, string? height) => CharacterFile.Parse(
         $"forkId: x\nversion: 2\nprofile:\n  name: Ann Bee\n  species: {species}\n  age: 30\n  sex: Male\n  gender: Male\n"
         + (height != null ? $"  cosmaticDriftCharacterHeight: {height}\n" : "")

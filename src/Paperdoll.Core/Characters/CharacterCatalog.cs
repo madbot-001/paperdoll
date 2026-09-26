@@ -43,6 +43,9 @@ public sealed record SpeciesInfo(
     public float MaxHeight { get; init; } = 1.2f;
     public float DefaultHeight { get; init; } = 1f;
 
+    /// <summary>Whether characters of this species may have a custom species name (Euphoria's <c>customName</c>).</summary>
+    public bool CustomName { get; init; } = true;
+
     /// <summary>The name clothing states use for this species' versions (the doll's <c>Inventory.speciesId</c>).</summary>
     public string? ClothingSpeciesId { get; init; }
 
@@ -185,8 +188,10 @@ public sealed class CharacterCatalog
         return folders;
     }
 
-    public static CharacterCatalog Build(PrototypeIndex index)
+    /// <param name="defaultHeights">The fork's height range for species that name none.</param>
+    public static CharacterCatalog Build(PrototypeIndex index, (float Min, float Max)? defaultHeights = null)
     {
+        var heights = defaultHeights ?? (0.8f, 1.2f);
         // A fork has voices when any species names them; the rest then get the game's defaults.
         var hasVoices = index.OfKind("species").Any(p =>
             index.Resolve("species", p.Id) is { } node && (Get(node, "voices") != null || Get(node, "defaultSoundsBySex") != null));
@@ -194,7 +199,7 @@ public sealed class CharacterCatalog
         foreach (var proto in index.OfKind("species"))
         {
             var node = index.Resolve("species", proto.Id)!;
-            species[proto.Id] = ReadSpecies(index, proto.Id, node, hasVoices);
+            species[proto.Id] = ReadSpecies(index, proto.Id, node, hasVoices, heights);
         }
         var voiceNames = hasVoices
             ? index.OfKind("emoteSounds").Where(p => !p.Abstract).ToDictionary(p => p.Id,
@@ -222,7 +227,7 @@ public sealed class CharacterCatalog
         };
     }
 
-    private static SpeciesInfo ReadSpecies(PrototypeIndex index, string id, YamlMappingNode node, bool hasVoices)
+    private static SpeciesInfo ReadSpecies(PrototypeIndex index, string id, YamlMappingNode node, bool hasVoices, (float Min, float Max) heights)
     {
         var doll = Str(node, "dollPrototype");
         // Old-model species name base sprites under "sprites" and have no organs.
@@ -247,8 +252,9 @@ public sealed class CharacterCatalog
             node)
         {
             BaseScale = Pair(Str(node, "baseScale")) ?? (1, 1),
-            MinHeight = Float(node, "minHeight") ?? 0.8f,
-            MaxHeight = Float(node, "maxHeight") ?? 1.2f,
+            MinHeight = Float(node, "minHeight") ?? heights.Min,
+            MaxHeight = Float(node, "maxHeight") ?? heights.Max,
+            CustomName = Bool(node, "customName") ?? true,
             DefaultHeight = Float(node, "defaultHeight") ?? 1f,
             ClothingSpeciesId = Str(inventory, "speciesId"),
             ClothingDisplacements = Displacements(inventory, "displacements"),

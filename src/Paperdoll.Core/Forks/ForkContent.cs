@@ -56,7 +56,7 @@ public sealed class ForkContent
 
         progress?.Report("Reading prototypes");
         var prototypes = PrototypeIndex.Load(sources);
-        var characters = CharacterCatalog.Build(prototypes);
+        var characters = CharacterCatalog.Build(prototypes, fork.DefaultHeights);
         var outfits = OutfitCatalog.Build(prototypes);
 
         // Clothing folders come from the items' prototypes; whether a sprite has a species version
