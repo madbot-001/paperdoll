@@ -197,6 +197,25 @@ public sealed class EditorSession : IAsyncDisposable
         return With(look, markings);
     });
 
+    /// <summary>
+    /// Moves a marking within its layer. Order matters: the game draws a layer's first marking
+    /// on top and each later one underneath.
+    /// </summary>
+    public IReadOnlyList<RuleFix> MoveMarking(string organ, string layer, int index, int delta) => EditLook(look =>
+    {
+        var markings = Copy(look.Markings);
+        var list = markings[organ][layer];
+        var target = Math.Clamp(index + delta, 0, list.Count - 1);
+        var entry = list[index];
+        list.RemoveAt(index);
+        list.Insert(target, entry);
+        return With(look, markings);
+    });
+
+    /// <summary>The prototype file a species, marking or other prototype comes from.</summary>
+    public string? SourceOf(string kind, string id) =>
+        Content != null && Content.Prototypes.TryGet(kind, id, out var proto) ? "Resources/Prototypes/" + proto.Path : null;
+
     public IReadOnlyList<RuleFix> SetMarkingColor(string organ, string layer, int index, int colorIndex, Rgba color) => EditLook(look =>
     {
         var markings = Copy(look.Markings);

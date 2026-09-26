@@ -1,0 +1,379 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Paperdoll.Core.Characters;
+using Paperdoll.Core.Rendering;
+
+namespace Paperdoll.App;
+
+public partial class MainWindow
+{
+    private static readonly (string Value, string Label)[] Pronouns =
+    [
+        ("Epicene", "They / them"), ("Male", "He / him"), ("Female", "She / her"), ("Neuter", "It / its"),
+    ];
+
+    /// <summary>Fills the inspector for whatever is selected in the explorer.</summary>
+    private void BuildInspector()
+    {
+        Inspector.Children.Clear();
+        Inspector.RowDefinitions.Clear();
+        var look = _session!.Look!;
+        var species = _session.Content!.Characters.Species[look.Species];
+        var organ = _selected.Organ != null ? species.Organs.FirstOrDefault(o => o.Category == _selected.Organ) : null;
+
+        switch (_selected.Kind)
+        {
+            case NodeKind.Organ when organ != null:
+                InspectOrgan(organ);
+                break;
+            case NodeKind.Layer when organ != null:
+                InspectLayer(organ, _selected.Layer!);
+                break;
+            case NodeKind.Marking when organ != null && _selected.Index < Applied(look, organ.Category, _selected.Layer!).Count:
+                InspectMarking(organ, _selected.Layer!, _selected.Index);
+                break;
+            default:
+                InspectCharacter(species);
+                break;
+        }
+    }
+
+    private void InspectCharacter(SpeciesInfo species)
+    {
+        var session = _session!;
+        var file = session.File!;
+        var look = session.Look!;
+        InspectorTitle.Text = "Character";
+
+        AddCategory("Identity");
+        var name = new TextBox { Text = file.Name ?? "", PlaceholderText = "Name (required in the game)" };
+        CommitOnEnterOrLeave(name, text => Apply(s => s.Edit(f => f.Name = text)));
+        AddRow("Name", name);
+
+        var speciesRow = new DockPanel();
+        var change = new Button { Classes = { "small" }, Content = "Change...", Margin = new Thickness(4, 0, 2, 0) };
+        change.Click += (_, _) => BottomTabs.SelectedIndex = 0;
+        DockPanel.SetDock(change, Dock.Right);
+        speciesRow.Children.Add(change);
+        speciesRow.Children.Add(Text(session.DisplayName(species)));
+        AddRow("Species", speciesRow);
+
+        var sex = new ComboBox { ItemsSource = species.Sexes, SelectedItem = file.Sex, HorizontalAlignment = HorizontalAlignment.Stretch };
+        sex.SelectionChanged += (_, _) =>
+        {
+            if (sex.SelectedItem is string value && value != session.File?.Sex)
+                Apply(s => s.Edit(f => f.Sex = value));
+        };
+        AddRow("Sex", sex);
+
+        var pronouns = new ComboBox
+        {
+            ItemsSource = Pronouns.Select(p => p.Label).ToList(),
+            SelectedIndex = Array.FindIndex(Pronouns, p => p.Value == file.Gender),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        pronouns.SelectionChanged += (_, _) =>
+        {
+            if (pronouns.SelectedIndex >= 0 && Pronouns[pronouns.SelectedIndex].Value != session.File?.Gender)
+                Apply(s => s.Edit(f => f.Gender = Pronouns[pronouns.SelectedIndex].Value));
+        };
+        AddRow("Pronouns", pronouns);
+
+        var age = new NumericUpDown
+        {
+            Minimum = species.MinAge,
+            Maximum = species.MaxAge,
+            Value = file.Age ?? species.MinAge,
+            Increment = 1,
+            FormatString = "0",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 21,
+            Padding = new Thickness(4, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        age.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } value && (int)value != session.File?.Age)
+                Apply(s => s.Edit(f => f.Age = (int)value));
+        };
+        AddRow("Age", age, $"{species.MinAge} to {species.MaxAge}");
+
+        AddCategory("Colours");
+        var rule = session.Content!.Characters.SkinRuleFor(species);
+        if (rule.IsUnary)
+        {
+            var swatch = Swatch(look.SkinColor);
+            var tone = new Slider { Minimum = 0, Maximum = 100, Value = rule.ToUnary(look.SkinColor), MinHeight = 18 };
+            var panel = new DockPanel();
+            DockPanel.SetDock(swatch, Dock.Right);
+            panel.Children.Add(swatch);
+            panel.Children.Add(tone);
+            tone.ValueChanged += (_, e) =>
+            {
+                Apply(s => s.SetSkin(rule.FromUnary((float)e.NewValue)), keepInspector: true);
+                swatch.Background = Brush(session.Look!.SkinColor);
+            };
+            AddRow("Skin tone", panel, $"{species.SkinColoration}: one slider");
+        }
+        else
+            AddRow("Skin", ColorField(look.SkinColor, color => Apply(s => s.SetSkin(color))), $"{species.SkinColoration}: nearest allowed colour is used");
+        AddRow("Eyes", ColorField(look.EyeColor, color => Apply(s => s.SetEyes(color))));
+
+        AddCategory("Description");
+        var description = new TextBox
+        {
+            Text = file.FlavorText ?? "",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 70,
+            PlaceholderText = "What others see when they examine the character",
+            BorderThickness = new Thickness(0),
+        };
+        description.LostFocus += (_, _) =>
+        {
+            if (description.Text != (session.File?.FlavorText ?? ""))
+                Apply(s => s.Edit(f => f.FlavorText = description.Text ?? ""));
+        };
+        AddWide(description);
+
+        AddCategory("File");
+        AddRow("Fork label", Mono(file.ForkId ?? ""));
+        AddRow("Format", Text("Version 2, new appearance model"));
+    }
+
+    private void InspectOrgan(OrganInfo organ)
+    {
+        var session = _session!;
+        InspectorTitle.Text = $"Organ: {Words(organ.Category)}";
+
+        AddCategory("Organ");
+        AddRow("Category", Mono(organ.Category));
+        AddRow("Entity", Mono(organ.EntityId));
+        if (organ.Layer != null)
+            AddRow("Drawn on", Mono(organ.Layer));
+        if (organ.Sprite is { } sprite)
+            AddRow("Sprite", Mono($"{sprite.Rsi}\n{sprite.State}"));
+        if (organ.SexStates.Count > 0)
+            AddRow("Per sex", Mono(string.Join("\n", organ.SexStates.Select(kv => $"{kv.Key}: {kv.Value}"))));
+        AddRow("Markings group", Mono(organ.MarkingGroup ?? ""));
+
+        AddCategory("Marking layers");
+        foreach (var layer in organ.MarkingLayers)
+        {
+            var applied = Applied(session.Look!, organ.Category, layer).Count;
+            var limit = session.LayerLimit(organ, layer);
+            var available = session.AvailableMarkings(organ, layer).Count;
+            var open = new Button { Classes = { "crumb" }, Content = Words(layer), HorizontalAlignment = HorizontalAlignment.Left };
+            var target = new Node(NodeKind.Layer, organ.Category, layer);
+            open.Click += (_, _) => Select(target);
+            AddRow("", open, $"{applied} of {(limit?.ToString() ?? "any")}, {available} to choose from");
+        }
+    }
+
+    private void InspectLayer(OrganInfo organ, string layer)
+    {
+        var session = _session!;
+        var catalog = session.Content!.Characters;
+        InspectorTitle.Text = $"Layer: {Words(organ.Category)} › {Words(layer)}";
+        var group = organ.MarkingGroup != null && catalog.MarkingsGroups.TryGetValue(organ.MarkingGroup, out var g) ? g : null;
+        var limit = group != null && group.Limits.TryGetValue(layer, out var l) ? l : null;
+        var applied = Applied(session.Look!, organ.Category, layer);
+
+        AddCategory("Layer");
+        AddRow("Layer", Mono(layer));
+        AddRow("Limit", Text(limit == null ? "No limit" : $"{limit.Limit}" + (limit.Required ? ", required" : "")));
+        if (limit is { Default.Count: > 0 })
+            AddRow("Default", Mono(string.Join("\n", limit.Default)));
+        AddRow("To choose from", Text($"{session.AvailableMarkings(organ, layer).Count} markings"));
+
+        AddCategory(applied.Count == 0 ? "Markings" : "Markings (first is drawn on top)");
+        for (var i = 0; i < applied.Count; i++)
+            AddWide(MarkingLine(organ.Category, layer, i, applied[i], applied.Count));
+
+        var add = new Button { Classes = { "small" }, Content = "Add a marking...", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(8, 4) };
+        add.IsEnabled = limit == null || applied.Count < limit.Limit;
+        add.Click += (_, _) => BottomTabs.SelectedIndex = 1;
+        AddWide(add);
+    }
+
+    private void InspectMarking(OrganInfo organ, string layer, int index)
+    {
+        var session = _session!;
+        var entry = Applied(session.Look!, organ.Category, layer)[index];
+        var marking = session.Content!.Characters.Markings[entry.Id];
+        InspectorTitle.Text = $"Marking: {session.MarkingName(entry.Id)}";
+
+        AddCategory("Marking");
+        AddRow("Name", Text(session.MarkingName(entry.Id)));
+        AddRow("Id", Mono(entry.Id));
+        AddRow("Layer", Mono(marking.Layer));
+        if (marking.SexRestriction != null)
+            AddRow("Only for", Text(marking.SexRestriction));
+
+        AddCategory("Colours");
+        for (var c = 0; c < entry.Colors.Count; c++)
+        {
+            var colorIndex = c;
+            var label = c < marking.Sprites.Count ? marking.Sprites[c].State ?? $"Sprite {c + 1}" : $"Sprite {c + 1}";
+            AddRow(label, ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color))));
+        }
+
+        AddCategory("Sprites");
+        foreach (var sprite in marking.Sprites)
+        {
+            var meta = session.Renderer!.Meta(sprite.Rsi);
+            AddRow(sprite.State ?? "", Mono(sprite.Rsi), meta?.License);
+        }
+
+        AddCategory("Source");
+        AddRow("Defined in", Mono(session.SourceOf("marking", entry.Id) ?? "unknown"));
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(8, 6) };
+        actions.Children.Add(ActionButton("Move up", index > 0, () => { _selected = _selected with { Index = index - 1 }; Apply(s => s.MoveMarking(organ.Category, layer, index, -1)); }));
+        actions.Children.Add(ActionButton("Move down", index < Applied(session.Look!, organ.Category, layer).Count - 1, () => { _selected = _selected with { Index = index + 1 }; Apply(s => s.MoveMarking(organ.Category, layer, index, 1)); }));
+        actions.Children.Add(ActionButton("Remove", true, () => { _selected = _selected.Parent!; Apply(s => s.RemoveMarking(organ.Category, layer, index)); }));
+        AddWide(actions);
+    }
+
+    /// <summary>One applied marking in a layer's list: order buttons, name, colours, remove.</summary>
+    private Control MarkingLine(string organ, string layer, int index, MarkingEntry entry, int count)
+    {
+        var row = new DockPanel { Margin = new Thickness(6, 2, 4, 2) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        buttons.Children.Add(ActionButton("↑", index > 0, () => Apply(s => s.MoveMarking(organ, layer, index, -1)), "Move up (drawn above the next)"));
+        buttons.Children.Add(ActionButton("↓", index < count - 1, () => Apply(s => s.MoveMarking(organ, layer, index, 1)), "Move down"));
+        buttons.Children.Add(ActionButton("×", true, () => Apply(s => s.RemoveMarking(organ, layer, index)), "Remove"));
+        DockPanel.SetDock(buttons, Dock.Right);
+        row.Children.Add(buttons);
+
+        var colors = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Margin = new Thickness(4, 0) };
+        for (var c = 0; c < entry.Colors.Count; c++)
+        {
+            var colorIndex = c;
+            colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true));
+        }
+        DockPanel.SetDock(colors, Dock.Right);
+        row.Children.Add(colors);
+
+        var name = new Button { Classes = { "crumb" }, Content = _session!.MarkingName(entry.Id), HorizontalAlignment = HorizontalAlignment.Left };
+        var target = new Node(NodeKind.Marking, organ, layer, index);
+        name.Click += (_, _) => Select(target);
+        row.Children.Add(name);
+        return row;
+    }
+
+    private static Button ActionButton(string text, bool enabled, Action click, string? tip = null)
+    {
+        var button = new Button { Classes = { "small" }, Content = text, IsEnabled = enabled };
+        if (tip != null)
+            ToolTip.SetTip(button, tip);
+        button.Click += (_, _) => click();
+        return button;
+    }
+
+    private void AddCategory(string title)
+    {
+        var row = NextRow();
+        var cell = new Border { Classes = { "category" }, Child = new TextBlock { Text = title } };
+        Grid.SetRow(cell, row);
+        Grid.SetColumnSpan(cell, 2);
+        Inspector.Children.Add(cell);
+    }
+
+    private void AddRow(string label, Control editor, string? note = null)
+    {
+        var row = NextRow();
+        var labelCell = new Border { Classes = { "label" }, Child = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis } };
+        Control value = editor;
+        if (note != null)
+        {
+            var stack = new StackPanel();
+            stack.Children.Add(editor);
+            stack.Children.Add(new TextBlock { Text = note, Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap });
+            value = stack;
+        }
+        var valueCell = new Border { Classes = { "value" }, Child = value };
+        Grid.SetRow(labelCell, row);
+        Grid.SetRow(valueCell, row);
+        Grid.SetColumn(valueCell, 1);
+        Inspector.Children.Add(labelCell);
+        Inspector.Children.Add(valueCell);
+    }
+
+    private void AddWide(Control control)
+    {
+        var row = NextRow();
+        var cell = new Border { Classes = { "value" }, Child = control };
+        Grid.SetRow(cell, row);
+        Grid.SetColumnSpan(cell, 2);
+        Inspector.Children.Add(cell);
+    }
+
+    private int NextRow()
+    {
+        Inspector.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        return Inspector.RowDefinitions.Count - 1;
+    }
+
+    private static TextBlock Text(string text) =>
+        new() { Text = text, Margin = new Thickness(4, 2), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+
+    private static SelectableTextBlock Mono(string text) =>
+        new() { Text = text, Classes = { "mono" }, Margin = new Thickness(4, 3), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+
+    /// <summary>A colour swatch with its hex value; Enter or leaving the field applies it.</summary>
+    private static Control ColorField(Rgba color, Action<Rgba> changed, bool compact = false)
+    {
+        var text = new TextBox
+        {
+            Text = color.ToHex()[..7],
+            Classes = { "mono" },
+            Width = compact ? 64 : 84,
+            MinHeight = compact ? 18 : 21,
+            Padding = new Thickness(3, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        CommitOnEnterOrLeave(text, value =>
+        {
+            if (Rgba.TryParse(value.Trim(), out var parsed))
+                changed(parsed);
+        });
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        panel.Children.Add(Swatch(color));
+        panel.Children.Add(text);
+        return panel;
+    }
+
+    private static Border Swatch(Rgba color) => new()
+    {
+        Width = 14,
+        Height = 14,
+        Margin = new Thickness(3, 0),
+        VerticalAlignment = VerticalAlignment.Center,
+        BorderBrush = new SolidColorBrush(Color.Parse("#8D97A3")),
+        BorderThickness = new Thickness(1),
+        Background = Brush(color),
+    };
+
+    private static void CommitOnEnterOrLeave(TextBox box, Action<string> commit)
+    {
+        var original = box.Text ?? "";
+        void Commit()
+        {
+            if ((box.Text ?? "") != original)
+            {
+                original = box.Text ?? "";
+                commit(original);
+            }
+        }
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+                Commit();
+        };
+        box.LostFocus += (_, _) => Commit();
+    }
+}

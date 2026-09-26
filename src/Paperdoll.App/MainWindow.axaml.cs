@@ -4,23 +4,19 @@ using Avalonia.Media.Imaging;
 using Paperdoll.Core.Editing;
 using Paperdoll.Core.Forks;
 using Paperdoll.Core.Profiles;
-using Paperdoll.Core.Rendering;
-using SkiaSharp;
 
 namespace Paperdoll.App;
 
 /// <summary>
-/// The editor window. Everything it shows comes from an <see cref="EditorSession"/>; every change
-/// goes back through it, so the game's rules apply, then the window is refreshed.
+/// The editor window: an explorer of the character on the left, the preview in the middle, an
+/// inspector for the selected part on the right, and tables below. Everything shown comes from an
+/// <see cref="EditorSession"/>; every change goes back through it (so the game's rules apply),
+/// then the window is refreshed.
 /// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly string[] Directions = ["South", "North", "East", "West"];
-
     private EditorSession? _session;
     private bool _refreshing;
-    private int _zoom = 6;
-    private Direction _direction = Direction.South;
 
     /// <summary>Finishes when the window has opened its store and loaded a fork (if any).</summary>
     public Task Startup { get; private set; } = Task.CompletedTask;
@@ -28,8 +24,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DirectionBox.ItemsSource = Directions;
-        DirectionBox.SelectedIndex = 0;
+        SetUpPreview();
+        SetUpTables();
         Opened += (_, _) =>
         {
             if (_session == null)
@@ -48,9 +44,8 @@ public partial class MainWindow : Window
             ForkBox.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(ForkInfo.Name));
             ForkBox.SelectedIndex = 0;
             _refreshing = false;
+            OnForkLoaded();
         }
-        RefreshAll();
-        SetStatus($"{session.Fork?.Name} loaded. Pick a species on the left.");
     }
 
     private async Task StartAsync()
@@ -91,8 +86,7 @@ public partial class MainWindow : Window
             var progress = new Progress<string>(SetStatus);
             await Task.Run(() => _session.LoadForkAsync(fork, update, progress));
             await RefreshForkBoxAsync();
-            RefreshAll();
-            SetStatus($"{fork.Name} loaded. Pick a species on the left.");
+            OnForkLoaded();
         }
         catch (Exception e)
         {
@@ -102,6 +96,15 @@ public partial class MainWindow : Window
         {
             IsEnabled = true;
         }
+    }
+
+    /// <summary>A fork's data changed: rebuild what depends on the fork, then the rest.</summary>
+    private void OnForkLoaded()
+    {
+        BuildPortraits();
+        _selected = new Node(NodeKind.Character);
+        RefreshAll();
+        SetStatus($"{_session!.Fork!.Name} loaded. Pick a species in the Species table below, then work through the character on the left.");
     }
 
     private async Task RefreshForkBoxAsync()
@@ -116,30 +119,23 @@ public partial class MainWindow : Window
         _refreshing = false;
     }
 
-    /// <summary>Redraws every pane from the session; the property grid too unless asked not to.</summary>
-    private void RefreshAll(bool keepProperties = false)
+    /// <summary>Redraws every pane from the session. The inspector is kept while a control in it is being dragged.</summary>
+    private void RefreshAll(bool keepInspector = false)
     {
         if (_session?.Content == null || _session.Look == null)
             return;
         _refreshing = true;
         try
         {
-            var species = _session.Selectable();
-            SpeciesList.ItemsSource = species.Select(_session.DisplayName).ToList();
-            SpeciesList.SelectedIndex = species.ToList().FindIndex(s => s.Id == _session.Look.Species);
-
-            if (!keepProperties)
-                BuildProperties();
-            BuildMarkings();
+            BuildExplorer();
+            if (!keepInspector)
+                BuildInspector();
+            BuildBreadcrumbs();
             RefreshPreview();
+            RefreshTables();
 
-            CreditsGrid.ItemsSource = _session.Credits().Select(c => new CreditRow(c)).ToList();
-            MessagesList.ItemsSource = _session.LastFixes.Count == 0
-                ? ["The character passes the game's checks."]
-                : _session.LastFixes.Select(f => f.Message).ToList();
-
-            StatusFork.Text = $"{_session.Fork!.Name} @ {_session.Content.Commit[..8]} ({_session.StoreKind})";
-            StatusCounts.Text = $"{species.Count} species, {_session.Content.Characters.Markings.Count} markings";
+            StatusFork.Text = $"{_session.Fork!.Name} {_session.Content.Commit[..8]} via {_session.StoreKind}";
+            StatusCounts.Text = $"{_session.Selectable().Count} species, {_session.Content.Characters.Markings.Count} markings";
         }
         finally
         {
@@ -147,32 +143,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshPreview()
-    {
-        if (_session?.Look == null)
-            return;
-        using var image = _session.Render(_direction);
-        using var scaled = image.Resize(new SKImageInfo(image.Width * _zoom, image.Height * _zoom), SKSamplingOptions.Default);
-        using var data = scaled.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = new MemoryStream(data.ToArray());
-        var old = PreviewImage.Source as IDisposable;
-        PreviewImage.Source = new Bitmap(stream);
-        old?.Dispose();
-    }
-
-    /// <summary>
-    /// Runs an edit through the session and shows the result, or the error. While a control in
-    /// the property grid is being dragged, pass <paramref name="keepProperties"/> so it is not
-    /// rebuilt under the pointer.
-    /// </summary>
-    private void Apply(Func<EditorSession, IReadOnlyList<RuleFix>> edit, bool keepProperties = false)
+    /// <summary>Runs an edit through the session and shows the result, or the error.</summary>
+    private void Apply(Func<EditorSession, IReadOnlyList<RuleFix>> edit, bool keepInspector = false)
     {
         if (_session?.File == null || _refreshing)
             return;
         try
         {
-            edit(_session);
-            RefreshAll(keepProperties);
+            var fixes = edit(_session);
+            RefreshAll(keepInspector);
+            if (fixes.Count > 0)
+                SetStatus(fixes[^1].Message);
         }
         catch (Exception e)
         {
@@ -182,35 +163,11 @@ public partial class MainWindow : Window
 
     private void SetStatus(string text) => StatusText.Text = text;
 
-    private void OnSpeciesChosen(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_refreshing || _session == null || SpeciesList.SelectedIndex < 0)
-            return;
-        var species = _session.Selectable()[SpeciesList.SelectedIndex];
-        Apply(s => s.ChangeSpecies(species.Id));
-    }
-
     private async void OnForkChosen(object? sender, SelectionChangedEventArgs e)
     {
         if (_refreshing || ForkBox.SelectedItem is not ForkInfo fork || fork.Id == _session?.Fork?.Id)
             return;
         await LoadForkAsync(fork, update: false);
-    }
-
-    private void OnDirectionChosen(object? sender, SelectionChangedEventArgs e)
-    {
-        _direction = (Direction)Math.Max(0, DirectionBox.SelectedIndex);
-        if (!_refreshing)
-            RefreshPreview();
-    }
-
-    private void OnZoom(object? sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem { Tag: string tag } && int.TryParse(tag, out var zoom))
-        {
-            _zoom = zoom;
-            RefreshPreview();
-        }
     }
 
     private async void OnUpdateFork(object? sender, RoutedEventArgs e)
@@ -225,8 +182,7 @@ public partial class MainWindow : Window
     {
         if (_session == null)
             return;
-        var dialog = new ForksWindow(_session);
-        var choice = await dialog.ShowDialog<ForkChoice?>(this);
+        var choice = await new ForksWindow(_session).ShowDialog<ForkChoice?>(this);
         await RefreshForkBoxAsync();
         if (choice != null)
             await LoadForkAsync(choice.Fork, choice.Update);
@@ -236,12 +192,19 @@ public partial class MainWindow : Window
     {
         if (_session?.Look == null)
             return;
+        _selected = new Node(NodeKind.Character);
         Apply(s =>
         {
             s.NewCharacter(s.Look!.Species);
             return s.LastFixes;
         });
-        SetStatus("New character.");
+        SetStatus("New character. Give it a name in the inspector.");
+    }
+
+    private void OnShowTab(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string tag } && int.TryParse(tag, out var index))
+            BottomTabs.SelectedIndex = index;
     }
 
     private void OnExit(object? sender, RoutedEventArgs e) => Close();
@@ -257,3 +220,10 @@ public sealed record CreditRow(string Rsi, string LicenseText, string Copyright)
     {
     }
 }
+
+/// <summary>A species table row.</summary>
+public sealed record SpeciesRow(string Id, string Name, Bitmap? Portrait, string Sexes, string Ages, string SkinRule, int Layers, string Source);
+
+/// <summary>A markings table row, with where the marking would go.</summary>
+public sealed record MarkingRow(string Id, string Name, string Layer, int Sprites, string Coloring, string Restriction,
+    string License, string Source, string OrganCategory, string LayerKey);

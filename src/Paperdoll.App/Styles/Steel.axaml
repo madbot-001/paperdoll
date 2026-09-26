@@ -1,0 +1,375 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    A serious tool in dark steel greys, easy on the eyes: flat panel headers and toolbars, input
+    fields a step lighter than the panes with visible borders, one blue for selection and focus,
+    amber for warnings and the chosen facing. Colour marks state, not decoration.
+  -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="FaceBrush" Color="#1B1F24" />
+    <SolidColorBrush x:Key="FieldBrush" Color="#22272D" />
+    <SolidColorBrush x:Key="InputBrush" Color="#2A3037" />
+    <SolidColorBrush x:Key="LineBrush" Color="#3B434C" />
+    <SolidColorBrush x:Key="SoftLineBrush" Color="#2E343B" />
+    <SolidColorBrush x:Key="TextBrush" Color="#D6DBE1" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#8D97A3" />
+    <SolidColorBrush x:Key="SelectBrush" Color="#2F5F91" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#2B3440" />
+    <SolidColorBrush x:Key="HoverLineBrush" Color="#5C86B8" />
+    <SolidColorBrush x:Key="CategoryBrush" Color="#2A3037" />
+    <SolidColorBrush x:Key="LabelBrush" Color="#252A30" />
+    <SolidColorBrush x:Key="AmberBrush" Color="#D9A441" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#3A3120" />
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+    <SolidColorBrush x:Key="ChromeBrush" Color="#2A2F36" />
+    <SolidColorBrush x:Key="ButtonBrush" Color="#323941" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#3A4552" />
+
+    <!-- The simple theme's own brushes (its dark variant fills in the rest). -->
+    <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#2A3037" />
+    <SolidColorBrush x:Key="ThemeControlMidBrush" Color="#323941" />
+    <SolidColorBrush x:Key="ThemeControlLowBrush" Color="#3B434C" />
+    <SolidColorBrush x:Key="ThemeControlMidHighBrush" Color="#3B434C" />
+    <SolidColorBrush x:Key="ThemeControlHighBrush" Color="#8D97A3" />
+    <SolidColorBrush x:Key="ThemeControlVeryHighBrush" Color="#9AA4AF" />
+    <SolidColorBrush x:Key="ThemeControlHighlightLowBrush" Color="#2B3440" />
+    <SolidColorBrush x:Key="ThemeControlHighlightMidBrush" Color="#2B3440" />
+    <SolidColorBrush x:Key="ThemeControlHighlightHighBrush" Color="#5C86B8" />
+    <SolidColorBrush x:Key="ThemeBorderLowBrush" Color="#4A535E" />
+    <SolidColorBrush x:Key="ThemeBorderMidBrush" Color="#5C86B8" />
+    <SolidColorBrush x:Key="ThemeBorderHighBrush" Color="#7FA3CC" />
+    <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#D6DBE1" />
+    <SolidColorBrush x:Key="ThemeAccentBrush" Color="#2F5F91" />
+    <SolidColorBrush x:Key="ThemeAccentBrush2" Color="#3D6FA3" />
+    <SolidColorBrush x:Key="ThemeAccentBrush3" Color="#4A6A90" />
+    <SolidColorBrush x:Key="ThemeAccentBrush4" Color="#2B3440" />
+    <SolidColorBrush x:Key="HighlightBrush" Color="#2F5F91" />
+    <SolidColorBrush x:Key="HighlightBrush2" Color="#2F5F91" />
+    <SolidColorBrush x:Key="HighlightForegroundBrush" Color="#FFFFFF" />
+    <x:Double x:Key="FontSizeSmall">11</x:Double>
+    <x:Double x:Key="FontSizeNormal">12</x:Double>
+    <x:Double x:Key="FontSizeLarge">13</x:Double>
+    <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+    <FontFamily x:Key="ContentControlThemeFontFamily">Segoe UI, Tahoma, DejaVu Sans Condensed, DejaVu Sans</FontFamily>
+  </Styles.Resources>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="FontFamily" Value="Segoe UI, Tahoma, DejaVu Sans Condensed, DejaVu Sans" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#22272D" />
+  </Style>
+
+  <!-- Toolbar strip -->
+  <Style Selector="Border.toolbar">
+    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,1" />
+    <Setter Property="Padding" Value="4,3" />
+  </Style>
+  <Style Selector="Rectangle.divider">
+    <Setter Property="Width" Value="1" />
+    <Setter Property="Height" Value="18" />
+    <Setter Property="Margin" Value="5,0" />
+    <Setter Property="Fill" Value="{StaticResource LineBrush}" />
+  </Style>
+
+  <!-- Buttons -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
+    <Setter Property="BorderBrush" Value="#4A535E" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="Padding" Value="10,2" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="face" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"
+                            RecognizesAccessKey="True" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button:pointerover /template/ Border#face">
+    <Setter Property="Background" Value="{StaticResource ButtonHoverBrush}" />
+    <Setter Property="BorderBrush" Value="#5C86B8" />
+  </Style>
+  <Style Selector="Button:pressed /template/ Border#face">
+    <Setter Property="Background" Value="#2A4A70" />
+    <Setter Property="BorderBrush" Value="#5C86B8" />
+  </Style>
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+  <Style Selector="Button.tool">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Padding" Value="7,2" />
+  </Style>
+  <Style Selector="Button.small">
+    <Setter Property="Padding" Value="5,0" />
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="Height" Value="18" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <!-- Fields -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{StaticResource InputBrush}" />
+    <Setter Property="BorderBrush" Value="#4A535E" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="MinHeight" Value="21" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="TextBox:focus /template/ Border#border">
+    <Setter Property="BorderBrush" Value="{StaticResource SelectBrush}" />
+  </Style>
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{StaticResource InputBrush}" />
+    <Setter Property="BorderBrush" Value="#4A535E" />
+    <Setter Property="MinHeight" Value="21" />
+    <Setter Property="Padding" Value="4,1" />
+  </Style>
+  <Style Selector="ComboBox:pointerover /template/ Border#border">
+    <Setter Property="BorderBrush" Value="#5C86B8" />
+  </Style>
+  <Style Selector="NumericUpDown">
+    <Setter Property="BorderBrush" Value="#4A535E" />
+  </Style>
+
+  <!-- Lists -->
+  <Style Selector="ListBox">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBoxItem">
+    <Setter Property="Padding" Value="5,2" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+  </Style>
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SelectBrush}" />
+  </Style>
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <!-- Docked panes: a thin frame with a shaded caption. -->
+  <Style Selector="Border.pane">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.caption">
+    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Height" Value="22" />
+    <Setter Property="Padding" Value="7,0,4,0" />
+  </Style>
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector=":is(TextBlock).mono">
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+  <Style Selector="TextBox.mono">
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.warning">
+    <Setter Property="Foreground" Value="{StaticResource AmberBrush}" />
+  </Style>
+  <Style Selector="TextBlock.hint">
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Explorer tree -->
+  <Style Selector="TreeView">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TreeViewItem">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="2,1" />
+  </Style>
+  <Style Selector="TreeViewItem /template/ Border#SelectionBorder:pointerover">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+  </Style>
+  <Style Selector="TreeViewItem:selected /template/ Border#SelectionBorder, TreeViewItem:selected /template/ Border#SelectionBorder:pointerover, TreeViewItem:selected /template/ Border#SelectionBorder:focus">
+    <Setter Property="Background" Value="{StaticResource SelectBrush}" />
+  </Style>
+  <Style Selector="TreeViewItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <!-- Breadcrumb above the preview -->
+  <Style Selector="Border.crumbs">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource SoftLineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+  <Style Selector="Button.crumb">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="MinHeight" Value="18" />
+  </Style>
+
+  <!-- Filter row above tables -->
+  <Style Selector="Border.filterbar">
+    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource SoftLineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="4,3" />
+  </Style>
+
+  <!-- Property grid -->
+  <Style Selector="Border.category">
+    <Setter Property="Background" Value="{StaticResource CategoryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource SoftLineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="6,3" />
+  </Style>
+  <Style Selector="Border.category TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.label">
+    <Setter Property="Background" Value="{StaticResource LabelBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource SoftLineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,1,1" />
+    <Setter Property="Padding" Value="12,2,4,2" />
+  </Style>
+  <Style Selector="Border.label TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="Border.value">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource SoftLineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="1" />
+  </Style>
+  <Style Selector="Border.value TextBox, Border.value ComboBox, Border.value NumericUpDown">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+  </Style>
+
+  <!-- Tables -->
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="GridLinesVisibility" Value="Horizontal" />
+    <Setter Property="HorizontalGridLinesBrush" Value="#2C3238" />
+    <Setter Property="RowHeight" Value="20" />
+    <Setter Property="RowBackground" Value="{StaticResource FieldBrush}" />
+    <Setter Property="HeadersVisibility" Value="Column" />
+  </Style>
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="DataGridCell">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Padding" Value="4,0" />
+  </Style>
+
+  <!-- Bottom tabs, like an IDE's output panes. -->
+  <Style Selector="TabControl">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+  </Style>
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="Margin" Value="0,0,2,0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="tab" Background="Transparent" BorderBrush="Transparent" BorderThickness="1,0,1,1"
+                Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="TabItem /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="TabItem:pointerover /template/ Border#tab">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+  </Style>
+  <Style Selector="TabItem:selected /template/ Border#tab">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+  </Style>
+  <Style Selector="TabItem:selected /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+  </Style>
+
+  <!-- Status bar -->
+  <Style Selector="Border.statusbar">
+    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Height" Value="22" />
+  </Style>
+  <Style Selector="Border.statusbar TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="8,0" />
+  </Style>
+  <Style Selector="Border.statusbar Rectangle">
+    <Setter Property="Width" Value="1" />
+    <Setter Property="Fill" Value="{StaticResource LineBrush}" />
+    <Setter Property="Margin" Value="0,4" />
+  </Style>
+
+  <!-- Facing picker under the preview -->
+  <Style Selector="Border.facing">
+    <Setter Property="BorderBrush" Value="#3B434C" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="#1B1F24" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Margin" Value="3,0" />
+    <Setter Property="Padding" Value="0,0,0,2" />
+  </Style>
+  <Style Selector="Border.facing:pointerover">
+    <Setter Property="BorderBrush" Value="#5C86B8" />
+  </Style>
+  <Style Selector="Border.facing.chosen">
+    <Setter Property="BorderBrush" Value="#E7B347" />
+  </Style>
+  <Style Selector="Border.facing TextBlock">
+    <Setter Property="Foreground" Value="#9AA4AF" />
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+</Styles>

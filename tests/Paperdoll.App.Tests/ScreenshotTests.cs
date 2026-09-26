@@ -40,12 +40,16 @@ public class ScreenshotTests
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
             window.Show();
             Dispatcher.UIThread.RunJobs();
+            // PAPERDOLL_SCREENSHOT_PART selects a part ("Head/Hair/0"); PAPERDOLL_SCREENSHOT_TAB a table tab.
+            if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_PART") is { } part)
+                window.ShowPart(part, int.TryParse(Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_TAB"), out var tab) ? tab : 0);
+            Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
 
             Directory.CreateDirectory(output!);
             var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("No frame was rendered.");
-            frame.Save(Path.Combine(output!, "main-window.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+            frame.Save(Path.Combine(output!, (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_NAME") ?? "main-window") + ".png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
             window.Close();
         }, ct);
     }
