@@ -26,4 +26,18 @@ public class RsiTests
 
         Assert.Equal("someone", meta.Copyright);
     }
+
+    [Fact]
+    public void Animations_loop_through_their_frame_delays()
+    {
+        var meta = RsiMeta.Parse(Encoding.UTF8.GetBytes(
+            """{"size":{"x":32,"y":32},"states":[{"name":"blink","delays":[[0.1,0.2,0.3]]},{"name":"still"}]}"""));
+        var blink = meta.States["blink"];
+
+        Assert.True(blink.IsAnimated(Direction.South));
+        // A one-direction state plays the same frames whichever way the character faces.
+        Assert.True(blink.IsAnimated(Direction.West));
+        Assert.False(meta.States["still"].IsAnimated(Direction.South));
+        Assert.Equal([0, 1, 2, 0], new[] { 0.05, 0.15, 0.35, 0.65 }.Select(t => blink.FrameAt(Direction.South, t)));
+    }
 }

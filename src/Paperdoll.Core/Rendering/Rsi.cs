@@ -13,7 +13,38 @@ public enum Direction
 }
 
 /// <summary>One state of an RSI: its name, how many directions it has and frames per direction.</summary>
-public sealed record RsiState(string Name, int Directions, IReadOnlyList<int> FramesPerDirection);
+public sealed record RsiState(string Name, int Directions, IReadOnlyList<int> FramesPerDirection)
+{
+    /// <summary>How long each frame shows, in seconds, per direction (the meta's <c>delays</c>).</summary>
+    public IReadOnlyList<IReadOnlyList<float>> Delays { get; init; } = [];
+
+    /// <summary>Whether the state plays more than one frame facing this way.</summary>
+    public bool IsAnimated(Direction direction) => DelaysFor(direction) is { Count: > 1 };
+
+    /// <summary>The frame showing after this many seconds, the animation looping as the game plays it.</summary>
+    public int FrameAt(Direction direction, double seconds)
+    {
+        if (DelaysFor(direction) is not { Count: > 1 } delays)
+            return 0;
+        var total = delays.Sum(d => (double)d);
+        if (total <= 0)
+            return 0;
+        var time = seconds % total;
+        for (var i = 0; i < delays.Count; i++)
+        {
+            time -= delays[i];
+            if (time < 0)
+                return i;
+        }
+        return delays.Count - 1;
+    }
+
+    private IReadOnlyList<float>? DelaysFor(Direction direction)
+    {
+        var dir = (int)direction < Directions ? (int)direction : 0;
+        return dir < Delays.Count ? Delays[dir] : null;
+    }
+}
 
 /// <summary>
 /// An RSI folder's <c>meta.json</c>: frame size, licence, credit and states. Each state is a PNG
@@ -44,6 +75,7 @@ public sealed class RsiMeta
             var frames = new int[directions];
             for (var i = 0; i < directions; i++)
                 frames[i] = 1;
+            var delayLists = new List<IReadOnlyList<float>>();
             if (state.TryGetProperty("delays", out var delays))
             {
                 var i = 0;
@@ -51,10 +83,11 @@ public sealed class RsiMeta
                 {
                     if (i < directions)
                         frames[i] = Math.Max(1, list.GetArrayLength());
+                    delayLists.Add(list.EnumerateArray().Select(d => d.ValueKind == JsonValueKind.Number ? d.GetSingle() : 0f).ToList());
                     i++;
                 }
             }
-            states[name] = new RsiState(name, directions, frames);
+            states[name] = new RsiState(name, directions, frames) { Delays = delayLists };
         }
 
         return new RsiMeta

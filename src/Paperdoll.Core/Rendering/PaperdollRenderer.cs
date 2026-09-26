@@ -52,8 +52,8 @@ public sealed class PaperdollRenderer
     private readonly Dictionary<string, RsiMeta?> _metas = new(StringComparer.Ordinal);
 
     // Decoded frames, and frames reshaped by a displacement map, kept so each is only made once.
-    private readonly Dictionary<(string Rsi, string State, Direction Direction), Pixels?> _frames = new();
-    private readonly Dictionary<(SpriteRef Sprite, SpriteRef Map, Direction Direction), Pixels?> _displaced = new();
+    private readonly Dictionary<(string Rsi, string State, Direction Direction, int Frame), Pixels?> _frames = new();
+    private readonly Dictionary<(SpriteRef Sprite, SpriteRef Map, Direction Direction, int Frame), Pixels?> _displaced = new();
 
     /// <summary>A frame's pixels, row by row, with straight (not premultiplied) alpha.</summary>
     private sealed record Pixels(int Width, int Height, SKColor[] Data)
@@ -185,15 +185,17 @@ public sealed class PaperdollRenderer
 
     /// <summary>The character as an image, one frame, facing the given way.</summary>
     /// <param name="outfit">Worn items, slot name to entity id, or null for none.</param>
-    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null)
+    /// <param name="seconds">How far into their animations animated sprites are, as they loop in the game.</param>
+    public SKBitmap Render(CharacterLook look, Direction direction = Direction.South, IReadOnlyDictionary<string, string>? outfit = null, double seconds = 0)
     {
         var frames = new List<(Pixels Frame, Rgba Color)>();
         foreach (var layer in Layers(look, outfit))
         {
-            if (LoadFrame(layer.Sprite, direction) is not { } frame)
+            var index = FrameIndex(layer.Sprite, direction, seconds);
+            if (LoadFrame(layer.Sprite, direction, index) is not { } frame)
                 continue;
             if (layer.Displacement?.For(frame.Width) is { } map)
-                frame = Displaced(layer.Sprite, frame, map, direction) ?? frame;
+                frame = Displaced(layer.Sprite, frame, map, direction, index) ?? frame;
             frames.Add((frame, layer.Color));
         }
 
@@ -327,27 +329,38 @@ public sealed class PaperdollRenderer
     private static int FindSlot(List<Slot> slots, string layer) =>
         slots.FindIndex(s => s.Keys.Contains(LayerPrefix + layer));
 
-    private Pixels? LoadFrame(SpriteRef sprite, Direction direction)
+    /// <summary>Whether anything drawn for the character moves when facing this way.</summary>
+    public bool IsAnimated(CharacterLook look, Direction direction, IReadOnlyDictionary<string, string>? outfit = null) =>
+        Layers(look, outfit).Any(layer => State(layer.Sprite)?.IsAnimated(direction) == true);
+
+    private RsiState? State(SpriteRef sprite) =>
+        sprite.State != null && Meta(sprite.Rsi) is { } meta && meta.States.TryGetValue(sprite.State, out var state) ? state : null;
+
+    private int FrameIndex(SpriteRef sprite, Direction direction, double seconds) =>
+        seconds > 0 && State(sprite) is { } state ? state.FrameAt(direction, seconds) : 0;
+
+    private Pixels? LoadFrame(SpriteRef sprite, Direction direction, int index = 0)
     {
         if (sprite.State == null)
             return null;
-        var key = (sprite.Rsi, sprite.State, direction);
+        var key = (sprite.Rsi, sprite.State, direction, index);
         if (_frames.TryGetValue(key, out var cached))
             return cached;
         Pixels? pixels = null;
         if (Meta(sprite.Rsi) is { } meta && meta.States.TryGetValue(sprite.State, out var state)
             && textures.Read($"{sprite.Rsi}/{sprite.State}.png") is { } png)
         {
-            using var frame = meta.Frame(state, png, direction);
+            using var frame = meta.Frame(state, png, direction, index);
             if (frame != null)
                 pixels = Pixels.From(frame);
         }
         return _frames[key] = pixels;
     }
 
-    private Pixels? Displaced(SpriteRef sprite, Pixels frame, SpriteRef map, Direction direction)
+    // Displacement maps do not animate, so the map's first frame reshapes every frame.
+    private Pixels? Displaced(SpriteRef sprite, Pixels frame, SpriteRef map, Direction direction, int index)
     {
-        var key = (sprite, map, direction);
+        var key = (sprite, map, direction, index);
         if (_displaced.TryGetValue(key, out var cached))
             return cached;
         return _displaced[key] = LoadFrame(map, direction) is { } mapPixels ? Displace(frame, mapPixels) : null;

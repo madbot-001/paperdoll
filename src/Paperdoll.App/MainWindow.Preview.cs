@@ -96,23 +96,44 @@ public partial class MainWindow
     private void OnPreviewResized(object? sender, SizeChangedEventArgs e) => RefreshPreview();
 
     /// <summary>Draws the character on the floor canvas and in the four facing cells.</summary>
+    // Animated sprites (screens, glows) play in the preview: a clock, and a timer that runs only
+    // while something on screen moves.
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private Avalonia.Threading.DispatcherTimer? _animation;
+
     private void RefreshPreview()
+    {
+        DrawPreview();
+        var animated = _session?.Look != null && _session.IsAnimated();
+        if (animated && _animation == null)
+        {
+            _animation = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _animation.Tick += (_, _) => DrawPreview();
+        }
+        if (animated)
+            _animation!.Start();
+        else
+            _animation?.Stop();
+    }
+
+    private void DrawPreview()
     {
         if (_session?.Look == null)
             return;
+        var seconds = _clock.Elapsed.TotalSeconds;
         var width = (int)PreviewHost.Bounds.Width;
         var height = (int)PreviewHost.Bounds.Height;
         if (width < 16 || height < 16)
             (width, height) = (640, 420);
 
         var scale = _session.SpriteScale();
-        using (var sprite = _session.Render(_direction))
+        using (var sprite = _session.Render(_direction, seconds))
         using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale))
             Replace(PreviewImage, FloorCanvas.ToAvalonia(canvas));
 
         for (var i = 0; i < 4; i++)
         {
-            using var sprite = _session.Render((Direction)i);
+            using var sprite = _session.Render((Direction)i, seconds);
             using var canvas = FloorCanvas.Compose(72, 72, 2, sprite, scale);
             Replace(_facingImages[i], FloorCanvas.ToAvalonia(canvas));
             _facingCells[i].Classes.Set("chosen", (Direction)i == _direction);

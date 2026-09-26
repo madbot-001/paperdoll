@@ -445,7 +445,14 @@ public sealed class EditorSession : IAsyncDisposable
         Species = look.Species, Sex = look.Sex, SkinColor = look.SkinColor, EyeColor = color, Markings = look.Markings,
     });
 
-    public SKBitmap Render(Direction direction = Direction.South) => Renderer!.Render(Look!, direction, Outfit());
+    public SKBitmap Render(Direction direction = Direction.South, double seconds = 0) => Renderer!.Render(Look!, direction, Outfit(), seconds);
+
+    /// <summary>Whether anything on the character moves, facing any way (animated markings or clothes).</summary>
+    public bool IsAnimated()
+    {
+        var outfit = Outfit();
+        return Enum.GetValues<Direction>().Any(d => Renderer!.IsAnimated(Look!, d, outfit));
+    }
 
     /// <summary>Each sprite folder on screen with its licence and credit, in drawing order.</summary>
     public IReadOnlyList<CreditLine> Credits()
