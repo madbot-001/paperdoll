@@ -144,6 +144,31 @@ public sealed class EditorSession : IAsyncDisposable
         return RequireContent().Outfits.OutfitFor(job, LoadoutFor(job));
     }
 
+    /// <summary>The traits the character has picked.</summary>
+    public IReadOnlyList<string> SelectedTraits() => RequireFile().TraitPreferences;
+
+    /// <summary>What trait conditions are checked against: species, the dressed job and its department.</summary>
+    public Traits.TraitContext TraitContext()
+    {
+        var content = RequireContent();
+        var job = DressedJob();
+        var department = job == null ? null : content.Outfits.Departments.FirstOrDefault(d => d.Roles.Contains(job))?.Id;
+        return new Traits.TraitContext(Look!.Species, job, department, SelectedTraits());
+    }
+
+    /// <summary>Adds or removes a trait, within the fork's limits. Returns why not, if it cannot be added.</summary>
+    public IReadOnlyList<RuleFix> ToggleTrait(string traitId)
+    {
+        var content = RequireContent();
+        var selected = SelectedTraits().ToList();
+        if (selected.Remove(traitId))
+            return Edit(f => f.SetTraitPreferences(selected));
+        if (content.Traits.WhyNot(content.Traits.Traits[traitId], TraitContext(), Fork!.TraitRules) is { } reason)
+            return [new RuleFix("traits", reason)];
+        selected.Add(traitId);
+        return Edit(f => f.SetTraitPreferences(selected));
+    }
+
     /// <summary>The character's priority for a job: High, Medium, Low or Never.</summary>
     public string JobPriority(string jobId) => RequireFile().JobPriorities.GetValueOrDefault(jobId) ?? "Never";
 
@@ -360,7 +385,7 @@ public sealed class EditorSession : IAsyncDisposable
     private void ApplyRules()
     {
         var file = RequireFile();
-        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits);
+        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits, Content.Traits);
         Look = file.ReadLook(Content.Characters);
     }
 

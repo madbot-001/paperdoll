@@ -40,6 +40,9 @@ public sealed record ForkInfo(
 
     /// <summary>How the fork sizes characters.</summary>
     public SizeRule SizeRule { get; init; } = SizeRule.None;
+
+    /// <summary>Which trait system the fork has, and its overall limits.</summary>
+    public Traits.TraitRules TraitRules { get; init; } = Traits.TraitRules.Upstream;
 }
 
 /// <summary>How a fork sizes characters on screen.</summary>

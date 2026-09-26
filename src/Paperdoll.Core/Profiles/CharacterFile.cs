@@ -83,6 +83,16 @@ public sealed class CharacterFile
         || Appearance.Children.ContainsKey(new YamlScalarNode("facialHair"))
         || (Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var m) && m is YamlSequenceNode);
 
+    /// <summary>Chosen trait ids as written (<c>_traitPreferences</c>).</summary>
+    public IReadOnlyList<string> TraitPreferences =>
+        Profile.Children.TryGetValue(new YamlScalarNode("_traitPreferences"), out var node) && node is YamlSequenceNode list
+            ? list.Children.OfType<YamlScalarNode>().Select(s => s.Value ?? "").ToList()
+            : [];
+
+    public void SetTraitPreferences(IEnumerable<string> traits) =>
+        Profile.Children[new YamlScalarNode("_traitPreferences")] =
+            new YamlSequenceNode(traits.Select(t => (YamlNode)new YamlScalarNode(t)));
+
     /// <summary>Job preferences, job id to High, Medium or Low (upstream's <c>_jobPriorities</c>).</summary>
     public IReadOnlyDictionary<string, string> JobPriorities =>
         Profile.Children.TryGetValue(new YamlScalarNode("_jobPriorities"), out var node) && node is YamlMappingNode map

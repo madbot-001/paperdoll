@@ -20,6 +20,7 @@ public sealed class ForkContent
     public required FluentStrings Strings { get; init; }
     public required CharacterCatalog Characters { get; init; }
     public required OutfitCatalog Outfits { get; init; }
+    public required Traits.TraitCatalog Traits { get; init; }
 
     /// <summary>Every file under the character sprite folders, by path, once fetched.</summary>
     public required IReadOnlyDictionary<string, string> TextureFiles { get; init; }
@@ -76,6 +77,7 @@ public sealed class ForkContent
             Strings = strings,
             Characters = characters,
             Outfits = outfits,
+            Traits = Paperdoll.Core.Traits.TraitCatalog.Build(prototypes),
             TextureFiles = textures,
         };
     }

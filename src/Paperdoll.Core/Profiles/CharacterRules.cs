@@ -33,8 +33,10 @@ public static partial class CharacterRules
     /// does. Without it an empty name is only reported.
     /// </param>
     /// <param name="outfits">The fork's jobs, for checking job priorities; without it they are left alone.</param>
+    /// <param name="traits">The fork's traits, for checking trait choices; without it they are left alone.</param>
     public static IReadOnlyList<RuleFix> EnsureValid(CharacterFile file, CharacterCatalog catalog, ForkInfo fork,
-        Func<SpeciesInfo, string?, string>? randomName = null, Outfits.OutfitCatalog? outfits = null)
+        Func<SpeciesInfo, string?, string>? randomName = null, Outfits.OutfitCatalog? outfits = null,
+        Traits.TraitCatalog? traits = null)
     {
         var fixes = new List<RuleFix>();
 
@@ -110,6 +112,8 @@ public static partial class CharacterRules
 
         if (outfits != null)
             CheckJobPriorities(file, outfits, fixes);
+        if (traits != null)
+            CheckTraits(file, traits, fork.TraitRules, fixes);
 
         var checkedLook = EnsureValidLook(look, species, catalog, fixes);
         file.WriteLook(new CharacterLook
@@ -151,6 +155,23 @@ public static partial class CharacterRules
             file.SetJobPriority(job, "Never");
         foreach (var (job, priority) in kept)
             file.SetJobPriority(job, priority);
+    }
+
+    // Old Einstein Engines-style entries are repaired; unknown traits and ones over a category's
+    // points are dropped, as the game does.
+    private static void CheckTraits(CharacterFile file, Traits.TraitCatalog traits, Traits.TraitRules rules, List<RuleFix> fixes)
+    {
+        var written = file.TraitPreferences;
+        var normalized = written.Select(Traits.TraitCatalog.NormalizeId).ToList();
+        var valid = traits.Valid(normalized, rules);
+        if (valid.SequenceEqual(written))
+            return;
+        if (!normalized.SequenceEqual(written))
+            fixes.Add(new("traits", "Trait entries in the old {Prototype: ...} form were read as trait ids."));
+        var dropped = normalized.Where(t => !valid.Contains(t)).Distinct().ToList();
+        if (dropped.Count > 0)
+            fixes.Add(new("traits", $"Traits this fork does not have, or over a category's points, were removed: {string.Join(", ", dropped)}."));
+        file.SetTraitPreferences(valid);
     }
 
     /// <summary>The name after the game's rules: cut to length, trimmed, filtered, capitalised.</summary>
