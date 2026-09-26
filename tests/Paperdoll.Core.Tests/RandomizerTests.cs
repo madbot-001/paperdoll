@@ -114,6 +114,27 @@ public class RandomizerTests
     }
 
     [Fact]
+    public void Strength_scales_the_places_rolled_and_their_chance_but_not_hair()
+    {
+        var human = Catalog.Species["Human"];
+        var counts = new List<int>();
+        for (var seed = 0; seed < 200; seed++)
+        {
+            var none = new Randomizer(Catalog, new Random(seed)) { Strength = 0f };
+            var markings = none.Markings(human, "Male", none.RandomPalette(human));
+            Assert.Single(markings["Head"]["Hair"]);
+            Assert.Empty(markings["Torso"]["Chest"]);
+
+            var half = new Randomizer(Catalog, new Random(seed)) { Strength = 0.5f };
+            counts.Add(half.Markings(human, "Male", half.RandomPalette(human))["Torso"]["Chest"].Count);
+        }
+
+        // Half of a limit of 2 is one place, rolled at half of weight 1.
+        Assert.Equal(1, counts.Max());
+        Assert.InRange(counts.Average(), 0.35, 0.65);
+    }
+
+    [Fact]
     public void Ages_run_up_to_but_not_including_old_age()
     {
         var human = Catalog.Species["Human"];

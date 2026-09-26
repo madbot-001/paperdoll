@@ -292,7 +292,7 @@ public partial class MainWindow : Window
             return;
         }
         _selected = new Node(NodeKind.Character);
-        Apply(s => s.Randomize(parts));
+        Apply(s => s.Randomize(parts, strength: Math.Clamp(_settings.RandomStrength, 0, 100) / 100f));
         SetStatus($"Randomised {_session.File.Name}. Jobs, loadouts, traits and records were kept.");
     }
 
@@ -323,6 +323,38 @@ public partial class MainWindow : Window
             };
             RandomPartsPanel.Children.Add(box);
         }
+
+        // How many markings Random adds, as a share of what upstream's lobby randomiser would.
+        var value = new TextBlock { Classes = { "mono" }, Width = 34, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(4, 0, 0, 0) };
+        var slider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = Math.Clamp(_settings.RandomStrength, 0, 100),
+            SmallChange = 5,
+            LargeChange = 10,
+            TickFrequency = 5,
+            IsSnapToTickEnabled = true,
+            MinHeight = 18,
+            Width = 140,
+        };
+        value.Text = $"{slider.Value:0}%";
+        slider.ValueChanged += (_, e) =>
+        {
+            value.Text = $"{e.NewValue:0}%";
+            _settings = _settings with { RandomStrength = (int)Math.Round(e.NewValue) };
+            SaveSettings();
+        };
+        var row = new DockPanel { Margin = new Avalonia.Thickness(2, 6, 2, 0) };
+        var caption = new TextBlock { Text = "Markings:", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 6, 0) };
+        DockPanel.SetDock(caption, Dock.Left);
+        DockPanel.SetDock(value, Dock.Right);
+        row.Children.Add(caption);
+        row.Children.Add(value);
+        row.Children.Add(slider);
+        ToolTip.SetTip(row, "How busy random markings get. At 100% every place a layer takes is rolled, as upstream's lobby does; on Euphoria that is dozens of markings. Delta-V's and Euphoria's own lobbies add none. Hair is rolled either way.");
+        RandomPartsPanel.Children.Add(row);
+        RandomPartsPanel.Children.Add(new TextBlock { Text = "100% is upstream's lobby randomiser.", Classes = { "hint" }, Margin = new Avalonia.Thickness(2, 0, 2, 0) });
     }
 
     private void OnShowTab(object? sender, RoutedEventArgs e)

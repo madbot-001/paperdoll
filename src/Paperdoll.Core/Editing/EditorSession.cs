@@ -647,10 +647,11 @@ public sealed class EditorSession : IAsyncDisposable
     /// which starts a fresh profile, jobs, loadouts, traits, antagonists, records and the
     /// description are kept.
     /// </summary>
-    public IReadOnlyList<RuleFix> Randomize(RandomParts parts, Random? random = null) => Edit(file =>
+    /// <param name="strength">How busy random markings get, 0 to 1; 1 is upstream's lobby randomiser.</param>
+    public IReadOnlyList<RuleFix> Randomize(RandomParts parts, Random? random = null, float strength = 1f) => Edit(file =>
     {
         var catalog = RequireContent().Characters;
-        var randomizer = new Randomizer(catalog, random ??= Random.Shared);
+        var randomizer = new Randomizer(catalog, random ??= Random.Shared) { Strength = strength };
         var current = file.ReadLook(catalog);
         var choices = Selectable();
         var species = parts.HasFlag(RandomParts.Species) && choices.Count > 0

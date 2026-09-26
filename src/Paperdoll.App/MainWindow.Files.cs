@@ -20,6 +20,12 @@ public sealed record AppSettings
 
     /// <summary>What Random changes; the rest is kept, like the lobby's locks.</summary>
     public Core.Characters.RandomParts RandomParts { get; init; } = Core.Characters.RandomParts.All;
+
+    /// <summary>
+    /// How busy Random's markings get, in percent; 100 is upstream's lobby randomiser, which
+    /// fills Euphoria's ten-marking layers with dozens.
+    /// </summary>
+    public int RandomStrength { get; init; } = 20;
 }
 
 public sealed record MatchedServer(string Name, string Commit);

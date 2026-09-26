@@ -44,8 +44,8 @@
         <Button Classes="tool" Content="Open..." Click="OnOpen" ToolTip.Tip="Open an exported character (Ctrl+O)" />
         <Button Classes="tool" Content="Export..." Click="OnExport" ToolTip.Tip="Export for the lobby's Import button (Ctrl+E)" />
         <Rectangle Classes="divider" />
-        <Button Classes="tool" Content="Random" Click="OnRandom" ToolTip.Tip="Randomise the character as the lobby does (Ctrl+R). Jobs, loadouts, traits and records are kept." />
-        <Button Name="RandomPartsButton" Classes="tool" Content="▾" Padding="3,2" ToolTip.Tip="Choose what Random changes">
+        <Button Classes="tool" Content="Random" Click="OnRandom" ToolTip.Tip="Randomise the character (Ctrl+R). Jobs, loadouts, traits and records are kept." />
+        <Button Name="RandomPartsButton" Classes="tool" Content="▾" Padding="3,2" ToolTip.Tip="Choose what Random changes, and how many markings it adds">
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedLeft">
               <StackPanel Name="RandomPartsPanel" Spacing="2" Margin="4" />

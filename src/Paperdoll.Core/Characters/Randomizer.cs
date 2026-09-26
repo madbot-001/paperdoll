@@ -35,6 +35,14 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
     /// <summary>The colours a character's skin, hair and eyes are drawn from.</summary>
     public sealed record Palette(Rgba Skin, Rgba Hair, Rgba Eyes);
 
+    /// <summary>
+    /// How busy random markings get, from 0 to 1. At 1 every place a layer takes is rolled at the
+    /// layer's weight, as upstream's lobby does; less rolls that share of the places at that share of the
+    /// weight, so a layer taking ten gets about a quarter of a marking at 0.2 rather than six.
+    /// Hair is rolled as usual whatever the strength.
+    /// </summary>
+    public float Strength { get; init; } = 1f;
+
     // HairStyles.RealisticHairColors: yellow, black, sandy brown, brown, wheat, grey.
     private static readonly Rgba[] RealisticHair = [Rgb(255, 255, 0), Rgb(0, 0, 0), Rgb(244, 164, 96), Rgb(165, 42, 42), Rgb(245, 222, 179), Rgb(128, 128, 128)];
 
@@ -111,8 +119,8 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
 
     /// <summary>
     /// Markings for every organ that takes them: each layer gets up to its limit, one roll of the
-    /// layer's weight per place, each marking picked by its random weight; hair and facial hair get
-    /// at most one, in the hair colour.
+    /// layer's weight per place (both scaled by <see cref="Strength"/>), each marking picked by its
+    /// random weight; hair and facial hair get at most one, in the hair colour.
     /// </summary>
     public Dictionary<string, Dictionary<string, List<MarkingEntry>>> Markings(SpeciesInfo species, string sex, Palette palette)
     {
@@ -147,9 +155,12 @@ public sealed class Randomizer(CharacterCatalog catalog, Random random)
     {
         var pool = all.ToList();
         var picked = new List<MarkingEntry>();
-        for (var i = 0; i < limit.Limit && pool.Count > 0; i++)
+        var strength = Math.Clamp(Strength, 0f, 1f);
+        var places = (int)MathF.Ceiling(limit.Limit * strength);
+        var chance = limit.Weight * strength;
+        for (var i = 0; i < places && pool.Count > 0; i++)
         {
-            if (random.NextDouble() >= limit.Weight || PickWeighted(pool) is not { } marking)
+            if (random.NextDouble() >= chance || PickWeighted(pool) is not { } marking)
                 continue;
             pool.Remove(marking);
             var colors = MarkingColoring.RandomColors(marking, palette.Skin, palette.Eyes, picked,
