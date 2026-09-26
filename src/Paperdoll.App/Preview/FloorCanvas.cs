@@ -15,7 +15,8 @@ public static class FloorCanvas
     private const int Tile = 32;
 
     /// <summary>Canvas with the sprite centred, scaled by <paramref name="zoom"/> and the character's own species/height scale.</summary>
-    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null)
+    /// <param name="floor">Whether to draw the floor plates; without them the canvas is transparent.</param>
+    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null, bool floor = true)
     {
         var (scaleX, scaleY) = scale ?? (1f, 1f);
         width = Math.Max(width, 1);
@@ -31,7 +32,7 @@ public static class FloorCanvas
         var startY = boxY % plate - plate;
 
         using var paint = new SKPaint { IsAntialias = false };
-        for (var y = startY; y < height; y += plate)
+        for (var y = startY; floor && y < height; y += plate)
         {
             for (var x = startX; x < width; x += plate)
             {

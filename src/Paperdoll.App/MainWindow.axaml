@@ -13,6 +13,7 @@
         <MenuItem Header="_Save" Click="OnSave" InputGesture="Ctrl+S" HotKey="Ctrl+S" />
         <MenuItem Header="_Randomise" Click="OnRandom" InputGesture="Ctrl+R" HotKey="Ctrl+R" />
         <MenuItem Header="_Export..." Click="OnExport" InputGesture="Ctrl+E" HotKey="Ctrl+E" />
+        <MenuItem Header="Share _Picture..." Click="OnShare" InputGesture="Ctrl+P" HotKey="Ctrl+P" />
         <MenuItem Name="AutosaveItem" Header="_Autosave" ToggleType="CheckBox" IsChecked="True" />
         <MenuItem Header="Files on this _computer..." Click="OnFiles" />
         <Separator />
@@ -43,6 +44,7 @@
         <Button Classes="tool" Content="New" Click="OnNew" ToolTip.Tip="New character (Ctrl+N)" />
         <Button Classes="tool" Content="Open..." Click="OnOpen" ToolTip.Tip="Open an exported character (Ctrl+O)" />
         <Button Classes="tool" Content="Export..." Click="OnExport" ToolTip.Tip="Export for the lobby's Import button (Ctrl+E)" />
+        <Button Classes="tool" Content="Picture..." Click="OnShare" ToolTip.Tip="Make a picture of the character to share (Ctrl+P)" />
         <Rectangle Classes="divider" />
         <Button Classes="tool" Content="Random" Click="OnRandom" ToolTip.Tip="Randomise the character (Ctrl+R). Jobs, loadouts, traits and records are kept." />
         <Button Name="RandomPartsButton" Classes="tool" Content="▾" Padding="3,2" ToolTip.Tip="Choose what Random changes, and how many markings it adds">

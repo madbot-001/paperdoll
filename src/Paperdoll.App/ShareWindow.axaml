@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Paperdoll.App.ShareWindow"
+        Icon="/Assets/icon.png"
+        Title="Share a Picture"
+        Width="880" Height="560" MinWidth="640" MinHeight="420" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="10">
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+        <Button Content="Copy picture" Click="OnCopy" ToolTip.Tip="Copy the picture, to paste wherever you want to share it" />
+        <Button Content="Save as PNG..." Click="OnSave" />
+        <Button Content="Close" Width="80" Click="OnClose" />
+      </StackPanel>
+      <TextBlock Name="StatusText" Classes="hint" VerticalAlignment="Center" TextWrapping="Wrap" />
+    </DockPanel>
+    <StackPanel DockPanel.Dock="Left" Width="210" Spacing="3" Margin="0,0,10,0">
+      <TextBlock Classes="hint" Text="Sides" />
+      <RadioButton Name="AllSidesButton" GroupName="sides" Content="All four" IsCheckedChanged="OnOptionChanged" />
+      <RadioButton Name="FrontOnlyButton" GroupName="sides" Content="Front only" IsCheckedChanged="OnOptionChanged" />
+      <TextBlock Classes="hint" Text="Size" Margin="0,8,0,0" />
+      <ComboBox Name="SizeBox" HorizontalAlignment="Stretch" SelectionChanged="OnSizeChanged" />
+      <TextBlock Classes="hint" Text="Background" Margin="0,8,0,0" />
+      <RadioButton Name="FloorButton" GroupName="background" Content="Station floor" IsCheckedChanged="OnOptionChanged" />
+      <RadioButton Name="PlainButton" GroupName="background" Content="Plain" IsCheckedChanged="OnOptionChanged" />
+      <RadioButton Name="TransparentButton" GroupName="background" Content="Transparent" IsCheckedChanged="OnOptionChanged" />
+      <TextBlock Classes="hint" Text="Words" Margin="0,8,0,0" />
+      <CheckBox Name="CaptionBox" Content="Name and species" IsCheckedChanged="OnOptionChanged" />
+      <CheckBox Name="CreditBox" Content="Sprite credit" IsCheckedChanged="OnOptionChanged" />
+      <Button Classes="small" Content="Copy full credits" Click="OnCopyCredits" HorizontalAlignment="Left" Margin="0,4,0,0"
+              ToolTip.Tip="Every sprite in the picture with its licence and authors, to post along with it" />
+      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="0,12,0,0"
+                 Text="The character is drawn as the preview shows it; set clothes and the job there." />
+      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="0,6,0,0"
+                 Text="Paperdoll only saves or copies the picture. Where it goes from there is up to you." />
+    </StackPanel>
+    <Border Classes="pane">
+      <DockPanel>
+        <TextBlock Name="SizeText" DockPanel.Dock="Bottom" Classes="hint" Margin="6,3" />
+        <!-- Shrunk to fit when bigger than the window; saved and copied at full size. -->
+        <Image Name="PictureImage" Stretch="Uniform" StretchDirection="DownOnly" RenderOptions.BitmapInterpolationMode="HighQuality"
+               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" />
+      </DockPanel>
+    </Border>
+  </DockPanel>
+</Window>

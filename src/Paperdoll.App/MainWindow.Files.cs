@@ -26,6 +26,9 @@ public sealed record AppSettings
     /// fills Euphoria's ten-marking layers with dozens.
     /// </summary>
     public int RandomStrength { get; init; } = 20;
+
+    /// <summary>How the last picture to share was laid out.</summary>
+    public Preview.ShareOptions? Share { get; init; }
 }
 
 public sealed record MatchedServer(string Name, string Commit);
