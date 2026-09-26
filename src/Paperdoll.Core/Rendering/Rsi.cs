@@ -30,7 +30,9 @@ public sealed class RsiMeta
 
     public static RsiMeta Parse(byte[] json)
     {
-        using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        // Some forks save meta.json with a UTF-8 byte order mark, which the JSON reader refuses.
+        var start = json.Length >= 3 && json[0] == 0xEF && json[1] == 0xBB && json[2] == 0xBF ? 3 : 0;
+        using var doc = JsonDocument.Parse(json.AsMemory(start), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
         var root = doc.RootElement;
         var size = root.GetProperty("size");
 
