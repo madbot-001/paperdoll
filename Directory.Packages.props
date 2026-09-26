@@ -4,7 +4,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Avalonia" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Themes.Simple" Version="12.1.3" />
     <!-- Same SkiaSharp as Avalonia 12.1.3 uses; the two must match. -->
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />

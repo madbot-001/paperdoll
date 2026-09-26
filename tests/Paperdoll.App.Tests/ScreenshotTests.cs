@@ -1,0 +1,52 @@
+using Avalonia;
+using Avalonia.Headless;
+using Avalonia.Threading;
+using Paperdoll.Core.Editing;
+using Paperdoll.Core.Forks;
+
+namespace Paperdoll.App.Tests;
+
+/// <summary>Starts the real window without a screen, for pictures of the interface.</summary>
+public static class HeadlessApp
+{
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>()
+            .UseSkia()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+}
+
+public class ScreenshotTests
+{
+    /// <summary>
+    /// Loads Delta-V, opens the main window on it (optionally on a character file) and saves a
+    /// picture. Set PAPERDOLL_SCREENSHOT_OUT to a folder, PAPERDOLL_STORE to reuse a download, and
+    /// PAPERDOLL_SCREENSHOT_FILE to show a character file. Needs the network the first time.
+    /// </summary>
+    [Fact]
+    public async Task Main_window_screenshot()
+    {
+        var output = Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_OUT");
+        Assert.SkipWhen(output == null, "Set PAPERDOLL_SCREENSHOT_OUT to a folder to take screenshots.");
+        var ct = TestContext.Current.CancellationToken;
+
+        await using var editor = await EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE"), ct);
+        await editor.LoadForkAsync(KnownForks.Find("deltav")!, update: false, ct: ct);
+        if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_FILE") is { } path)
+            editor.Open(await File.ReadAllTextAsync(path, ct));
+
+        using var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        await session.Dispatch(() =>
+        {
+            var window = new MainWindow(editor) { Width = 1100, Height = 720 };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+
+            Directory.CreateDirectory(output!);
+            var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("No frame was rendered.");
+            frame.Save(Path.Combine(output!, "main-window.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+            window.Close();
+        }, ct);
+    }
+}

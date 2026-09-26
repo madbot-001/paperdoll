@@ -4,5 +4,7 @@
              RequestedThemeVariant="Light">
     <Application.Styles>
         <SimpleTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Simple.xaml" />
+        <StyleInclude Source="avares://Paperdoll/Styles/Classic.axaml" />
     </Application.Styles>
 </Application>

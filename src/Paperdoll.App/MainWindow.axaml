@@ -1,17 +1,135 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:Paperdoll.App.Controls"
+        xmlns:app="using:Paperdoll.App"
         x:Class="Paperdoll.App.MainWindow"
         Title="Paperdoll"
-        Width="960" Height="640">
-    <DockPanel>
-        <Menu DockPanel.Dock="Top">
-            <MenuItem Header="_File">
-                <MenuItem Header="E_xit" Click="OnExit" />
-            </MenuItem>
-        </Menu>
-        <Border DockPanel.Dock="Bottom" BorderThickness="0,1,0,0" BorderBrush="Gray" Padding="4,2">
-            <TextBlock x:Name="StatusText" Text="Ready" />
-        </Border>
-        <TextBlock x:Name="ForkCount" Margin="8" />
-    </DockPanel>
+        Width="1100" Height="720" MinWidth="820" MinHeight="560">
+  <DockPanel>
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New Character" Click="OnNew" />
+        <MenuItem Header="_Open..." Click="OnOpen" />
+        <MenuItem Header="_Export..." Click="OnExport" />
+        <Separator />
+        <MenuItem Header="E_xit" Click="OnExit" />
+      </MenuItem>
+      <MenuItem Header="F_ork">
+        <MenuItem Header="_Forks..." Click="OnForks" />
+        <MenuItem Header="_Update This Fork" Click="OnUpdateFork" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Zoom _4x" Click="OnZoom" Tag="4" />
+        <MenuItem Header="Zoom _6x" Click="OnZoom" Tag="6" />
+        <MenuItem Header="Zoom _8x" Click="OnZoom" Tag="8" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="_About Paperdoll" Click="OnAbout" />
+      </MenuItem>
+    </Menu>
+
+    <!-- Toolbar -->
+    <c:Bevel DockPanel.Dock="Top" Kind="Raised" Padding="3,2">
+      <StackPanel Orientation="Horizontal" Spacing="1">
+        <Button Classes="tool" Content="New" Click="OnNew" />
+        <Button Classes="tool" Content="Open..." Click="OnOpen" />
+        <Button Classes="tool" Content="Export..." Click="OnExport" />
+        <c:Bevel Kind="Thin" Width="2" Height="18" Margin="4,0" Padding="0" />
+        <TextBlock Text="Fork:" VerticalAlignment="Center" Margin="2,0,4,0" />
+        <ComboBox Name="ForkBox" Width="200" SelectionChanged="OnForkChosen" />
+        <Button Classes="tool" Content="Update" Click="OnUpdateFork" />
+        <Button Classes="tool" Content="Forks..." Click="OnForks" />
+      </StackPanel>
+    </c:Bevel>
+
+    <!-- Status bar -->
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="260,160,*" Margin="0,2,0,0" Height="20">
+      <c:Bevel Grid.Column="0" Kind="Thin" Padding="4,1" Margin="0,0,2,0">
+        <TextBlock Name="StatusFork" VerticalAlignment="Center" FontSize="11" />
+      </c:Bevel>
+      <c:Bevel Grid.Column="1" Kind="Thin" Padding="4,1" Margin="0,0,2,0">
+        <TextBlock Name="StatusCounts" VerticalAlignment="Center" FontSize="11" />
+      </c:Bevel>
+      <c:Bevel Grid.Column="2" Kind="Thin" Padding="4,1">
+        <TextBlock Name="StatusText" VerticalAlignment="Center" FontSize="11" Text="Starting" />
+      </c:Bevel>
+    </Grid>
+
+    <Grid RowDefinitions="*,4,150" Margin="2,2,2,0">
+      <Grid ColumnDefinitions="190,4,*,4,330">
+        <!-- Species -->
+        <DockPanel Grid.Column="0">
+          <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Species" /></Border>
+          <ListBox Name="SpeciesList" SelectionChanged="OnSpeciesChosen" />
+        </DockPanel>
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+        <!-- Preview -->
+        <DockPanel Grid.Column="2">
+          <Border Classes="caption" DockPanel.Dock="Top">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Classes="title" Text="Facing" />
+                <ComboBox Name="DirectionBox" Width="80" MinHeight="16" Height="16" Padding="3,0" FontSize="11"
+                          SelectionChanged="OnDirectionChosen" />
+              </StackPanel>
+              <TextBlock Classes="title" Text="Preview" />
+            </DockPanel>
+          </Border>
+          <c:Bevel Kind="Sunken" Background="#8C8C8C">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto">
+              <Image Name="PreviewImage" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     RenderOptions.BitmapInterpolationMode="None" />
+            </ScrollViewer>
+          </c:Bevel>
+        </DockPanel>
+        <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
+
+        <!-- Character properties and markings -->
+        <Grid Grid.Column="4" RowDefinitions="Auto,*">
+          <DockPanel Grid.Row="0">
+            <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Character" /></Border>
+            <c:Bevel Kind="Sunken" Padding="2" Background="White">
+              <Grid Name="PropertyGrid" ColumnDefinitions="96,*" />
+            </c:Bevel>
+          </DockPanel>
+          <DockPanel Grid.Row="1" Margin="0,2,0,0">
+            <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Markings" /></Border>
+            <c:Bevel Kind="Sunken" Padding="2" Background="White">
+              <ScrollViewer>
+                <StackPanel Name="MarkingsPanel" />
+              </ScrollViewer>
+            </c:Bevel>
+          </DockPanel>
+        </Grid>
+      </Grid>
+
+      <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+      <!-- Credits and messages -->
+      <Grid Grid.Row="2" ColumnDefinitions="*,4,330">
+        <DockPanel Grid.Column="0">
+          <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Credits for sprites on screen" /></Border>
+          <DataGrid Name="CreditsGrid" IsReadOnly="True" CanUserResizeColumns="True" x:DataType="app:CreditRow">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Sprite" Binding="{Binding Rsi}" Width="260" />
+              <DataGridTextColumn Header="Licence" Binding="{Binding LicenseText}" Width="150" />
+              <DataGridTextColumn Header="Credit" Binding="{Binding Copyright}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+        <DockPanel Grid.Column="2">
+          <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Messages" /></Border>
+          <ListBox Name="MessagesList" FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Grid>
+    </Grid>
+  </DockPanel>
 </Window>

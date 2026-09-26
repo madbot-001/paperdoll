@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Paperdoll.App.AboutWindow"
+        Title="About Paperdoll"
+        Width="420" Height="230" CanResize="False" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="10">
+    <Button DockPanel.Dock="Bottom" Content="OK" Width="80" HorizontalAlignment="Right" Click="OnOk" />
+    <StackPanel Spacing="6">
+      <TextBlock Text="Paperdoll" FontWeight="Bold" FontSize="14" />
+      <TextBlock TextWrapping="Wrap" Text="A character editor for Space Station 14. Make and edit characters without joining a server, and export them for the lobby's Import button." />
+      <TextBlock TextWrapping="Wrap" Text="Free software under the MIT licence. Parts are ported from Space Station 14 and its engine (MIT); see THIRD-PARTY-NOTICES.md." />
+      <TextBlock TextWrapping="Wrap" Text="Not affiliated with Space Wizards or any fork. Sprites are downloaded from each fork and keep their own licences, listed in the credits pane." />
+    </StackPanel>
+  </DockPanel>
+</Window>

@@ -1,0 +1,195 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:Paperdoll.App.Controls">
+
+  <!-- Late-1990s desktop colours: grey face, white fields, navy selection. -->
+  <Styles.Resources>
+    <Color x:Key="Face">#D4D0C8</Color>
+    <SolidColorBrush x:Key="FaceBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="FieldBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ShadowBrush" Color="#808080" />
+    <SolidColorBrush x:Key="DarkBrush" Color="#404040" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#0A246A" />
+    <SolidColorBrush x:Key="CaptionBrush" Color="#0A246A" />
+    <SolidColorBrush x:Key="InfoBrush" Color="#FFFFE1" />
+
+    <!-- The simple theme's own brushes, recoloured. -->
+    <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ThemeControlMidBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="ThemeControlLowBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="ThemeControlMidHighBrush" Color="#C0BCB4" />
+    <SolidColorBrush x:Key="ThemeControlHighBrush" Color="#808080" />
+    <SolidColorBrush x:Key="ThemeControlVeryHighBrush" Color="#404040" />
+    <SolidColorBrush x:Key="ThemeControlHighlightLowBrush" Color="#E4E1DB" />
+    <SolidColorBrush x:Key="ThemeControlHighlightMidBrush" Color="#C8C4BC" />
+    <SolidColorBrush x:Key="ThemeControlHighlightHighBrush" Color="#808080" />
+    <SolidColorBrush x:Key="ThemeBorderLowBrush" Color="#808080" />
+    <SolidColorBrush x:Key="ThemeBorderMidBrush" Color="#404040" />
+    <SolidColorBrush x:Key="ThemeBorderHighBrush" Color="#404040" />
+    <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#000000" />
+    <SolidColorBrush x:Key="ThemeAccentBrush" Color="#0A246A" />
+    <SolidColorBrush x:Key="ThemeAccentBrush2" Color="#3A5A9A" />
+    <SolidColorBrush x:Key="ThemeAccentBrush3" Color="#7A90C0" />
+    <SolidColorBrush x:Key="ThemeAccentBrush4" Color="#C8D2E8" />
+    <SolidColorBrush x:Key="HighlightBrush" Color="#0A246A" />
+    <SolidColorBrush x:Key="HighlightBrush2" Color="#0A246A" />
+    <SolidColorBrush x:Key="HighlightForegroundBrush" Color="#FFFFFF" />
+    <x:Double x:Key="FontSizeSmall">11</x:Double>
+    <x:Double x:Key="FontSizeNormal">12</x:Double>
+    <x:Double x:Key="FontSizeLarge">13</x:Double>
+    <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+    <FontFamily x:Key="ContentControlThemeFontFamily">Tahoma, Noto Sans, DejaVu Sans</FontFamily>
+  </Styles.Resources>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+    <Setter Property="FontFamily" Value="Tahoma, Noto Sans, DejaVu Sans" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
+  <!-- Buttons: raised 2px bevel, pressed sinks. -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <c:Bevel Name="bevel" Kind="Raised" Background="{TemplateBinding Background}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"
+                            RecognizesAccessKey="True" />
+        </c:Bevel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button:pressed /template/ c|Bevel#bevel">
+    <Setter Property="Kind" Value="Sunken" />
+  </Style>
+  <Style Selector="Button:pressed /template/ ContentPresenter">
+    <Setter Property="RenderTransform" Value="translate(1px,1px)" />
+  </Style>
+  <Style Selector="Button:disabled">
+    <Setter Property="Foreground" Value="{StaticResource ShadowBrush}" />
+  </Style>
+
+  <!-- Flat toolbar buttons that raise when pointed at. -->
+  <Style Selector="Button.tool">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="MinHeight" Value="20" />
+  </Style>
+  <Style Selector="Button.tool /template/ c|Bevel#bevel">
+    <Setter Property="Kind" Value="Flat" />
+  </Style>
+  <Style Selector="Button.tool:pointerover /template/ c|Bevel#bevel">
+    <Setter Property="Kind" Value="Thin" />
+  </Style>
+  <Style Selector="Button.tool:pressed /template/ c|Bevel#bevel">
+    <Setter Property="Kind" Value="Sunken" />
+  </Style>
+
+  <!-- Text fields, lists and trees: white and sunken. -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource ShadowBrush}" />
+    <Setter Property="Padding" Value="3,1" />
+    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="ListBox, TreeView">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource ShadowBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="ListBoxItem">
+    <Setter Property="Padding" Value="4,1" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+  </Style>
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource ShadowBrush}" />
+    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="Padding" Value="3,1" />
+  </Style>
+
+  <!-- Docked pane captions: flat navy with small bold white text. -->
+  <Style Selector="Border.caption">
+    <Setter Property="Background" Value="{StaticResource CaptionBrush}" />
+    <Setter Property="Height" Value="18" />
+    <Setter Property="Padding" Value="4,0" />
+  </Style>
+  <Style Selector="TextBlock.title">
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Property grid: grey label cells, white value cells, 1px lines. -->
+  <Style Selector="Border.label">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+    <Setter Property="BorderBrush" Value="#A0A0A0" />
+    <Setter Property="BorderThickness" Value="0,0,1,1" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+  <Style Selector="Border.value">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="#A0A0A0" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="1" />
+  </Style>
+  <Style Selector="Border.value TextBox, Border.value ComboBox">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Border.group">
+    <Setter Property="Background" Value="#E4E1DB" />
+    <Setter Property="BorderBrush" Value="#A0A0A0" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+  <Style Selector="Border.group TextBlock">
+    <Setter Property="FontWeight" Value="Bold" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+  </Style>
+  <Style Selector="Separator.tool">
+    <Setter Property="Width" Value="2" />
+    <Setter Property="Height" Value="18" />
+    <Setter Property="Margin" Value="4,0" />
+  </Style>
+
+  <!-- Tables. -->
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource ShadowBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="GridLinesVisibility" Value="All" />
+    <Setter Property="HorizontalGridLinesBrush" Value="#D4D0C8" />
+    <Setter Property="VerticalGridLinesBrush" Value="#D4D0C8" />
+    <Setter Property="RowHeight" Value="18" />
+    <Setter Property="RowBackground" Value="{StaticResource FieldBrush}" />
+    <Setter Property="HeadersVisibility" Value="Column" />
+  </Style>
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource FaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource ShadowBrush}" />
+    <Setter Property="Padding" Value="4,1" />
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+  <Style Selector="DataGridCell">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Padding" Value="3,0" />
+  </Style>
+</Styles>

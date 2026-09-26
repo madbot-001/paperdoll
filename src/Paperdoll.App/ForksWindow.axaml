@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:Paperdoll.App.Controls"
+        xmlns:app="using:Paperdoll.App"
+        x:Class="Paperdoll.App.ForksWindow"
+        Title="Forks"
+        Width="640" Height="420" CanResize="True" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="6">
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,6"
+               Text="Download only the forks you want; each needs about 10 to 30 MB, and files forks share are kept once. Forks on the old appearance model cannot be edited yet." />
+    <StackPanel DockPanel.Dock="Right" Spacing="4" Margin="6,0,0,0" Width="96">
+      <Button Name="OpenButton" Content="Open" Click="OnOpenFork" HorizontalAlignment="Stretch" />
+      <Button Name="UpdateButton" Content="Update" Click="OnUpdateFork" HorizontalAlignment="Stretch" />
+      <Button Name="RemoveButton" Content="Remove" Click="OnRemoveFork" HorizontalAlignment="Stretch" />
+      <Button Content="Close" Click="OnClose" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
+    </StackPanel>
+    <c:Bevel DockPanel.Dock="Bottom" Kind="Thin" Padding="4,1" Margin="0,6,0,0">
+      <TextBlock Name="StatusText" FontSize="11" />
+    </c:Bevel>
+    <DataGrid Name="ForkGrid" IsReadOnly="True" SelectionMode="Single" SelectionChanged="OnSelection" x:DataType="app:ForkRow">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Fork" Binding="{Binding Name}" Width="170" />
+        <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="60" />
+        <DataGridTextColumn Header="Editable" Binding="{Binding Editable}" Width="64" />
+        <DataGridTextColumn Header="Downloaded" Binding="{Binding Commit}" Width="90" />
+        <DataGridTextColumn Header="Repository" Binding="{Binding Repository}" Width="*" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>
