@@ -38,6 +38,9 @@ public class ScreenshotTests
             editor.Open(await File.ReadAllTextAsync(path, ct));
         if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_SPECIES") is { } species)
             editor.ChangeSpecies(species);
+        // PAPERDOLL_SCREENSHOT_JOB dresses the preview for a job.
+        if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_JOB") is { } job)
+            editor.PreviewJob = job;
 
         // Not disposed: disposing the headless session never returns once the window has run
         // (seen with Avalonia 12.1), and its thread ends with the test process anyway.

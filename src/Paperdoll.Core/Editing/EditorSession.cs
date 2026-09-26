@@ -262,6 +262,10 @@ public sealed class EditorSession : IAsyncDisposable
 
     public IReadOnlyList<RuleFix> SetVoice(string voice) => Edit(f => f.Voice = voice);
 
+    /// <summary>Names what the character spawns as in a role that allows it, such as a borg; empty for a random one.</summary>
+    public IReadOnlyList<RuleFix> SetRoleName(string jobId, string name) =>
+        Edit(f => f.SetRoleName(OutfitCatalog.RoleFor(jobId), string.IsNullOrWhiteSpace(name) ? null : name));
+
     public IReadOnlyList<RuleFix> SetCustomSpeciesName(string name) => Edit(f => f.SetValue(CustomSpeciesName.Key, name));
 
     public IReadOnlyList<RuleFix> SetRecordText(string key, string value) => Edit(f => CharacterRecords.SetText(f, key, value));

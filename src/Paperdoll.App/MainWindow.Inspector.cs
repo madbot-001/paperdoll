@@ -410,6 +410,19 @@ public partial class MainWindow
         };
         AddRow("Priority", priority, "Setting High moves another High job to Medium.");
 
+        // Roles such as borgs let the player name what they spawn as.
+        if (outfits.NamedRoles.ContainsKey(Core.Outfits.OutfitCatalog.RoleFor(job)))
+        {
+            var roleName = new TextBox
+            {
+                Text = session.File!.RoleName(Core.Outfits.OutfitCatalog.RoleFor(job)) ?? "",
+                PlaceholderText = "Random when you spawn",
+                MaxLength = CharacterRules.MaxNameLength,
+            };
+            CommitOnEnterOrLeave(roleName, text => Apply(s => s.SetRoleName(job, text)));
+            AddRow("Name", roleName, "What you are called in this role, instead of your character's name.");
+        }
+
         AddCategory("Loadout");
         foreach (var (groupId, chosen) in session.LoadoutFor(job).Groups)
         {
