@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         SetUpPreview();
         SetUpTables();
         SetUpFiles();
+        SetUpExplorerDrag();
         _settle.Tick += (_, _) =>
         {
             _settle.Stop();
