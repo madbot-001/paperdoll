@@ -19,7 +19,9 @@ public sealed partial class NameGenerator(PrototypeIndex prototypes, FluentStrin
     {
         var node = species.Node;
         var naming = Scalar(node, "naming") ?? "FirstLast";
-        var pattern = strings[$"namepreset-{naming.ToLowerInvariant()}"]
+        // Euphoria's IPCs: its first-dash-first text, with a last name after the dash.
+        var dashLast = naming == "FirstDashLast";
+        var pattern = strings[$"namepreset-{(dashLast ? "firstdashfirst" : naming.ToLowerInvariant())}"]
             ?? strings["namepreset-firstlast"]
             ?? "{$first} {$last}";
 
@@ -38,6 +40,7 @@ public sealed partial class NameGenerator(PrototypeIndex prototypes, FluentStrin
         // Starlight's presets also use prefix and suffix (first and last) and id (a number of four digits).
         return Placeholder().Replace(pattern, m => m.Groups[1].Value switch
         {
+            "first2" when dashLast => Pick(last),
             "first" or "first1" or "first2" or "prefix" => First(),
             "last" or "suffix" => Pick(last),
             "id" => _random.Next(100, 9999).ToString("D4", System.Globalization.CultureInfo.InvariantCulture),

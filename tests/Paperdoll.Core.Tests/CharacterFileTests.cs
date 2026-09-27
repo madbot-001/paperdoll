@@ -486,6 +486,15 @@ public class NameGeneratorTests
           maleFirstNames: LizardFirst
           femaleFirstNames: LizardFirst
           lastNames: PlainLast
+        - type: species
+          id: Ipc
+          name: species-name-ipc
+          roundStart: true
+          dollPrototype: Doll
+          naming: FirstDashLast
+          maleFirstNames: LizardFirst
+          femaleFirstNames: LizardFirst
+          lastNames: PlainLast
         - type: entity
           id: Doll
         - type: localizedDataset
@@ -507,7 +516,7 @@ public class NameGeneratorTests
     {
         var index = PrototypeIndex.Load([new PrototypeSource("n.yml", Encoding.UTF8.GetBytes(Yaml))]);
         var strings = new Locale.FluentStrings();
-        strings.Add("names-lizard-first-1 = Hisses\nnames-lizard-last-1 = Scales\nnamepreset-lastfirst = {$last} {$first}\nnamepreset-firstlast = {$first} {$last}\n");
+        strings.Add("names-lizard-first-1 = Hisses\nnames-lizard-last-1 = Scales\nnamepreset-lastfirst = {$last} {$first}\nnamepreset-firstlast = {$first} {$last}\nnamepreset-firstdashfirst = {$first1}-{$first2}\n");
         return (new NameGenerator(index, strings, new Random(1)), CharacterCatalog.Build(index));
     }
 
@@ -517,6 +526,14 @@ public class NameGeneratorTests
         var (names, catalog) = Build();
 
         Assert.Equal("Scales Hisses", names.Next(catalog.Species["Lizard"], "Male"));
+    }
+
+    [Fact]
+    public void Euphorias_first_dash_last_puts_a_last_name_after_the_dash()
+    {
+        var (names, catalog) = Build();
+
+        Assert.Equal("Hisses-Stone", names.Next(catalog.Species["Ipc"], "Male"));
     }
 
     [Fact]
