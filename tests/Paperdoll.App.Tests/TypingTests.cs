@@ -18,8 +18,7 @@ public class TypingTests
         editor.Edit(f => f.Name = "Test Person");
         const string name = "Test Person";
 
-        // Not disposed, as in the screenshot test: disposing it never returns once a window has run.
-        var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        var session = HeadlessApp.Session;
         await session.Dispatch(() =>
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };

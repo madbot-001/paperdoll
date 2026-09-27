@@ -45,7 +45,7 @@ public partial class MainWindow
     private static readonly FilePickerFileType CharacterFiles = new("Character files") { Patterns = ["*.yml"] };
 
     // Paperdoll's own folder (PAPERDOLL_DATA overrides it), holding settings and the working copy.
-    private static string DataDirectory => Environment.GetEnvironmentVariable("PAPERDOLL_DATA")
+    internal static string DataDirectory => Environment.GetEnvironmentVariable("PAPERDOLL_DATA")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Paperdoll");
     private static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
     private static string AutosavePath => Path.Combine(DataDirectory, "autosave.yml");

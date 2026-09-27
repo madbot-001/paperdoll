@@ -28,8 +28,7 @@ public class InteractionTests
         editor.AddMarking(torso.Category, "Chest", first);
         editor.AddMarking(torso.Category, "Chest", second);
 
-        // Not disposed, as in the screenshot test: disposing it never returns once a window has run.
-        var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        var session = HeadlessApp.Session;
         await session.Dispatch(() =>
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
@@ -70,7 +69,7 @@ public class InteractionTests
         editor.ToggleLoadout("Janitor", group.Id, group.Loadouts[0]);
         Assert.NotEmpty(editor.LoadoutFor("Janitor").Groups.First(g => g.Group == group.Id).Loadouts);
 
-        var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        var session = HeadlessApp.Session;
         await session.Dispatch(() =>
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };

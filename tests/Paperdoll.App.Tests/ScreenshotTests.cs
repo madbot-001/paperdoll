@@ -13,6 +13,12 @@ public static class HeadlessApp
         AppBuilder.Configure<App>()
             .UseSkia()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+
+    // One for all tests: Avalonia can be started only once in a process. Never disposed:
+    // disposing it never returns once a window has run (seen with Avalonia 12.1).
+    private static readonly Lazy<HeadlessUnitTestSession> Shared = new(() => HeadlessUnitTestSession.StartNew(typeof(HeadlessApp)));
+
+    public static HeadlessUnitTestSession Session => Shared.Value;
 }
 
 public class ScreenshotTests
@@ -44,7 +50,7 @@ public class ScreenshotTests
 
         // Not disposed: disposing the headless session never returns once the window has run
         // (seen with Avalonia 12.1), and its thread ends with the test process anyway.
-        var session = HeadlessUnitTestSession.StartNew(typeof(HeadlessApp));
+        var session = HeadlessApp.Session;
         await session.Dispatch(() =>
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
