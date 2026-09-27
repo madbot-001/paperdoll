@@ -25,6 +25,15 @@ public class FluentStringsTests
     }
 
     [Fact]
+    public void A_byte_order_mark_does_not_hide_the_first_message()
+    {
+        var strings = new FluentStrings();
+        strings.Add(System.Text.Encoding.UTF8.GetString([0xEF, 0xBB, 0xBF, .. "trait-name-EggLayer = Egg layer\n"u8]));
+
+        Assert.Equal("Egg layer", strings["trait-name-EggLayer"]);
+    }
+
+    [Fact]
     public void Joins_values_continued_on_indented_lines()
     {
         var strings = new FluentStrings();

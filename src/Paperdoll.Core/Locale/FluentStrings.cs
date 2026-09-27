@@ -25,7 +25,8 @@ public sealed partial class FluentStrings
         string? id = null;
         var value = new StringBuilder();
 
-        foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+        // Many of the forks' files start with a byte order mark, which would hide the first message.
+        foreach (var raw in text.TrimStart('\uFEFF').Replace("\r\n", "\n").Split('\n'))
         {
             var line = raw.TrimEnd();
             if (line.Length > 0 && !char.IsWhiteSpace(raw[0]))
