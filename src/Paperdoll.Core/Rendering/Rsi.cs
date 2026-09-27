@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using SkiaSharp;
 
@@ -59,31 +60,42 @@ public sealed class RsiMeta
     public required string? Copyright { get; init; }
     public required IReadOnlyDictionary<string, RsiState> States { get; init; }
 
+    /// <summary>
+    /// Reads a meta.json as leniently as the engine does (web JSON rules: property names in any
+    /// case, numbers written as text), and refuses sizes and direction counts it refuses.
+    /// </summary>
     public static RsiMeta Parse(byte[] json)
     {
         // Some forks save meta.json with a UTF-8 byte order mark, which the JSON reader refuses.
         var start = json.Length >= 3 && json[0] == 0xEF && json[1] == 0xBB && json[2] == 0xBF ? 3 : 0;
         using var doc = JsonDocument.Parse(json.AsMemory(start), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
         var root = doc.RootElement;
-        var size = root.GetProperty("size");
+        var size = Get(root, "size") ?? throw new FormatException("meta.json has no size.");
+        var width = Int(Get(size, "x")) ?? 0;
+        var height = Int(Get(size, "y")) ?? 0;
+        if (width <= 0 || height <= 0)
+            throw new FormatException($"meta.json gives a frame size of {width} by {height}.");
 
         var states = new Dictionary<string, RsiState>(StringComparer.Ordinal);
-        foreach (var state in root.GetProperty("states").EnumerateArray())
+        foreach (var state in Get(root, "states") is { ValueKind: JsonValueKind.Array } list ? list.EnumerateArray() : Enumerable.Empty<JsonElement>())
         {
-            var name = state.GetProperty("name").GetString()!;
-            var directions = state.TryGetProperty("directions", out var d) ? d.GetInt32() : 1;
+            if (Get(state, "name")?.GetString() is not { } name)
+                continue;
+            var directions = Int(Get(state, "directions")) ?? 1;
+            if (directions is not (1 or 4 or 8))
+                throw new FormatException($"State {name} has {directions} directions.");
             var frames = new int[directions];
             for (var i = 0; i < directions; i++)
                 frames[i] = 1;
             var delayLists = new List<IReadOnlyList<float>>();
-            if (state.TryGetProperty("delays", out var delays))
+            if (Get(state, "delays") is { ValueKind: JsonValueKind.Array } delays)
             {
                 var i = 0;
-                foreach (var list in delays.EnumerateArray())
+                foreach (var direction in delays.EnumerateArray().Where(d => d.ValueKind == JsonValueKind.Array))
                 {
                     if (i < directions)
-                        frames[i] = Math.Max(1, list.GetArrayLength());
-                    delayLists.Add(list.EnumerateArray().Select(d => d.ValueKind == JsonValueKind.Number ? d.GetSingle() : 0f).ToList());
+                        frames[i] = Math.Max(1, direction.GetArrayLength());
+                    delayLists.Add(direction.EnumerateArray().Select(d => Float(d) ?? 0f).ToList());
                     i++;
                 }
             }
@@ -92,13 +104,41 @@ public sealed class RsiMeta
 
         return new RsiMeta
         {
-            FrameWidth = size.GetProperty("x").GetInt32(),
-            FrameHeight = size.GetProperty("y").GetInt32(),
-            License = root.TryGetProperty("license", out var license) ? license.GetString() : null,
-            Copyright = root.TryGetProperty("copyright", out var copyright) ? copyright.GetString() : null,
+            FrameWidth = width,
+            FrameHeight = height,
+            License = Get(root, "license")?.GetString(),
+            Copyright = Get(root, "copyright")?.GetString(),
             States = states,
         };
     }
+
+    // A property by name in any case, as the engine's web-style JSON reading finds it.
+    private static JsonElement? Get(JsonElement element, string name)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                return property.Value.ValueKind == JsonValueKind.Null ? null : property.Value;
+        }
+        return null;
+    }
+
+    // A number, or a number written as text.
+    private static int? Int(JsonElement? value) => value switch
+    {
+        { ValueKind: JsonValueKind.Number } n when n.TryGetInt32(out var i) => i,
+        { ValueKind: JsonValueKind.String } t when int.TryParse(t.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) => i,
+        _ => null,
+    };
+
+    private static float? Float(JsonElement value) => value switch
+    {
+        { ValueKind: JsonValueKind.Number } n => n.GetSingle(),
+        { ValueKind: JsonValueKind.String } t when float.TryParse(t.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var f) => f,
+        _ => null,
+    };
 
     /// <summary>
     /// Cuts one frame out of a state's PNG. A state with fewer directions than asked for (a

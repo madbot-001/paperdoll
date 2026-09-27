@@ -40,4 +40,22 @@ public class RsiTests
         Assert.False(meta.States["still"].IsAnimated(Direction.South));
         Assert.Equal([0, 1, 2, 0], new[] { 0.05, 0.15, 0.35, 0.65 }.Select(t => blink.FrameAt(Direction.South, t)));
     }
+
+    [Fact]
+    public void Meta_is_read_as_leniently_as_the_engine_reads_it()
+    {
+        var meta = RsiMeta.Parse(System.Text.Encoding.UTF8.GetBytes(
+            """{"Version":1,"License":"CC0-1.0","Size":{"X":"32","Y":32},"States":[{"Name":"a","Directions":"4"},{"directions":1}]}"""));
+
+        Assert.Equal((32, 32), (meta.FrameWidth, meta.FrameHeight));
+        Assert.Equal("CC0-1.0", meta.License);
+        Assert.Equal(4, Assert.Single(meta.States).Value.Directions);
+    }
+
+    [Theory]
+    [InlineData("""{"size":{"x":0,"y":32},"states":[]}""")]
+    [InlineData("""{"size":{"x":32,"y":32},"states":[{"name":"a","directions":0}]}""")]
+    [InlineData("""{"states":[]}""")]
+    public void Meta_the_engine_refuses_is_refused_cleanly(string json) =>
+        Assert.Throws<FormatException>(() => RsiMeta.Parse(System.Text.Encoding.UTF8.GetBytes(json)));
 }

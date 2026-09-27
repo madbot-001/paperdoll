@@ -283,7 +283,15 @@ public sealed partial class PaperdollRenderer
         if (_metas.TryGetValue(rsi, out var cached))
             return cached;
         var data = textures.Read(rsi + "/meta.json");
-        return _metas[rsi] = data == null ? null : RsiMeta.Parse(data);
+        // A folder whose meta.json cannot be read draws nothing, and is not read again every frame.
+        try
+        {
+            return _metas[rsi] = data == null ? null : RsiMeta.Parse(data);
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or FormatException or InvalidOperationException)
+        {
+            return _metas[rsi] = null;
+        }
     }
 
     private List<Slot> BaseSlots(SpeciesInfo species)
