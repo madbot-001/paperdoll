@@ -193,7 +193,9 @@ public sealed partial class TraitCatalog
         if (trait.Category != null && Categories.TryGetValue(trait.Category, out var category))
         {
             var inCategory = selected.Where(t => t.Category == category.Id).ToList();
-            if (category.MaxTraits is { } maxTraits && trait.UsesSlots && inCategory.Count(t => t.UsesSlots) >= maxTraits)
+            // Every trait counts toward its category's limit, even one that takes no slot of the
+            // overall count (Euphoria's scents, which allow two).
+            if (category.MaxTraits is { } maxTraits && inCategory.Count >= maxTraits)
                 return $"This category takes at most {maxTraits} traits.";
             if (category.MaxPoints is { } maxPoints && inCategory.Sum(t => t.Cost) + trait.Cost > maxPoints)
                 return $"This category has {maxPoints} points to spend.";

@@ -170,10 +170,13 @@ public class TraitTests
 
         Assert.Contains("conflicts", traits.WhyNot(traits.Traits["Mute"], Context(selected: "Stutter"), TraitRules.DeltaV));
         Assert.Contains("at most 1", traits.WhyNot(traits.Traits["French"], Context(selected: "Scottish"), TraitRules.DeltaV));
-        // Mute uses no slot, so the category's one-trait limit does not stop it.
-        Assert.Null(traits.WhyNot(traits.Traits["Mute"], Context(selected: "Scottish"), TraitRules.DeltaV));
+        // Mute takes no slot of the overall count, but counts toward its category's limit, as
+        // the server counts it (Euphoria's TraitSystem).
+        Assert.Contains("at most 1", traits.WhyNot(traits.Traits["Mute"], Context(selected: "Scottish"), TraitRules.DeltaV));
         Assert.Contains("points", traits.WhyNot(traits.Traits["Lisp"], Context(selected: "Stutter"), TraitRules.Upstream));
         Assert.Contains("in all", traits.WhyNot(traits.Traits["Stutter"], Context(selected: "Scottish"), new TraitRules(TraitStyle.DeltaV, 1, null)));
+        // Taking no slot, it fits even where the overall count is full.
+        Assert.Null(traits.WhyNot(traits.Traits["Mute"], Context(selected: "Lisp"), new TraitRules(TraitStyle.DeltaV, 1, null)));
     }
 
     [Fact]

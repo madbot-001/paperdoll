@@ -721,7 +721,7 @@ public partial class MainWindow
 
         AddCategory("Category");
         var inCategory = picked.Where(id => catalog.Traits.TryGetValue(id, out var t) && t.Category == categoryId).Select(id => catalog.Traits[id]).ToList();
-        AddRow("Traits", Text(category.MaxTraits is { } maxTraits ? $"{inCategory.Count(t => t.UsesSlots)} of {maxTraits}" : $"{inCategory.Count}, no limit"));
+        AddRow("Traits", Text(category.MaxTraits is { } maxTraits ? $"{inCategory.Count} of {maxTraits}" : $"{inCategory.Count}, no limit"));
         if (category.MaxPoints is { } maxPoints)
             AddRow("Points", Text($"{inCategory.Sum(t => t.Cost)} of {maxPoints}"));
 
