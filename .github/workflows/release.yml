@@ -79,7 +79,12 @@ jobs:
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" builds/*
-          --repo "$GITHUB_REPOSITORY" --draft --verify-tag
-          --title "Paperdoll ${GITHUB_REF_NAME#v}" --generate-notes
+        run: |
+          # A release made by hand for this tag already is left as it is.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::notice::A release for $GITHUB_REF_NAME already exists; it is left as it is."
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" builds/* \
+            --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "Paperdoll ${GITHUB_REF_NAME#v}" --generate-notes

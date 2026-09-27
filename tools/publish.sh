@@ -35,6 +35,8 @@ for rid in $runtimes; do
             angle=$(python3 -c "import json; d = json.load(open('src/Paperdoll.App/obj/project.assets.json')); print(next(k.split('/')[1] for k in d['libraries'] if k.startswith('Avalonia.Angle.Windows.Natives/')))")
             cp "$packages/avalonia.angle.windows.natives/$angle/LICENSE" "$out/licenses/ANGLE-LICENSE.txt" ;;
     esac
+    # Some packages mark their text files as programs.
+    chmod 644 "$out"/licenses/*
     case "$rid" in
         win-*) (cd publish && python3 -m zipfile -c "$name.zip" "$name") ;;
         *) tar -czf "$out.tar.gz" -C publish "$name" ;;
