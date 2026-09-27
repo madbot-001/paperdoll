@@ -131,12 +131,16 @@ public static partial class CharacterRules
             file.PreferenceUnavailable = unavailable;
 
         var flavor = file.FlavorText ?? "";
-        var cleanFlavor = RemoveMarkup(flavor);
+        var cleanFlavor = MarkupText.Stable(flavor);
         if (cleanFlavor.Length > fork.MaxFlavorTextLength)
             cleanFlavor = cleanFlavor[..fork.MaxFlavorTextLength];
         if (cleanFlavor != flavor)
         {
-            fixes.Add(new("flavorText", $"Description markup is removed and text cut to {fork.MaxFlavorTextLength} characters."));
+            var reading = MarkupText.Read(flavor);
+            fixes.Add(new("flavorText", reading.RefusedAt >= 0 || reading.StoppedAt >= 0
+                ? "The game refuses a description with a [ that starts no markup tag, and stops reading one at a backslash; "
+                  + "brackets became parentheses and such backslashes were dropped, so it keeps the whole text."
+                : $"Description markup is removed and text cut to {fork.MaxFlavorTextLength} characters, as the game does."));
             file.FlavorText = cleanFlavor;
         }
 
@@ -429,12 +433,6 @@ public static partial class CharacterRules
             }
         }
     }
-
-    // Removes [tag], [tag=value] and [/tag] markup, keeping escaped brackets' text.
-    internal static string RemoveMarkup(string text) => Markup().Replace(text, string.Empty);
-
-    [GeneratedRegex(@"(?<!\\)\[/?[A-Za-z][^\]]*\]")]
-    private static partial Regex Markup();
 
     [GeneratedRegex(@"^(?<word>\w)|\b(?<word>\w)(?=\w*$)")]
     private static partial Regex NameCase();

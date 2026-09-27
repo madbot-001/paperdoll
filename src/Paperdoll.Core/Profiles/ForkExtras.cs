@@ -21,7 +21,7 @@ public static class CustomSpeciesName
     public static void Check(CharacterFile file, SpeciesInfo species, List<RuleFix> fixes)
     {
         var written = file.GetValue(Key);
-        var value = !species.CustomName || string.IsNullOrEmpty(written) ? "" : CharacterRules.RemoveMarkup(written);
+        var value = !species.CustomName || string.IsNullOrEmpty(written) ? "" : MarkupText.Stable(written);
         if (value.Length > CharacterRules.MaxNameLength)
             value = value[..CharacterRules.MaxNameLength];
         if (!string.IsNullOrEmpty(written) && value != written)
