@@ -131,19 +131,19 @@ public static partial class CharacterRules
             file.PreferenceUnavailable = unavailable;
 
         var flavor = file.FlavorText ?? "";
-        var cleanFlavor = MarkupText.Stable(flavor);
+        var cleanFlavor = MarkupText.Stable(flavor, out var mending);
         var cut = cleanFlavor.Length > fork.MaxFlavorTextLength;
         if (cut)
             cleanFlavor = cleanFlavor[..fork.MaxFlavorTextLength];
         if (cleanFlavor != flavor)
         {
-            var reading = MarkupText.Read(flavor);
             var notes = new List<string>();
-            if (reading.RefusedAt >= 0 || reading.StoppedAt >= 0)
-                notes.Add("The game refuses a description with a [ that starts no markup tag, and stops reading one at a backslash; "
-                    + "brackets became parentheses and such backslashes were dropped.");
-            else if (MarkupText.Stable(flavor) != flavor)
-                notes.Add("Description markup is removed, as the game does.");
+            if (mending.HasFlag(MarkupText.Mending.MarkupRemoved))
+                notes.Add("Markup such as [color] was removed from the description, as the game removes it.");
+            if (mending.HasFlag(MarkupText.Mending.BracketsMade))
+                notes.Add("Square brackets that start no markup tag became parentheses: the game refuses a description with one.");
+            if (mending.HasFlag(MarkupText.Mending.BackslashesDropped))
+                notes.Add("Backslashes the game would stop reading at were dropped.");
             if (cut)
                 notes.Add($"The description was cut to {fork.MaxFlavorTextLength} characters, the most the game keeps.");
             fixes.Add(new("flavorText", string.Join(" ", notes)));

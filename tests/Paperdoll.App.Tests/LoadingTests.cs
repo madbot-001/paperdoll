@@ -91,6 +91,13 @@ public class LoadingTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal("Lizard", ((SpeciesRow)grid.SelectedItem!).Id);
+
+            // A row the user picked stays picked when something else about the character changes.
+            grid.SelectedItem = ((IEnumerable<SpeciesRow>)grid.ItemsSource!).First(r => r.Id == "Human");
+            edit = s => s.Edit(f => f.Name = "Test Person Two");
+            typeof(MainWindow).GetMethod("Apply", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, [edit, false]);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("Human", ((SpeciesRow)grid.SelectedItem!).Id);
             window.Close();
         }, ct);
     }

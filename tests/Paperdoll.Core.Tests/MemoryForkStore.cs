@@ -32,11 +32,21 @@ public sealed class MemoryForkStore : IForkStore
     /// <summary>What downloading a fork throws, as a network failure or a timeout would.</summary>
     public Exception? SyncFails { get; set; }
 
+    /// <summary>Whether a download that fails has already moved the fork, as one stopped part way can.</summary>
+    public bool SyncFailsAfterMoving { get; set; }
+
     // A commit id as long as a real one, made from the fork's id.
-    public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default) =>
-        SyncFails is { } failure
-            ? Task.FromException<string>(failure)
-            : Task.FromResult(_commits[fork.Id] = Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(fork.Id))));
+    public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default)
+    {
+        var commit = Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(fork.Id)));
+        if (SyncFails is { } failure)
+        {
+            if (SyncFailsAfterMoving)
+                _commits[fork.Id] = commit;
+            return Task.FromException<string>(failure);
+        }
+        return Task.FromResult(_commits[fork.Id] = commit);
+    }
 
     public Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default) => Task.FromResult(_commits[fork.Id] = commit);
 

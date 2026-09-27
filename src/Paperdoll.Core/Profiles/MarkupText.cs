@@ -56,15 +56,36 @@ public static class MarkupText
     /// The game saves what it kept, and reads that again next time: an escaped <c>\[</c> it kept as
     /// <c>[</c> would then be refused, so this goes on until nothing changes.
     /// </remarks>
-    public static string Stable(string text)
+    public static string Stable(string text) => Stable(text, out _);
+
+    /// <summary>What <see cref="Stable(string, out Mending)"/> changed.</summary>
+    [Flags]
+    public enum Mending
     {
-        text = EscapedBrackets(text);
+        None = 0,
+        /// <summary>Tags removed, or escapes such as <c>\\</c> turned into what they stand for.</summary>
+        MarkupRemoved = 1,
+        /// <summary>Brackets the game would refuse, or shown with escapes, made parentheses.</summary>
+        BracketsMade = 2,
+        /// <summary>Backslashes the game would stop reading at dropped.</summary>
+        BackslashesDropped = 4,
+    }
+
+    /// <inheritdoc cref="Stable(string)"/>
+    public static string Stable(string text, out Mending mending)
+    {
+        mending = Mending.None;
+        var escaped = EscapedBrackets(text);
+        if (escaped != text)
+            mending |= Mending.BracketsMade;
+        text = escaped;
         while (true)
         {
-            text = Repaired(text);
+            text = Repaired(text, ref mending);
             var kept = Read(text).Kept;
             if (kept == text)
                 return text;
+            mending |= Mending.MarkupRemoved;
             text = kept;
         }
     }
@@ -72,7 +93,7 @@ public static class MarkupText
     // Reads as the game does, but mends each place it would refuse or stop at and reads on, in
     // one pass: mending one place and reading again from the start would take hours on a text
     // made of many of them.
-    private static string Repaired(string text)
+    private static string Repaired(string text, ref Mending mending)
     {
         var chars = text.ToCharArray();
         var result = new StringBuilder(chars.Length);
@@ -88,6 +109,7 @@ public static class MarkupText
                     break;
                 case '\\':
                     // The game would stop reading here: dropped.
+                    mending |= Mending.BackslashesDropped;
                     i++;
                     break;
                 case '[':
@@ -95,6 +117,7 @@ public static class MarkupText
                     if (end < 0)
                     {
                         // The game would refuse it: made a parenthesis, which is read next.
+                        mending |= Mending.BracketsMade;
                         Bracket(chars, i);
                         break;
                     }

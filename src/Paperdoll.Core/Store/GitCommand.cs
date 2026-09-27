@@ -40,11 +40,42 @@ internal sealed partial class GitCommand(string gitPath, string repository)
         info.Environment["SSH_ASKPASS"] = "";
         info.Environment["GCM_INTERACTIVE"] = "never";
         // A setting that sends GitHub through ssh must not ask or stall either, unless the user
-        // runs git with an ssh of their own choosing.
-        if (Environment.GetEnvironmentVariable("GIT_SSH_COMMAND") == null && Environment.GetEnvironmentVariable("GIT_SSH") == null)
+        // runs git with an ssh of their own choosing (which this would replace).
+        if (Environment.GetEnvironmentVariable("GIT_SSH_COMMAND") == null && Environment.GetEnvironmentVariable("GIT_SSH") == null
+            && !HasOwnSshCommand(GitPath))
             info.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=30 -o ServerAliveInterval=15";
         return info;
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> OwnSshCommand = new();
+
+    // Whether the user's git settings name an ssh command (core.sshCommand), asked once.
+    private static bool HasOwnSshCommand(string gitPath) => OwnSshCommand.GetOrAdd(gitPath, path =>
+    {
+        try
+        {
+            var info = NewStartInfo(path);
+            info.ArgumentList.Add("config");
+            info.ArgumentList.Add("--get");
+            info.ArgumentList.Add("core.sshCommand");
+            info.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            using var process = Process.Start(info);
+            if (process == null)
+                return false;
+            process.StandardInput.Close();
+            var output = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill();
+                return false;
+            }
+            return output.Result.Trim().Length > 0;
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            return false;
+        }
+    });
 
     /// <summary>A git process with its output captured and, on Windows, no console window of its own.</summary>
     public static ProcessStartInfo NewStartInfo(string gitPath) => new(gitPath)
@@ -60,25 +91,28 @@ internal sealed partial class GitCommand(string gitPath, string repository)
     {
         var argList = args.ToList();
         var started = DateTime.UtcNow;
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            return await RunOnceAsync(argList, input, ct);
-        }
-        // Stopped part way, git leaves its lock files behind, and the next command refuses. The
-        // ones it made are removed.
-        catch (OperationCanceledException)
-        {
-            RemoveLocks(file => File.GetLastWriteTimeUtc(file) >= started - TimeSpan.FromSeconds(2));
-            throw;
-        }
-        // git killed part way (a crash, the computer switched off) leaves its lock files behind,
-        // and every later command that needs them refuses. The one git names is removed if old,
-        // and git asked again.
-        catch (GitException e) when (LockedOut().Match(e.Message) is { Success: true } locked
-            && RemoveLocks(file => (locked.Groups["path"].Success ? SamePath(file, LockOf(locked.Groups["path"].Value)) : file.EndsWith("config.lock", StringComparison.Ordinal))
-                && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) >= StaleLock) > 0)
-        {
-            return await RunOnceAsync(argList, input, ct);
+            try
+            {
+                return await RunOnceAsync(argList, input, ct);
+            }
+            // Stopped part way, git leaves its lock files behind, and the next command refuses. The
+            // ones it made are removed.
+            catch (OperationCanceledException)
+            {
+                RemoveLocks(file => File.GetLastWriteTimeUtc(file) >= started - TimeSpan.FromSeconds(2));
+                throw;
+            }
+            // git killed part way (a crash, the computer switched off) leaves its lock files
+            // behind, and every later command that needs them refuses. The one git names is
+            // removed if old, and git asked once more.
+            catch (GitException e) when (attempt == 1 && LockedOut().Match(e.Message) is { Success: true } locked
+                && (locked.Groups["path"].Success
+                    ? RemoveStaleLock(LockOf(locked.Groups["path"].Value))
+                    : RemoveLocks(file => file.EndsWith("config.lock", StringComparison.Ordinal) && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) >= StaleLock) > 0))
+            {
+            }
         }
     }
 
@@ -108,9 +142,28 @@ internal sealed partial class GitCommand(string gitPath, string repository)
     // git names the lock ("shallow.lock") or, for the config, the file it guards ("config").
     private static string LockOf(string named) => named.EndsWith(".lock", StringComparison.Ordinal) ? named : named + ".lock";
 
-    private bool SamePath(string file, string named) =>
-        string.Equals(Path.GetFullPath(file), Path.GetFullPath(Path.IsPathRooted(named) ? named : Path.Combine(Repository, named)),
-            OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+    // Removes the lock git named if it is old. git names the path as it resolved it, which differs
+    // from Paperdoll's when a folder on the way is a link, so the lock is found by its path inside
+    // the store: the longest that git's path ends with.
+    private bool RemoveStaleLock(string named)
+    {
+        named = "/" + named.Replace('\\', '/').TrimStart('/');
+        var casing = OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        var file = Directory.EnumerateFiles(Repository, "*.lock", SearchOption.AllDirectories)
+            .Where(f => named.EndsWith("/" + Path.GetRelativePath(Repository, f).Replace('\\', '/'), casing))
+            .MaxBy(f => f.Length);
+        if (file == null || DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < StaleLock)
+            return false;
+        try
+        {
+            File.Delete(file);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     // "Unable to create '<path>.lock': File exists", or "could not lock config file <path>: File exists".
     [System.Text.RegularExpressions.GeneratedRegex(@"Unable to create '(?<path>[^']*\.lock)'|could not lock config file (?<path>\S+?)(?=: File exists)|\.lock'?: File exists", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]

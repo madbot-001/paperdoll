@@ -222,6 +222,27 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Lock_files_left_by_a_crash_are_cleared_in_a_store_reached_through_a_link()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Making links needs extra rights on Windows.");
+        var ct = TestContext.Current.CancellationToken;
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        // git names the lock by the folder's real path, not the link's.
+        Directory.CreateDirectory(Path.Combine(_root, "real"));
+        Directory.CreateSymbolicLink(Path.Combine(_root, "link"), Path.Combine(_root, "real"));
+        var store = new GitForkStore(Path.Combine(_root, "link", "store.git"));
+        await store.InitializeAsync(ct);
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        var lockFile = Path.Combine(_root, "link", "store.git", "shallow.lock");
+        File.WriteAllText(lockFile, "");
+        File.SetLastWriteTimeUtc(lockFile, DateTime.UtcNow.AddHours(-1));
+        source.Commit(new() { ["Resources/Prototypes/a.yml"] = "newer" });
+
+        Assert.Equal(source.Head, await store.SyncAsync(Fork("a"), source.Url, ct));
+        Assert.False(File.Exists(lockFile));
+    }
+
+    [Fact]
     public async Task Syncing_again_moves_to_the_newest_commit()
     {
         var ct = TestContext.Current.CancellationToken;

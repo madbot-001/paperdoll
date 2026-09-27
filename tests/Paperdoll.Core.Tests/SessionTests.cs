@@ -80,6 +80,20 @@ public class SessionTests
     }
 
     [Fact]
+    public async Task A_download_stopped_after_it_moved_the_fork_is_undone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var store = TestForks.Store();
+        await using var session = new EditorSession(store);
+        store.SyncFails = new OperationCanceledException();
+        store.SyncFailsAfterMoving = true;
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => session.PrepareForkAsync(TestForks.B, update: true, source: null, ct: ct));
+
+        Assert.Null(await store.CommitOfAsync("b", ct));
+    }
+
+    [Fact]
     public async Task A_reader_that_has_stopped_is_started_again()
     {
         var store = TestForks.Store();

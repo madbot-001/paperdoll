@@ -191,8 +191,9 @@ public partial class MainWindow
     {
         if (_session?.Look == null || BottomTabs.SelectedItem is not TabItem tab)
             return;
-        // Only the species row highlighted follows the character.
-        if (tab == SpeciesTab && !_staleTabs.Contains(tab))
+        // Only the species row highlighted follows the character, when its species changed: a
+        // row the user picked stays picked through other edits.
+        if (tab == SpeciesTab && !_staleTabs.Contains(tab) && _session.Look.Species != _highlightedSpecies)
             SelectCurrentSpecies();
         if (!_staleTabs.Remove(tab))
             return;
@@ -255,13 +256,17 @@ public partial class MainWindow
         SelectCurrentSpecies();
     }
 
+    // The character's species when its row was last highlighted.
+    private string? _highlightedSpecies;
+
     private void SelectCurrentSpecies()
     {
         if (SpeciesGrid.ItemsSource is not IEnumerable<SpeciesRow> rows)
             return;
         var wasRefreshing = _refreshing;
         _refreshing = true;
-        SpeciesGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == _session?.Look?.Species);
+        _highlightedSpecies = _session?.Look?.Species;
+        SpeciesGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == _highlightedSpecies);
         _refreshing = wasRefreshing;
     }
 

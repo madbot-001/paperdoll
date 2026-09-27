@@ -101,9 +101,10 @@ public sealed class EditorSession : IAsyncDisposable
             return await PrepareAsync(fork, source, progress, ct);
 
         progress?.Report($"Checking {fork.Name} for its newest version");
-        await Store.SyncAsync(fork, ct);
         try
         {
+            // Inside: a sync stopped part way may already have moved the fork.
+            await Store.SyncAsync(fork, ct);
             return await PrepareAsync(fork, source, progress, ct);
         }
         catch
@@ -213,8 +214,16 @@ public sealed class EditorSession : IAsyncDisposable
 
         progress?.Report($"Getting {fork.Name} at the server's version");
         var previous = await Store.CommitOfAsync(fork.Id, ct);
-        var commit = await Store.SyncToCommitAsync(fork, build.Version!, ct);
-        return (fork, commit, previous);
+        try
+        {
+            return (fork, await Store.SyncToCommitAsync(fork, build.Version!, ct), previous);
+        }
+        catch
+        {
+            // Stopped part way, the fork may already have moved.
+            await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
+            throw;
+        }
     }
 
     /// <summary>Frees space old fork versions left behind. Returns the bytes freed.</summary>

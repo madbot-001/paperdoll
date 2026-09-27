@@ -285,18 +285,23 @@ public class CharacterFileTests
     }
 
     [Theory]
-    [InlineData("plain", false, true)]
-    [InlineData("[b]bold[/b] ", false, true)]
-    [InlineData("stray [ bracket ", true, true)]
-    [InlineData("stray [ bracket", true, false)]
-    public void The_description_message_names_each_thing_done_to_it(string start, bool repaired, bool cut)
+    [InlineData("plain", false, false, false, true)]
+    [InlineData("[b]bold[/b] ", true, false, false, true)]
+    [InlineData("stray [ bracket ", false, true, false, true)]
+    [InlineData("stray [ bracket", false, true, false, false)]
+    [InlineData("[b]bold[/b] stray [ bracket", true, true, false, false)]
+    [InlineData("\\[OOC\\] note", false, true, false, false)]
+    [InlineData("waves \\o/", false, false, true, false)]
+    public void The_description_message_names_each_thing_done_to_it(string start, bool markup, bool brackets, bool backslashes, bool cut)
     {
         var file = CharacterFile.Parse(OldFile);
         file.FlavorText = start + (cut ? new string('a', 600) : "");
 
         var fix = CharacterRules.EnsureValid(file, Catalog, Fork).Single(f => f.Field == "flavorText");
 
-        Assert.Equal(repaired, fix.Message.Contains("parentheses", StringComparison.Ordinal));
+        Assert.Equal(markup, fix.Message.Contains("Markup", StringComparison.Ordinal));
+        Assert.Equal(brackets, fix.Message.Contains("parentheses", StringComparison.Ordinal));
+        Assert.Equal(backslashes, fix.Message.Contains("Backslashes", StringComparison.Ordinal));
         Assert.Equal(cut, fix.Message.Contains("cut to 512", StringComparison.Ordinal));
     }
 

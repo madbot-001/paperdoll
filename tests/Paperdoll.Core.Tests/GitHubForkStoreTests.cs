@@ -248,6 +248,41 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task What_a_failed_download_fetched_goes_a_day_later_if_never_tried_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), ct);
+        var files = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", files, ct);
+        await store.RevertSyncAsync("a", null, ct);
+
+        File.SetLastWriteTimeUtc(Path.Combine(_root, "store", "forks", "a.json.pending"), DateTime.UtcNow.AddDays(-2));
+        await store.CleanUpAsync(ct);
+
+        Assert.Equal(files.Select(e => e.ObjectId), await store.MissingAsync(files.Select(e => e.ObjectId), ct));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "store", "forks")));
+    }
+
+    [Fact]
+    public async Task A_failed_update_goes_back_even_when_what_it_fetched_cannot_be_kept()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "old" });
+        var store = await NewStoreAsync();
+        var old = await store.SyncAsync(Fork("a"), ct);
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "new" });
+        await store.SyncAsync(Fork("a"), ct);
+        // Where that record goes cannot be written, as on a full disk.
+        Directory.CreateDirectory(Path.Combine(_root, "store", "forks", "a.json.pending"));
+
+        await store.RevertSyncAsync("a", old, ct);
+
+        Assert.Equal(old, await store.CommitOfAsync("a", ct));
+    }
+
+    [Fact]
     public void Sprites_are_listed_a_folder_below_textures_at_a_time()
     {
         var roots = Forks.ForkContent.ListingRoots([

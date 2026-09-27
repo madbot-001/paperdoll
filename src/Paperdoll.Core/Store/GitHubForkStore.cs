@@ -80,8 +80,8 @@ public sealed class GitHubForkStore : IForkStore
             // or the lists of an earlier try at this same version.
             record = pending?.Commit == commit ? pending : (record ?? new ForkRecord(fork.Repository, fork.Branch, commit, [])) with { Objects = [], Trees = [] };
         }
-        File.Delete(PendingPath(fork.Id));
         await SaveForkAsync(fork.Id, record with { Repository = fork.Repository, Branch = fork.Branch, Commit = commit }, ct);
+        File.Delete(PendingPath(fork.Id));
         return commit;
     }
 
@@ -93,16 +93,23 @@ public sealed class GitHubForkStore : IForkStore
         // An update that found nothing new changed nothing.
         if (await LoadForkAsync(forkId, ct) is not { } current || current.Commit == previousCommit)
             return;
-        // What the version that failed fetched is kept for the next try: its listings count
-        // against the API's hourly limit.
-        SafeFile.WriteAllText(PendingPath(forkId), JsonSerializer.Serialize(current, Json));
         if (previousCommit == null)
-        {
             File.Delete(ForkPath(forkId));
-            return;
+        else
+        {
+            var previous = File.Exists(PreviousPath(forkId)) ? ReadJson<ForkRecord>(await File.ReadAllBytesAsync(PreviousPath(forkId), ct)) : null;
+            await SaveForkAsync(forkId, previous?.Commit == previousCommit ? previous : current with { Commit = previousCommit, Objects = [], Trees = [] }, ct);
         }
-        var previous = File.Exists(PreviousPath(forkId)) ? ReadJson<ForkRecord>(await File.ReadAllBytesAsync(PreviousPath(forkId), ct)) : null;
-        await SaveForkAsync(forkId, previous?.Commit == previousCommit ? previous : current with { Commit = previousCommit, Objects = [], Trees = [] }, ct);
+        // What the version that failed fetched is kept for the next try, as its listings count
+        // against the API's hourly limit; but going back comes first, and a full disk (often why
+        // the load failed) must not stop it.
+        try
+        {
+            SafeFile.WriteAllText(PendingPath(forkId), JsonSerializer.Serialize(current, Json));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     public async Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default)
@@ -189,9 +196,16 @@ public sealed class GitHubForkStore : IForkStore
     public async Task<long> CleanUpAsync(CancellationToken ct = default)
     {
         var before = StoreSize.Of(Directory);
-        // Versions kept in case an update failed to load are dropped with the rest.
+        // Versions kept in case an update failed to load are dropped with the rest, and what a
+        // failed one fetched once a day has passed without another try (the API's limit resets
+        // hourly).
         foreach (var previous in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json.previous"))
             File.Delete(previous);
+        foreach (var pending in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json.pending"))
+        {
+            if (DateTime.UtcNow - File.GetLastWriteTimeUtc(pending) > PendingKept)
+                File.Delete(pending);
+        }
         var keepObjects = new HashSet<string>(StringComparer.Ordinal);
         var keepTrees = new HashSet<string>(StringComparer.Ordinal);
         var keepAllTrees = false;
@@ -241,6 +255,8 @@ public sealed class GitHubForkStore : IForkStore
 
     // The record of the version before the last sync, until the next clean-up.
     private string PreviousPath(string forkId) => Path.Combine(Directory, "forks", forkId + ".json.previous");
+
+    private static readonly TimeSpan PendingKept = TimeSpan.FromDays(1);
 
     // The record of a version that failed to load, whose files and listings are kept for the next try.
     private string PendingPath(string forkId) => Path.Combine(Directory, "forks", forkId + ".json.pending");
