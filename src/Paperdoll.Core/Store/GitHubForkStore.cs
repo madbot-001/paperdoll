@@ -103,8 +103,10 @@ public sealed class GitHubForkStore : IForkStore
             var treeId = await FindFolderAsync(fork, path, ct);
             if (treeId != null)
                 await ListFolderAsync(fork, treeId, path, entries, ct);
+            // Kept as it goes: running out of requests part way must not let a clean-up drop the
+            // listings already fetched, which the next try uses.
+            await SaveForkAsync(forkId, fork, ct);
         }
-        await SaveForkAsync(forkId, fork, ct);
         return entries;
     }
 

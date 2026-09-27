@@ -91,18 +91,10 @@ public sealed class ForkContent
         };
     }
 
-    // Lists a few common ancestor folders rather than every sprite folder, which keeps the number
-    // of listings (and of GitHub API requests for the backup store) small.
     private static async Task<IReadOnlyDictionary<string, string>> FetchSpritesAsync(
         IForkStore store, string forkId, IReadOnlySet<string> folders, CancellationToken ct)
     {
-        var roots = folders
-            .Select(f => f.Split('/'))
-            .Select(parts => string.Join('/', parts.Take(Math.Min(3, parts.Length - 1))))
-            .Distinct(StringComparer.Ordinal)
-            .Select(r => r.Length == 0 ? TexturesFolder : $"{TexturesFolder}/{r}")
-            .ToList();
-        var listed = await store.ListAsync(forkId, RemoveNested(roots), ct);
+        var listed = await store.ListAsync(forkId, ListingRoots(folders), ct);
 
         var wanted = listed
             .Where(e => folders.Contains(FolderOf(e.Path)))
@@ -118,6 +110,17 @@ public sealed class ForkContent
         var slash = relative.LastIndexOf('/');
         return slash < 0 ? "" : relative[..slash];
     }
+
+    /// <summary>
+    /// The folders to list to find the given sprite folders: the ones just below Textures that
+    /// hold them (Mobs, Clothing, Objects...). A dozen or so listings, where one per sprite folder
+    /// would be a hundred or more: the GitHub API store allows only 60 requests an hour.
+    /// </summary>
+    public static IReadOnlyList<string> ListingRoots(IEnumerable<string> folders) => RemoveNested(folders
+        .Select(f => f.Split('/'))
+        .Select(parts => parts.Length > 1 ? $"{TexturesFolder}/{parts[0]}" : TexturesFolder)
+        .Distinct(StringComparer.Ordinal)
+        .ToList());
 
     private static List<string> RemoveNested(List<string> folders) =>
         folders.Where(f => !folders.Any(o => o != f && f.StartsWith(o + "/", StringComparison.Ordinal))).ToList();

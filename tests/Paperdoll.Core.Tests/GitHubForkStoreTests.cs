@@ -152,6 +152,17 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public void Sprites_are_listed_a_folder_below_textures_at_a_time()
+    {
+        var roots = Forks.ForkContent.ListingRoots([
+            "Mobs/Species/Human/parts.rsi", "Mobs/Customization/Markings/tails.rsi",
+            "Clothing/Head/Hats/beret.rsi", "Clothing/Uniforms/Jumpsuit/janitor.rsi", "Objects/Fun/toys.rsi",
+        ]);
+
+        Assert.Equal(["Resources/Textures/Mobs", "Resources/Textures/Clothing", "Resources/Textures/Objects"], roots);
+    }
+
+    [Fact]
     public async Task A_file_that_does_not_match_its_id_is_rejected()
     {
         var ct = TestContext.Current.CancellationToken;
