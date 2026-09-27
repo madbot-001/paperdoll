@@ -188,6 +188,16 @@ public class CharacterFileTests
     }
 
     [Fact]
+    public void A_file_saved_on_windows_reads_the_same_and_is_written_the_same_everywhere()
+    {
+        // The game on Windows ends its lines with \r\n.
+        var windows = CharacterFile.Parse(OldFile.ReplaceLineEndings("\r\n"));
+
+        Assert.Equal(CharacterFile.Parse(OldFile.ReplaceLineEndings("\n")).ToYaml(), windows.ToYaml());
+        Assert.DoesNotContain('\r', windows.ToYaml());
+    }
+
+    [Fact]
     public async Task A_file_far_larger_than_any_export_is_refused_before_it_is_read()
     {
         var text = OldFile + "#" + new string('x', CharacterFile.MaxLength) + "\n";

@@ -161,7 +161,9 @@ public sealed class CharacterFile
     {
         var writer = new StringWriter(CultureInfo.InvariantCulture);
         // The game saves with the same library, so this also ends with "...", as its exports do.
-        new YamlStream(new YamlDocument(_root)).Save(writer, assignAnchors: false);
+        // Lines end in \n on every system, so a character gives the same file wherever it is saved.
+        var emitter = new YamlDotNet.Core.Emitter(writer, new YamlDotNet.Core.EmitterSettings().WithNewLine("\n"));
+        new YamlStream(new YamlDocument(_root)).Save(emitter, assignAnchors: false);
         return writer.ToString();
     }
 

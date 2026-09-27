@@ -1,0 +1,5 @@
+# Lines end in \n in every checkout, Windows included, so text written into the tests is the
+# same on every system.
+* text=auto eol=lf
+*.png binary
+*.ico binary
