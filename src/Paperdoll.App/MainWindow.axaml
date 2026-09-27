@@ -6,7 +6,7 @@
         Title="Paperdoll"
         Width="1240" Height="800" MinWidth="900" MinHeight="600">
   <DockPanel>
-    <Menu DockPanel.Dock="Top">
+    <Menu Name="MainMenu" DockPanel.Dock="Top">
       <MenuItem Header="_File">
         <MenuItem Header="_New Character" Click="OnNew" InputGesture="Ctrl+N" HotKey="Ctrl+N" />
         <MenuItem Header="_Open..." Click="OnOpen" InputGesture="Ctrl+O" HotKey="Ctrl+O" />
@@ -39,7 +39,7 @@
       </MenuItem>
     </Menu>
 
-    <Border Classes="toolbar" DockPanel.Dock="Top">
+    <Border Name="Toolbar" Classes="toolbar" DockPanel.Dock="Top">
       <StackPanel Orientation="Horizontal" Spacing="1">
         <Button Classes="tool" Content="New" Click="OnNew" ToolTip.Tip="New character (Ctrl+N)" />
         <Button Classes="tool" Content="Open..." Click="OnOpen" ToolTip.Tip="Open an exported character (Ctrl+O)" />
@@ -64,6 +64,8 @@
 
     <Border Classes="statusbar" DockPanel.Dock="Bottom">
       <StackPanel Orientation="Horizontal">
+        <Button Name="CancelButton" Classes="small" Content="Cancel" IsVisible="False" Click="OnCancelLoad" Margin="0,0,6,0"
+                ToolTip.Tip="Stop the download; the fork stays as it was" />
         <TextBlock Name="StatusFork" />
         <Rectangle />
         <TextBlock Name="StatusCounts" />
@@ -72,7 +74,7 @@
       </StackPanel>
     </Border>
 
-    <Grid RowDefinitions="*,5,210" Margin="5,5,5,4">
+    <Grid Name="Workspace" RowDefinitions="*,5,210" Margin="5,5,5,4">
       <Grid ColumnDefinitions="230,5,*,5,360">
         <!-- Explorer: the character's parts and layers. -->
         <Border Classes="pane" Grid.Column="0">

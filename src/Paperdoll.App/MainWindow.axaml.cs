@@ -106,10 +106,29 @@ public partial class MainWindow : Window
     /// unchanged, then taken into use at once. True if it loaded.
     /// </summary>
     private Task<bool> LoadForkAsync(ForkInfo fork, bool update) =>
-        LoadAsync(fork, (session, source, progress) => session.PrepareForkAsync(fork, update, source, progress));
+        LoadAsync(fork, (session, source, progress, ct) => session.PrepareForkAsync(fork, update, source, progress, ct));
 
-    // How a load reads its fork: the character to fit in, and where to report progress.
-    private delegate Task<ForkLoad> Prepare(EditorSession session, string? source, IProgress<string> progress);
+    // How a load reads its fork: the character to fit in, where to report progress, and when to stop.
+    private delegate Task<ForkLoad> Prepare(EditorSession session, string? source, IProgress<string> progress, CancellationToken ct);
+
+    // Stops the download under way, if there is one.
+    private CancellationTokenSource? _busyCancel;
+
+    // While downloading or loading: everything but the status bar, where Cancel is, waits.
+    private void SetBusy(bool busy, CancellationTokenSource? cancel = null)
+    {
+        MainMenu.IsEnabled = Toolbar.IsEnabled = Workspace.IsEnabled = !busy;
+        _busyCancel = busy ? cancel : null;
+        CancelButton.IsVisible = _busyCancel != null;
+        CancelButton.IsEnabled = true;
+    }
+
+    private void OnCancelLoad(object? sender, RoutedEventArgs e)
+    {
+        _busyCancel?.Cancel();
+        CancelButton.IsEnabled = false;
+        SetStatus("Stopping...");
+    }
 
     private async Task<bool> LoadAsync(ForkInfo fork, Prepare prepare)
     {
@@ -125,16 +144,21 @@ public partial class MainWindow : Window
         var session = _session;
         var loaded = false;
         _loading = true;
-        IsEnabled = false;
+        using var cancel = new CancellationTokenSource();
+        SetBusy(true, cancel);
         try
         {
             var source = session.CharacterSource();
             var progress = new Progress<string>(SetStatus);
-            var load = await Task.Run(() => prepare(session, source, progress));
+            var load = await Task.Run(() => prepare(session, source, progress, cancel.Token));
             session.Use(load);
             loaded = true;
             OnForkLoaded();
             await RestoreAutosaveAsync();
+        }
+        catch (OperationCanceledException) when (!loaded)
+        {
+            SetStatus($"Stopped. {fork.Name} stays as it was.");
         }
         catch (Exception e)
         {
@@ -143,7 +167,7 @@ public partial class MainWindow : Window
         finally
         {
             _loading = false;
-            IsEnabled = true;
+            SetBusy(false);
         }
         try
         {
@@ -270,24 +294,32 @@ public partial class MainWindow : Window
         ForkInfo fork;
         string commit;
         string? previous;
-        IsEnabled = false;
-        try
+        using (var cancel = new CancellationTokenSource())
         {
-            var progress = new Progress<string>(SetStatus);
-            var session = _session;
-            (fork, commit, previous) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress));
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Could not match {choice.Name}: {ex.Message}");
-            return;
-        }
-        finally
-        {
-            IsEnabled = true;
+            SetBusy(true, cancel);
+            try
+            {
+                var progress = new Progress<string>(SetStatus);
+                var session = _session;
+                (fork, commit, previous) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress, cancel.Token));
+            }
+            catch (OperationCanceledException)
+            {
+                SetStatus("Stopped.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Could not match {choice.Name}: {ex.Message}");
+                return;
+            }
+            finally
+            {
+                SetBusy(false);
+            }
         }
         // A server version that cannot be loaded leaves the fork as it was.
-        if (await LoadAsync(fork, (session, source, progress) => session.PrepareSyncedForkAsync(fork, previous, source, progress)))
+        if (await LoadAsync(fork, (session, source, progress, ct) => session.PrepareSyncedForkAsync(fork, previous, source, progress, ct)))
         {
             _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
             SaveSettings();
