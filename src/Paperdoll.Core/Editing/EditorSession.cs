@@ -47,6 +47,18 @@ public sealed class EditorSession : IAsyncDisposable
     /// <summary>What the rules changed on the last edit, open or new character.</summary>
     public IReadOnlyList<RuleFix> LastFixes { get; private set; } = [];
 
+    // The character as it was before a fork switch changed it, kept until the next edit.
+    private string? _beforeSwitch;
+
+    /// <summary>Whether switching forks changed the character, and switching back would restore it.</summary>
+    public bool ChangedBySwitch => _beforeSwitch != null;
+
+    /// <summary>
+    /// What to keep as the working copy: the character as last edited, not as a fork switch
+    /// has since changed it.
+    /// </summary>
+    public string WorkingCopy() => _beforeSwitch ?? Export();
+
     public static async Task<EditorSession> OpenAsync(string? directory = null, CancellationToken ct = default) =>
         new(await ForkStores.OpenAsync(directory ?? ForkStores.DefaultDirectory, ct: ct));
 
@@ -79,7 +91,15 @@ public sealed class EditorSession : IAsyncDisposable
         Content = content;
         Renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
         if (File != null)
-            ApplyRules();
+        {
+            // Checked from the character as it was before any earlier switch changed it, so
+            // switching back restores what this fork's rules dropped.
+            var source = _beforeSwitch ?? File.ToYaml();
+            var file = CharacterFile.Parse(source);
+            var (fixes, look) = Checked(file);
+            (File, LastFixes, Look) = (file, fixes, look);
+            _beforeSwitch = fixes.Count > 0 ? source : null;
+        }
         else
         {
             NewCharacter(content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
@@ -154,7 +174,7 @@ public sealed class EditorSession : IAsyncDisposable
         if (catalog.HasVoices)
             file.Voice = species.Voices.Contains(CharacterRules.DefaultVoice) ? CharacterRules.DefaultVoice : species.DefaultVoice(species.Sexes[0]);
         var (fixes, look) = Checked(file);
-        (File, LastFixes, Look) = (file, fixes, look);
+        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
     }
 
     /// <summary>The job whose clothes the preview shows; null means the one the lobby would pick.</summary>
@@ -377,7 +397,7 @@ public sealed class EditorSession : IAsyncDisposable
         RequireContent();
         var file = CharacterFile.Parse(yaml);
         var (fixes, look) = Checked(file);
-        (File, LastFixes, Look) = (file, fixes, look);
+        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
         return fixes;
     }
 
@@ -394,6 +414,7 @@ public sealed class EditorSession : IAsyncDisposable
     public IReadOnlyList<RuleFix> Edit(Action<CharacterFile> change)
     {
         change(RequireFile());
+        _beforeSwitch = null;
         ApplyRules();
         return LastFixes;
     }
@@ -403,6 +424,7 @@ public sealed class EditorSession : IAsyncDisposable
     {
         var file = RequireFile();
         file.WriteLook(change(Look!), RequireContent().Characters);
+        _beforeSwitch = null;
         ApplyRules();
         return LastFixes;
     }

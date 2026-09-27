@@ -119,7 +119,8 @@ public partial class MainWindow
         try
         {
             Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(AutosavePath, _session.Export());
+            // The character as last edited, not as a fork switch has since fitted it.
+            File.WriteAllText(AutosavePath, _session.WorkingCopy());
         }
         catch (Exception e)
         {

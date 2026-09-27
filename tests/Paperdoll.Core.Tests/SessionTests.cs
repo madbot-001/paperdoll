@@ -70,6 +70,37 @@ public class SessionTests
     }
 
     [Fact]
+    public async Task Switching_forks_and_back_restores_what_the_other_fork_lacked()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var session = await LizardInA();
+
+        await session.LoadForkAsync(B, update: false, ct: ct);
+        Assert.Equal("Human", session.Look!.Species);
+        Assert.True(session.ChangedBySwitch);
+        Assert.Contains("Lizard", session.WorkingCopy());
+
+        await session.LoadForkAsync(A, update: false, ct: ct);
+        Assert.Equal("Lizard", session.Look!.Species);
+        Assert.Equal("Scar", Assert.Single(session.Look.Markings["Torso"]["Chest"]).Id);
+        Assert.False(session.ChangedBySwitch);
+    }
+
+    [Fact]
+    public async Task An_edit_after_a_switch_keeps_what_the_switch_changed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var session = await LizardInA();
+
+        await session.LoadForkAsync(B, update: false, ct: ct);
+        session.Edit(f => f.Name = "Renamed Person");
+        await session.LoadForkAsync(A, update: false, ct: ct);
+
+        Assert.Equal("Renamed Person", session.File!.Name);
+        Assert.Equal("Human", session.Look!.Species);
+    }
+
+    [Fact]
     public async Task A_file_that_fails_to_open_leaves_the_open_character_alone()
     {
         await using var session = await LizardInA();

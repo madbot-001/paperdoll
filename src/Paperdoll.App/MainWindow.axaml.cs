@@ -138,7 +138,9 @@ public partial class MainWindow : Window
         var changes = session.LastFixes.Count;
         SetStatus(changes == 0
             ? $"{session.Fork!.Name} loaded. Work through {session.File?.Name ?? "the character"} on the left, or pick a species in the Species table."
-            : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.");
+            : session.ChangedBySwitch
+                ? $"{session.Fork!.Name} loaded. {session.File?.Name} was fitted to it ({changes} change{(changes == 1 ? "" : "s")} in Messages); switching back restores it, editing or saving here keeps the changes."
+                : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.");
     }
 
     private async Task RefreshForkBoxAsync()
