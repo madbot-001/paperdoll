@@ -21,7 +21,10 @@ internal sealed partial class GitCommand(string gitPath, string repository)
         // must fail at once rather than wait on a sign-in window nobody sees. So no credential
         // helper and no password programs; a transfer that stalls (under 1 KB/s for a minute)
         // gives up.
-        foreach (var setting in (string[])["credential.helper=", "core.askPass=", "http.lowSpeedLimit=1000", "http.lowSpeedTime=60"])
+        // Nor does git start maintenance of its own in the background, which would hold locks
+        // after the command ends: Paperdoll cleans up itself.
+        foreach (var setting in (string[])["credential.helper=", "core.askPass=", "http.lowSpeedLimit=1000", "http.lowSpeedTime=60",
+                     "gc.auto=0", "maintenance.auto=false"])
         {
             info.ArgumentList.Add("-c");
             info.ArgumentList.Add(setting);
@@ -36,8 +39,10 @@ internal sealed partial class GitCommand(string gitPath, string repository)
         info.Environment["GIT_ASKPASS"] = "";
         info.Environment["SSH_ASKPASS"] = "";
         info.Environment["GCM_INTERACTIVE"] = "never";
-        // A setting that sends GitHub through ssh must not ask either.
-        info.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes";
+        // A setting that sends GitHub through ssh must not ask or stall either, unless the user
+        // runs git with an ssh of their own choosing.
+        if (Environment.GetEnvironmentVariable("GIT_SSH_COMMAND") == null && Environment.GetEnvironmentVariable("GIT_SSH") == null)
+            info.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=30 -o ServerAliveInterval=15";
         return info;
     }
 
@@ -54,13 +59,24 @@ internal sealed partial class GitCommand(string gitPath, string repository)
     public async Task<byte[]> RunAsync(IEnumerable<string> args, string? input = null, CancellationToken ct = default)
     {
         var argList = args.ToList();
+        var started = DateTime.UtcNow;
         try
         {
             return await RunOnceAsync(argList, input, ct);
         }
+        // Stopped part way, git leaves its lock files behind, and the next command refuses. The
+        // ones it made are removed.
+        catch (OperationCanceledException)
+        {
+            RemoveLocks(file => File.GetLastWriteTimeUtc(file) >= started - TimeSpan.FromSeconds(2));
+            throw;
+        }
         // git killed part way (a crash, the computer switched off) leaves its lock files behind,
-        // and every later command that needs them refuses. Old ones are removed and git asked again.
-        catch (GitException e) when (LockedOut().IsMatch(e.Message) && RemoveStaleLocks() > 0)
+        // and every later command that needs them refuses. The one git names is removed if old,
+        // and git asked again.
+        catch (GitException e) when (LockedOut().Match(e.Message) is { Success: true } locked
+            && RemoveLocks(file => (locked.Groups["path"].Success ? SamePath(file, LockOf(locked.Groups["path"].Value)) : file.EndsWith("config.lock", StringComparison.Ordinal))
+                && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) >= StaleLock) > 0)
         {
             return await RunOnceAsync(argList, input, ct);
         }
@@ -69,14 +85,14 @@ internal sealed partial class GitCommand(string gitPath, string repository)
     // Lock files older than this cannot belong to a git still running for Paperdoll.
     private static readonly TimeSpan StaleLock = TimeSpan.FromMinutes(2);
 
-    private int RemoveStaleLocks()
+    private int RemoveLocks(Func<string, bool> which)
     {
         var removed = 0;
         foreach (var file in Directory.EnumerateFiles(Repository, "*.lock", SearchOption.AllDirectories))
         {
             try
             {
-                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < StaleLock)
+                if (!which(file))
                     continue;
                 File.Delete(file);
                 removed++;
@@ -89,7 +105,15 @@ internal sealed partial class GitCommand(string gitPath, string repository)
         return removed;
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"\.lock'?: File exists|Unable to create '[^']*\.lock'|could not lock config file", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    // git names the lock ("shallow.lock") or, for the config, the file it guards ("config").
+    private static string LockOf(string named) => named.EndsWith(".lock", StringComparison.Ordinal) ? named : named + ".lock";
+
+    private bool SamePath(string file, string named) =>
+        string.Equals(Path.GetFullPath(file), Path.GetFullPath(Path.IsPathRooted(named) ? named : Path.Combine(Repository, named)),
+            OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    // "Unable to create '<path>.lock': File exists", or "could not lock config file <path>: File exists".
+    [System.Text.RegularExpressions.GeneratedRegex(@"Unable to create '(?<path>[^']*\.lock)'|could not lock config file (?<path>\S+?)(?=: File exists)|\.lock'?: File exists", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
     private static partial System.Text.RegularExpressions.Regex LockedOut();
 
     private async Task<byte[]> RunOnceAsync(List<string> argList, string? input, CancellationToken ct)

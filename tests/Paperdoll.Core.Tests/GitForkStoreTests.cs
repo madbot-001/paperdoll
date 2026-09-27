@@ -150,6 +150,57 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Stopping_a_read_part_way_leaves_the_reader_in_step()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var big = string.Concat(Enumerable.Repeat("0123456789abcdef", 400_000));
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/big.yml"] = big, ["Resources/Prototypes/small.yml"] = "small" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        var files = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", files, ct);
+        var bigId = files.Single(f => f.Path.EndsWith("big.yml", StringComparison.Ordinal)).ObjectId;
+        var smallId = files.Single(f => f.Path.EndsWith("small.yml", StringComparison.Ordinal)).ObjectId;
+        var reader = store.OpenReader();
+
+        for (var i = 0; i < 30; i++)
+        {
+            using var stop = new CancellationTokenSource(TimeSpan.FromTicks(i * 500));
+            try
+            {
+                await reader.ReadAsync(bigId, stop.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        Assert.Equal("small", Encoding.UTF8.GetString((await reader.ReadAsync(smallId, ct))!));
+        await reader.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct);
+    }
+
+    [Fact]
+    public async Task Stopping_a_download_removes_the_locks_it_took()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A server that never answers, so the download can only be stopped.
+        using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        var store = await NewStoreAsync();
+        using var stop = new CancellationTokenSource();
+        var download = store.SyncAsync(Fork("slow"), $"http://127.0.0.1:{port}/slow.git", stop.Token);
+        await Task.Delay(500, ct);
+        // As git's own lock would be, taken after the command began.
+        File.WriteAllText(Path.Combine(_root, "store.git", "shallow.lock"), "");
+
+        stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "store.git"), "*.lock"));
+    }
+
+    [Fact]
     public async Task Lock_files_left_by_a_crash_are_cleared()
     {
         var ct = TestContext.Current.CancellationToken;

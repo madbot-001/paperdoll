@@ -28,18 +28,22 @@ internal sealed class BlobReader : IBlobReader
         await _lock.WaitAsync(ct);
         try
         {
-            await _process.StandardInput.WriteLineAsync(objectId.AsMemory(), ct);
-            await _process.StandardInput.FlushAsync(ct);
+            // Once asked, the answer is read to its end whatever happens: stopping part way would
+            // leave the rest in the pipe, to be taken for the next answer. A file is read quickly,
+            // so cancelling takes effect before the next one.
+            ct.ThrowIfCancellationRequested();
+            await _process.StandardInput.WriteLineAsync(objectId.AsMemory(), CancellationToken.None);
+            await _process.StandardInput.FlushAsync(CancellationToken.None);
 
             // "<oid> <type> <size>" or "<oid> missing"
-            var header = (await ReadLineAsync(ct)).Split(' ');
+            var header = (await ReadLineAsync(CancellationToken.None)).Split(' ');
             if (header.Length < 3)
                 return null;
 
             var size = int.Parse(header[2], CultureInfo.InvariantCulture);
             var data = new byte[size];
-            await _output.ReadExactlyAsync(data, ct);
-            await ReadLineAsync(ct); // the newline after the contents
+            await _output.ReadExactlyAsync(data, CancellationToken.None);
+            await ReadLineAsync(CancellationToken.None); // the newline after the contents
             return data;
         }
         finally
@@ -62,10 +66,27 @@ internal sealed class BlobReader : IBlobReader
         }
     }
 
+    // git stuck writing an answer nobody reads never ends by itself, so it is stopped.
+    private static readonly TimeSpan ExitWait = TimeSpan.FromSeconds(5);
+
     public async ValueTask DisposeAsync()
     {
-        _process.StandardInput.Close();
-        await _process.WaitForExitAsync();
+        try
+        {
+            _process.StandardInput.Close();
+            await _process.WaitForExitAsync().WaitAsync(ExitWait);
+        }
+        catch (Exception e) when (e is TimeoutException or IOException)
+        {
+            try
+            {
+                _process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // It ended after all.
+            }
+        }
         _process.Dispose();
         _lock.Dispose();
     }
