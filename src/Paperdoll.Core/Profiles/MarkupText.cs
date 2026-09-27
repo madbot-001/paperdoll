@@ -21,6 +21,7 @@ public static class MarkupText
     public static Reading Read(string text)
     {
         var kept = new StringBuilder(text.Length);
+        var unclosedFrom = int.MaxValue;
         var i = 0;
         while (i < text.Length)
         {
@@ -33,7 +34,7 @@ public static class MarkupText
                 case '\\':
                     return new Reading(kept.ToString(), -1, i);
                 case '[':
-                    var end = TagEnd(text, i + 1);
+                    var end = TagEnd(text, i + 1, ref unclosedFrom);
                     if (end < 0)
                         return new Reading(kept.ToString(), i, -1);
                     i = end;
@@ -60,16 +61,52 @@ public static class MarkupText
         text = EscapedBrackets(text);
         while (true)
         {
-            var reading = Read(text);
-            if (reading.RefusedAt >= 0)
-                text = Bracket(text, reading.RefusedAt);
-            else if (reading.StoppedAt >= 0)
-                text = text.Remove(reading.StoppedAt, 1);
-            else if (reading.Kept == text)
+            text = Repaired(text);
+            var kept = Read(text).Kept;
+            if (kept == text)
                 return text;
-            else
-                text = reading.Kept;
+            text = kept;
         }
+    }
+
+    // Reads as the game does, but mends each place it would refuse or stop at and reads on, in
+    // one pass: mending one place and reading again from the start would take hours on a text
+    // made of many of them.
+    private static string Repaired(string text)
+    {
+        var chars = text.ToCharArray();
+        var result = new StringBuilder(chars.Length);
+        var unclosedFrom = int.MaxValue;
+        var i = 0;
+        while (i < chars.Length)
+        {
+            switch (chars[i])
+            {
+                case '\\' when i + 1 < chars.Length && chars[i + 1] is '\\' or '[' or ']' or '/':
+                    result.Append(chars, i, 2);
+                    i += 2;
+                    break;
+                case '\\':
+                    // The game would stop reading here: dropped.
+                    i++;
+                    break;
+                case '[':
+                    var end = TagEnd(chars, i + 1, ref unclosedFrom);
+                    if (end < 0)
+                    {
+                        // The game would refuse it: made a parenthesis, which is read next.
+                        Bracket(chars, i);
+                        break;
+                    }
+                    result.Append(chars, i, end - i);
+                    i = end;
+                    break;
+                default:
+                    result.Append(chars[i++]);
+                    break;
+            }
+        }
+        return result.ToString();
     }
 
     // Brackets escaped to be shown as brackets cannot stay so: the game keeps them bare, and next
@@ -92,9 +129,8 @@ public static class MarkupText
         return result.ToString();
     }
 
-    private static string Bracket(string text, int open)
+    private static void Bracket(char[] chars, int open)
     {
-        var chars = text.ToCharArray();
         chars[open] = '(';
         for (var i = open + 1; i < chars.Length && chars[i] != '['; i++)
         {
@@ -104,12 +140,11 @@ public static class MarkupText
                 break;
             }
         }
-        return new string(chars);
     }
 
     // A tag after its "[": "/name]" closing, or "name", an optional "=value", more such
     // attributes, then "]" or "/]". The index after it, or -1 when it is not a tag.
-    private static int TagEnd(string text, int i)
+    private static int TagEnd(ReadOnlySpan<char> text, int i, ref int unclosedFrom)
     {
         if (i < text.Length && text[i] == '/')
         {
@@ -121,11 +156,11 @@ public static class MarkupText
         }
 
         i = SkipSpace(text, i);
-        if (!KeyValue(text, ref i))
+        if (!KeyValue(text, ref i, ref unclosedFrom))
             return -1;
         while (i < text.Length && char.IsLetter(text[i]))
         {
-            if (!KeyValue(text, ref i))
+            if (!KeyValue(text, ref i, ref unclosedFrom))
                 return -1;
         }
         if (i < text.Length && text[i] == '/')
@@ -137,7 +172,7 @@ public static class MarkupText
     }
 
     // "name", then optionally "= value", with spaces allowed around each.
-    private static bool KeyValue(string text, ref int i)
+    private static bool KeyValue(ReadOnlySpan<char> text, ref int i, ref int unclosedFrom)
     {
         if (!Identifier(text, ref i))
             return false;
@@ -145,7 +180,7 @@ public static class MarkupText
         if (i < text.Length && text[i] == '=')
         {
             i = SkipSpace(text, i + 1);
-            if (!Value(text, ref i))
+            if (!Value(text, ref i, ref unclosedFrom))
                 return false;
         }
         i = SkipSpace(text, i);
@@ -153,12 +188,18 @@ public static class MarkupText
     }
 
     // A quoted string, a colour (a name or #hex), or a whole number.
-    private static bool Value(string text, ref int i)
+    private static bool Value(ReadOnlySpan<char> text, ref int i, ref int unclosedFrom)
     {
         if (i >= text.Length)
             return false;
         if (text[i] == '"')
         {
+            // A quote left open runs to the end. Any later one opens after a quote that one
+            // passed over as escaped, so it reads the same rest and is left open too: known at
+            // once, or text made of many would take hours.
+            if (i >= unclosedFrom)
+                return false;
+            var start = i;
             for (i++; i < text.Length; i++)
             {
                 if (text[i] == '\\' && i + 1 < text.Length && text[i + 1] is '\\' or '[' or ']' or '"' or '/')
@@ -169,6 +210,7 @@ public static class MarkupText
                     return true;
                 }
             }
+            unclosedFrom = start;
             return false;
         }
         if (text[i] == '#' || char.IsLetter(text[i]))
@@ -186,7 +228,7 @@ public static class MarkupText
         return i > digits;
     }
 
-    private static bool Identifier(string text, ref int i)
+    private static bool Identifier(ReadOnlySpan<char> text, ref int i)
     {
         if (i >= text.Length || !char.IsLetter(text[i]))
             return false;
@@ -196,7 +238,7 @@ public static class MarkupText
         return true;
     }
 
-    private static int SkipSpace(string text, int i)
+    private static int SkipSpace(ReadOnlySpan<char> text, int i)
     {
         while (i < text.Length && char.IsWhiteSpace(text[i]))
             i++;

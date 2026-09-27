@@ -187,6 +187,60 @@ public class CharacterFileTests
         Assert.Throws<FormatException>(() => CharacterFile.Parse(text));
     }
 
+    [Fact]
+    public async Task A_file_far_larger_than_any_export_is_refused_before_it_is_read()
+    {
+        var text = OldFile + "#" + new string('x', CharacterFile.MaxLength) + "\n";
+
+        Assert.Throws<FormatException>(() => CharacterFile.Parse(text));
+        // Read from disk or the file picker, it stops once past the limit.
+        using var stream = new EndlessStream();
+        await Assert.ThrowsAsync<FormatException>(() => CharacterFile.ReadTextAsync(stream, TestContext.Current.CancellationToken));
+        Assert.InRange(stream.Position, CharacterFile.MaxLength, CharacterFile.MaxLength * 2L);
+    }
+
+    [Fact]
+    public void A_file_the_yaml_reader_trips_on_is_refused_as_unreadable()
+    {
+        // A list left open at the very end: the reader fails with an error of its own.
+        var text = OldFile.Replace("version: 1", "version: 1\nextra: [");
+
+        Assert.Throws<FormatException>(() => CharacterFile.Parse(text + "["));
+    }
+
+    [Fact]
+    public void Broken_character_pairs_anywhere_in_a_file_are_dropped_as_it_is_read()
+    {
+        // In a name the game does not know, and in its value. (Written as escapes, the reader
+        // refuses them itself.)
+        var text = OldFile.Replace("version: 1", "version: 1\nextra\uD800Key: x\uDC00y");
+
+        var file = CharacterFile.Parse(text);
+
+        Assert.Contains("extraKey: xy", file.ToYaml());
+    }
+
+    // Gives a byte for every one asked, without end.
+    private sealed class EndlessStream : Stream
+    {
+        private long _position;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            buffer.AsSpan(offset, count).Fill((byte)'a');
+            _position += count;
+            return count;
+        }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("NULL")]

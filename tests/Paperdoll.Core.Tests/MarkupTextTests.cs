@@ -31,4 +31,21 @@ public class MarkupTextTests
         Assert.Equal(stable, result);
         Assert.Equal(new MarkupText.Reading(result, -1, -1), MarkupText.Read(result));
     }
+
+    [Theory]
+    // A description made of stray brackets, or of tags whose quotes never close, was mended one
+    // place at a time, reading from the start each time: hours for a file of them.
+    [InlineData("[")]
+    [InlineData("[a=\"\\\"")]
+    [InlineData("\\x")]
+    public void Text_made_of_many_things_to_mend_is_mended_quickly(string unit)
+    {
+        var text = string.Concat(Enumerable.Repeat(unit, 100_000 / unit.Length));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = MarkupText.Stable(text);
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"took {clock.Elapsed}");
+        Assert.Equal(new MarkupText.Reading(result, -1, -1), MarkupText.Read(result));
+    }
 }

@@ -23,8 +23,44 @@ public sealed class CharacterFile
     // Character files nest about eight levels deep; far deeper ones are made to crash readers.
     private const int MaxDepth = 64;
 
+    /// <summary>
+    /// The most characters a file may hold. Exports are a few kilobytes; one far larger is not a
+    /// character, or is made to fill memory, and is refused before it is read.
+    /// </summary>
+    public const int MaxLength = 1_000_000;
+
+    private static FormatException TooLarge() =>
+        new($"Not a character export: it is over {MaxLength / 1_000_000} MB, and exports are a few kilobytes.");
+
+    /// <summary>A file's text, read no further than <see cref="MaxLength"/>.</summary>
+    public static async Task<string> ReadTextAsync(Stream stream, CancellationToken ct = default)
+    {
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        var buffer = new char[MaxLength + 1];
+        var read = await reader.ReadBlockAsync(buffer, ct);
+        return read > MaxLength ? throw TooLarge() : new string(buffer, 0, read);
+    }
+
+    /// <inheritdoc cref="ReadTextAsync(Stream, CancellationToken)"/>
+    public static async Task<string> ReadTextAsync(string path, CancellationToken ct = default)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        return await ReadTextAsync(stream, ct);
+    }
+
+    /// <inheritdoc cref="ReadTextAsync(Stream, CancellationToken)"/>
+    public static string ReadText(string path)
+    {
+        using var reader = new StreamReader(path);
+        var buffer = new char[MaxLength + 1];
+        var read = reader.ReadBlock(buffer, 0, buffer.Length);
+        return read > MaxLength ? throw TooLarge() : new string(buffer, 0, read);
+    }
+
     public static CharacterFile Parse(string text)
     {
+        if (text.Length > MaxLength)
+            throw TooLarge();
         var yaml = new YamlStream();
         try
         {
@@ -35,11 +71,59 @@ public sealed class CharacterFile
         {
             throw new FormatException($"Not a YAML file: {e.Message}", e);
         }
+        // The reader has faults of its own on some broken files (a list left open at the end).
+        catch (Exception e) when (e is not FormatException)
+        {
+            throw new FormatException("Not a YAML file: it could not be read.", e);
+        }
         if (yaml.Documents.Count == 0 || yaml.Documents[0].RootNode is not YamlMappingNode root
             || !root.Children.TryGetValue(new YamlScalarNode("profile"), out var profile) || profile is not YamlMappingNode)
             throw new FormatException("Not a character export: it has no profile.");
+        DropLoneSurrogates(root);
         return new CharacterFile(root);
     }
+
+    // Halves of broken character pairs cannot be written back (the game cannot write them
+    // either), so a file holding one anywhere could be opened but never saved. They are dropped
+    // as it is read. A name is a key its mapping looks up, so a mapping with one to mend is
+    // filled again.
+    private static void DropLoneSurrogates(YamlNode node)
+    {
+        switch (node)
+        {
+            case YamlScalarNode { Value: { } value } scalar when value.Any(char.IsSurrogate):
+                scalar.Value = WithoutLoneSurrogates(value);
+                break;
+            case YamlSequenceNode sequence:
+                foreach (var child in sequence.Children)
+                    DropLoneSurrogates(child);
+                break;
+            case YamlMappingNode mapping:
+                var pairs = mapping.Children.ToList();
+                if (pairs.Any(p => HasSurrogate(p.Key)))
+                {
+                    mapping.Children.Clear();
+                    foreach (var (key, _) in pairs)
+                        DropLoneSurrogates(key);
+                    foreach (var (key, value) in pairs)
+                    {
+                        if (!mapping.Children.ContainsKey(key))
+                            mapping.Children.Add(key, value);
+                    }
+                }
+                foreach (var (_, value) in mapping.Children)
+                    DropLoneSurrogates(value);
+                break;
+        }
+    }
+
+    private static bool HasSurrogate(YamlNode node) => node switch
+    {
+        YamlScalarNode scalar => scalar.Value?.Any(char.IsSurrogate) == true,
+        YamlSequenceNode sequence => sequence.Children.Any(HasSurrogate),
+        YamlMappingNode mapping => mapping.Children.Any(p => HasSurrogate(p.Key) || HasSurrogate(p.Value)),
+        _ => false,
+    };
 
     // Reading a YAML tree goes one call deeper per level, and running out of stack cannot be
     // caught, so a file nested thousands deep would close Paperdoll; aliases used as keys can make

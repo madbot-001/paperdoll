@@ -206,7 +206,7 @@ public partial class MainWindow
         string text;
         try
         {
-            text = await File.ReadAllTextAsync(AutosavePath);
+            text = await Core.Profiles.CharacterFile.ReadTextAsync(AutosavePath);
             // Should this fork's rules change it, it stays as it was until edited.
             _session.Open(text, keepUntilEdited: true);
             _restoredThisRun = true;
@@ -242,7 +242,7 @@ public partial class MainWindow
         var detached = "";
         try
         {
-            var fileText = _settings.WorkingFile is { } path && File.Exists(path) ? await File.ReadAllTextAsync(path) : null;
+            var fileText = _settings.WorkingFile is { } path && File.Exists(path) ? await Core.Profiles.CharacterFile.ReadTextAsync(path) : null;
             if (fileText != null && WorkingFileMatches(fileText, _settings.WorkingFileHash, text))
             {
                 _currentFile = await StorageProvider.TryGetFileFromPathAsync(_settings.WorkingFile!);
@@ -342,7 +342,7 @@ public partial class MainWindow
     {
         try
         {
-            return File.Exists(AutosavePath) ? Core.Profiles.CharacterFile.Parse(File.ReadAllText(AutosavePath)).ForkId : null;
+            return File.Exists(AutosavePath) ? Core.Profiles.CharacterFile.Parse(Core.Profiles.CharacterFile.ReadText(AutosavePath)).ForkId : null;
         }
         catch
         {
@@ -420,9 +420,10 @@ public partial class MainWindow
             string? now;
             try
             {
-                now = await File.ReadAllTextAsync(path);
+                now = await Core.Profiles.CharacterFile.ReadTextAsync(path);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            // Something else, or something too large to be a character, is there now.
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or FormatException)
             {
                 now = null;
             }
@@ -474,7 +475,7 @@ public partial class MainWindow
         try
         {
             await using var stream = await files[0].OpenReadAsync();
-            var text = await new StreamReader(stream).ReadToEndAsync();
+            var text = await Core.Profiles.CharacterFile.ReadTextAsync(stream);
             var wasOld = Core.Profiles.CharacterFile.Parse(text).IsOldModel;
             KeepPreviousWorkingCopy();
             _session.Open(text);
