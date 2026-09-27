@@ -163,6 +163,20 @@ public sealed class GitForkStore : IForkStore
         await CleanUpAsync(ct);
     }
 
+    // git makes its packs read-only, which on Windows stops a plain delete. One in use stays;
+    // what it holds is in the new pack too, so it goes next time.
+    private static void DeleteIfFree(string file)
+    {
+        try
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+            File.Delete(file);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     // Updating a fork leaves its old commit and files behind. Everything fetched here sits in
     // promisor packs, which gc keeps whether or not anything uses them, so repack by hand: pack
     // what the current refs reach into one new promisor pack, then drop the old packs.
@@ -177,28 +191,21 @@ public sealed class GitForkStore : IForkStore
         await _git.RunAsync(["reflog", "expire", "--expire=now", "--all"], ct: ct);
 
         var reachable = await _git.RunTextAsync(["rev-list", "--objects", "--all", "--missing=allow-promisor"], ct: ct);
-        if (reachable.Length == 0)
-            return 0;
         var packDir = Path.Combine(Directory, "objects", "pack");
-        var name = (await _git.RunTextAsync(["pack-objects", "--quiet", Path.Combine(packDir, "pack")], reachable, ct)).Trim();
-        if (name.Length == 0 || !File.Exists(Path.Combine(packDir, $"pack-{name}.pack")))
-            throw new InvalidOperationException("git did not write the new pack; nothing was removed.");
-        await File.WriteAllTextAsync(Path.Combine(packDir, $"pack-{name}.promisor"), "", ct);
+        // With no fork left nothing is kept, and there is nothing to pack.
+        var name = "";
+        if (reachable.Length > 0)
+        {
+            name = (await _git.RunTextAsync(["pack-objects", "--quiet", Path.Combine(packDir, "pack")], reachable, ct)).Trim();
+            if (name.Length == 0 || !File.Exists(Path.Combine(packDir, $"pack-{name}.pack")))
+                throw new InvalidOperationException("git did not write the new pack; nothing was removed.");
+            await File.WriteAllTextAsync(Path.Combine(packDir, $"pack-{name}.promisor"), "", ct);
+        }
 
         foreach (var file in System.IO.Directory.EnumerateFiles(packDir, "pack-*").ToList())
         {
-            if (Path.GetFileName(file).StartsWith($"pack-{name}.", StringComparison.Ordinal))
-                continue;
-            try
-            {
-                // git makes its packs read-only, which on Windows stops a plain delete.
-                File.SetAttributes(file, FileAttributes.Normal);
-                File.Delete(file);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                // In use; its objects are all in the new pack too, so it goes next time.
-            }
+            if (name.Length == 0 || !Path.GetFileName(file).StartsWith($"pack-{name}.", StringComparison.Ordinal))
+                DeleteIfFree(file);
         }
         // Indexes over the old packs would now point at missing files.
         foreach (var stale in new[] { Path.Combine(packDir, "multi-pack-index"), Path.Combine(Directory, "objects", "info", "commit-graph") })

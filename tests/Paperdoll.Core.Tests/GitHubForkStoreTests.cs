@@ -171,6 +171,83 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Going_back_after_an_update_that_found_nothing_new_keeps_the_files()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        var store = await NewStoreAsync();
+        var commit = await store.SyncAsync(Fork("a"), ct);
+        var files = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", files, ct);
+
+        Assert.Equal(commit, await store.SyncAsync(Fork("a"), ct));
+        await store.RevertSyncAsync("a", commit, ct);
+        await store.CleanUpAsync(ct);
+
+        Assert.Equal(commit, await store.CommitOfAsync("a", ct));
+        Assert.Empty(await store.MissingAsync(files.Select(e => e.ObjectId), ct));
+        var requests = _github.ApiRequests;
+        await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        Assert.Equal(requests, _github.ApiRequests);
+    }
+
+    [Fact]
+    public async Task What_a_failed_update_fetched_is_kept_for_the_next_try()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "old" });
+        var store = await NewStoreAsync();
+        var old = await store.SyncAsync(Fork("a"), ct);
+        var oldFiles = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", oldFiles, ct);
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "new" });
+        await store.SyncAsync(Fork("a"), ct);
+        var newFiles = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", newFiles, ct);
+
+        await store.RevertSyncAsync("a", old, ct);
+        await store.CleanUpAsync(ct);
+
+        Assert.Equal(old, await store.CommitOfAsync("a", ct));
+        Assert.Empty(await store.MissingAsync(oldFiles.Concat(newFiles).Select(e => e.ObjectId), ct));
+        await store.SyncAsync(Fork("a"), ct);
+        var requests = _github.ApiRequests;
+        Assert.Equal(newFiles, await store.ListAsync("a", ["Resources/Prototypes"], ct));
+        Assert.Equal(requests, _github.ApiRequests);
+
+        // Once the next try is in, the version that went back is dropped as usual.
+        await store.CleanUpAsync(ct);
+        Assert.Equal(oldFiles.Select(e => e.ObjectId), await store.MissingAsync(oldFiles.Select(e => e.ObjectId), ct));
+    }
+
+    [Fact]
+    public async Task A_fork_whose_first_download_failed_is_not_listed_but_keeps_what_it_fetched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), ct);
+        var files = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", files, ct);
+
+        await store.RevertSyncAsync("a", null, ct);
+        await store.CleanUpAsync(ct);
+
+        Assert.Null(await store.CommitOfAsync("a", ct));
+        Assert.Empty(await store.CommitsAsync(ct));
+        Assert.Empty(await store.MissingAsync(files.Select(e => e.ObjectId), ct));
+        await store.SyncAsync(Fork("a"), ct);
+        var requests = _github.ApiRequests;
+        await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        Assert.Equal(requests, _github.ApiRequests);
+
+        // Removed, nothing of it stays.
+        await store.RemoveAsync("a", ct);
+        Assert.Equal(files.Select(e => e.ObjectId), await store.MissingAsync(files.Select(e => e.ObjectId), ct));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "store", "forks")));
+    }
+
+    [Fact]
     public void Sprites_are_listed_a_folder_below_textures_at_a_time()
     {
         var roots = Forks.ForkContent.ListingRoots([

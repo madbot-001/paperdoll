@@ -283,17 +283,20 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task Removing_a_fork_forgets_it()
+    public async Task Removing_the_last_fork_forgets_it_and_frees_everything()
     {
         var ct = TestContext.Current.CancellationToken;
         var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "one" });
         var store = await NewStoreAsync();
         await store.SyncAsync(Fork("a"), source.Url, ct);
-        await store.FetchAsync("a", await store.ListAsync("a", ["Resources"], ct), ct);
+        var files = await store.ListAsync("a", ["Resources"], ct);
+        await store.FetchAsync("a", files, ct);
 
         await store.RemoveAsync("a", ct);
 
         Assert.Null(await store.CommitOfAsync("a", ct));
+        Assert.Equal(files.Select(e => e.ObjectId), await store.MissingAsync(files.Select(e => e.ObjectId), ct));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "store.git", "objects", "pack")));
     }
 
     /// <summary>A local git repository that serves partial fetches like GitHub does.</summary>
