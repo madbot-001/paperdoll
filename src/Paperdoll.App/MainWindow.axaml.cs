@@ -191,6 +191,7 @@ public partial class MainWindow : Window
             session.PreviewJob = null;
         BuildJobList();
         BuildPortraits();
+        _staleTabs.Add(SpeciesTab);
         ClearLoadoutPictures();
         _selected = new Node(NodeKind.Character);
         RefreshAll();

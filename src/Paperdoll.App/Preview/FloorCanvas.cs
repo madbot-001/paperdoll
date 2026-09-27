@@ -55,10 +55,32 @@ public static class FloorCanvas
         return bitmap;
     }
 
+    /// <summary>The picture as the window shows it, its pixels copied straight across.</summary>
     public static Bitmap ToAvalonia(SKBitmap bitmap)
     {
-        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = new MemoryStream(data.ToArray());
-        return new Bitmap(stream);
+        // Every picture Paperdoll makes is already in this form; anything else is drawn into it.
+        if (bitmap.ColorType != SKColorType.Rgba8888 || bitmap.AlphaType != SKAlphaType.Premul)
+        {
+            using var converted = new SKBitmap(bitmap.Width, bitmap.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(converted))
+            {
+                canvas.Clear(SKColors.Transparent);
+                canvas.DrawBitmap(bitmap, 0, 0);
+            }
+            return ToAvalonia(converted);
+        }
+
+        var result = new WriteableBitmap(new Avalonia.PixelSize(Math.Max(1, bitmap.Width), Math.Max(1, bitmap.Height)), new Avalonia.Vector(96, 96),
+            Avalonia.Platform.PixelFormat.Rgba8888, Avalonia.Platform.AlphaFormat.Premul);
+        using var target = result.Lock();
+        var source = bitmap.GetPixels();
+        var rowBytes = Math.Min(bitmap.RowBytes, target.RowBytes);
+        var row = new byte[rowBytes];
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            System.Runtime.InteropServices.Marshal.Copy(source + y * bitmap.RowBytes, row, 0, rowBytes);
+            System.Runtime.InteropServices.Marshal.Copy(row, 0, target.Address + y * target.RowBytes, rowBytes);
+        }
+        return result;
     }
 }

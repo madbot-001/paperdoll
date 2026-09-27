@@ -108,7 +108,12 @@ public partial class MainWindow
         if (animated && _animation == null)
         {
             _animation = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _animation.Tick += (_, _) => DrawPreview();
+            // Nothing to see while minimised, so nothing drawn.
+            _animation.Tick += (_, _) =>
+            {
+                if (WindowState != WindowState.Minimized)
+                    DrawPreview();
+            };
         }
         if (animated)
             _animation!.Start();

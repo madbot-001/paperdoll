@@ -52,11 +52,55 @@ public partial class MainWindow
     /// The character as a tree: organs that take markings, their layers with how many markings
     /// they hold, and the markings on each. Layers that can take nothing are left out.
     /// </summary>
+    // What the tree showed when last built. An edit that changes nothing in it (age, the
+    // description) leaves the tree as it is: rebuilding and laying it out takes long.
+    private string? _explorerShows;
+
+    // Everything the tree shows, as text, to tell whether it needs building again.
+    private string ExplorerShows()
+    {
+        var session = _session!;
+        var look = session.Look!;
+        var file = session.File!;
+        var shows = new System.Text.StringBuilder()
+            .Append(session.Fork!.Id).Append(session.Content!.Commit).Append('|')
+            .Append(file.Name).Append('|').Append(look.Species).Append('|').Append(look.Sex).Append('|')
+            .Append(session.ShowClothes).Append('|');
+        if (session.DressedJob() is { } job)
+        {
+            shows.Append(job).Append(':');
+            foreach (var (group, chosen) in session.LoadoutFor(job).Groups)
+                shows.Append(group).Append('=').AppendJoin(',', chosen).Append(';');
+        }
+        shows.Append('|').AppendJoin(',', session.SelectedTraits()).Append('|').AppendJoin(',', file.AntagPreferences).Append('|');
+        if (session.Fork.Extras.HasFlag(ProfileExtras.Records))
+            shows.AppendJoin(',', CharacterRecords.EntryLists.Select(list => CharacterRecords.Entries(file, list).Count));
+        if (session.Fork.Extras.HasFlag(ProfileExtras.Allergies))
+            shows.Append('|').Append(Allergies.Read(file).Count);
+        foreach (var (organ, layers) in look.Markings)
+        {
+            foreach (var (layer, entries) in layers)
+            {
+                shows.Append('|').Append(organ).Append('/').Append(layer).Append(':');
+                foreach (var entry in entries)
+                    shows.Append(entry.Id).Append('=').AppendJoin(',', entry.Colors.Select(c => c.ToHex())).Append(';');
+            }
+        }
+        return shows.ToString();
+    }
+
     private void BuildExplorer()
     {
         var session = _session!;
         var look = session.Look!;
         var species = session.Content!.Characters.Species[look.Species];
+        var shows = ExplorerShows();
+        if (shows == _explorerShows && Explorer.Items.Count > 0)
+        {
+            KeepSelection(Explorer.Items.OfType<TreeViewItem>().First());
+            return;
+        }
+        _explorerShows = shows;
         var items = _items = new Dictionary<string, TreeViewItem>();
 
         var root = Item(new Node(NodeKind.Character), HeaderFor(
@@ -157,14 +201,19 @@ public partial class MainWindow
         Explorer.ItemsSource = null;
         Explorer.Items.Clear();
         Explorer.Items.Add(root);
+        KeepSelection(root);
+    }
 
-        // Keep the selection on the same part, or the nearest part that still exists.
+    // Keeps the selection on the same part, or the nearest part that still exists.
+    private void KeepSelection(TreeViewItem root)
+    {
         for (Node? node = _selected; node != null; node = node.Parent)
         {
-            if (items.TryGetValue(node.Key, out var item))
+            if (_items.TryGetValue(node.Key, out var item))
             {
                 _selected = node;
-                Explorer.SelectedItem = item;
+                if (!ReferenceEquals(Explorer.SelectedItem, item))
+                    Explorer.SelectedItem = item;
                 return;
             }
         }
@@ -235,7 +284,7 @@ public partial class MainWindow
             }
             BuildInspector();
             BuildBreadcrumbs();
-            RefreshMarkingTable();
+            RefreshMarkingTableSoon();
         }
         finally
         {

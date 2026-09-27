@@ -161,9 +161,12 @@ public sealed class EditorSession : IAsyncDisposable
     }
 
     /// <summary>Takes a prepared fork into use, all at once.</summary>
-    public void Use(ForkLoad load) =>
+    public void Use(ForkLoad load)
+    {
         (Fork, Content, Renderer, File, LastFixes, Look, _beforeSwitch) =
-        (load.Fork, load.Content, load.Renderer, load.File, load.Fixes, load.Look, load.BeforeSwitch);
+            (load.Fork, load.Content, load.Renderer, load.File, load.Fixes, load.Look, load.BeforeSwitch);
+        _available.Clear();
+    }
 
     /// <summary>Forgets a fork and frees its space.</summary>
     public async Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default)
@@ -543,7 +546,19 @@ public sealed class EditorSession : IAsyncDisposable
     });
 
     /// <summary>Markings that may go on this organ layer for the character's sex, by name.</summary>
+    // What each layer offers, worked out once per fork, species, sex, organ and layer: the window
+    // asks for every layer after every edit, and each answer looks through every marking.
+    private readonly Dictionary<(string Species, string Sex, string Organ, string Layer), IReadOnlyList<MarkingInfo>> _available = [];
+
     public IReadOnlyList<MarkingInfo> AvailableMarkings(OrganInfo organ, string layer)
+    {
+        var key = (Look!.Species, Look.Sex, organ.Category, layer);
+        if (!_available.TryGetValue(key, out var available))
+            _available[key] = available = FindAvailableMarkings(organ, layer);
+        return available;
+    }
+
+    private IReadOnlyList<MarkingInfo> FindAvailableMarkings(OrganInfo organ, string layer)
     {
         var catalog = RequireContent().Characters;
         var sex = Look!.Sex;

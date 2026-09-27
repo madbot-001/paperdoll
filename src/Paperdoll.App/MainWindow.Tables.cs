@@ -14,6 +14,11 @@ public partial class MainWindow
 
     private void SetUpTables()
     {
+        BottomTabs.SelectionChanged += (_, e) =>
+        {
+            if (e.Source == BottomTabs)
+                RefreshShownTab();
+        };
         SpeciesFilter.TextChanged += (_, _) => FilterSpecies();
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
         JobFilter.TextChanged += (_, _) => FilterJobs();
@@ -161,23 +166,53 @@ public partial class MainWindow
         RefreshAll();
     }
 
+    // Tabs whose table is out of date. Only the tab on show is filled after an edit; the others
+    // when they are next shown, as laying out a big table takes long.
+    private readonly HashSet<TabItem> _staleTabs = [];
+
     private void RefreshTables()
     {
-        var session = _session!;
-        BuildSpeciesTable();
-        RefreshMarkingTable();
-        BuildJobTable();
-        BuildGearTable();
-        BuildTraitTable();
-        CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
-
-        var fixes = session.LastFixes;
+        var fixes = _session!.LastFixes;
         MessagesTab.Header = fixes.Count == 0 ? "Messages" : $"Messages ({fixes.Count})";
-        MessagesList.ItemsSource = fixes.Count == 0
-            ? ["The character passes the game's checks as it is."]
-            : fixes.Select(f => $"{f.Field}: {f.Message}").ToList();
+        // The species table shows the fork's species, which no edit changes.
+        foreach (var tab in BottomTabs.Items.OfType<TabItem>().Where(t => t != SpeciesTab))
+            _staleTabs.Add(tab);
+        RefreshShownTab();
+    }
 
-        SourceText.Text = session.File!.ToYaml();
+    // The marking table also follows the part picked in the explorer.
+    private void RefreshMarkingTableSoon()
+    {
+        _staleTabs.Add(MarkingsTab);
+        RefreshShownTab();
+    }
+
+    private void RefreshShownTab()
+    {
+        if (_session?.Look == null || BottomTabs.SelectedItem is not TabItem tab || !_staleTabs.Remove(tab))
+            return;
+        var session = _session;
+        if (tab == SpeciesTab)
+            BuildSpeciesTable();
+        else if (tab == MarkingsTab)
+            RefreshMarkingTable();
+        else if (tab == JobsTab)
+            BuildJobTable();
+        else if (tab == OutfitTab)
+            BuildGearTable();
+        else if (tab == TraitsTab)
+            BuildTraitTable();
+        else if (tab == CreditsTab)
+            CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
+        else if (tab == MessagesTab)
+        {
+            var fixes = session.LastFixes;
+            MessagesList.ItemsSource = fixes.Count == 0
+                ? ["The character passes the game's checks as it is."]
+                : fixes.Select(f => $"{f.Field}: {f.Message}").ToList();
+        }
+        else if (tab == SourceTab)
+            SourceText.Text = session.File!.ToYaml();
     }
 
     private void BuildSpeciesTable()

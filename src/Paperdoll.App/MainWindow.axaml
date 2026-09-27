@@ -132,7 +132,7 @@
 
       <Border Classes="pane" Grid.Row="2">
         <TabControl Name="BottomTabs" TabStripPlacement="Bottom">
-          <TabItem Header="Species">
+          <TabItem Header="Species" Name="SpeciesTab">
             <DockPanel>
               <Border Classes="filterbar" DockPanel.Dock="Top">
                 <DockPanel>
@@ -195,7 +195,7 @@
               </DataGrid>
             </DockPanel>
           </TabItem>
-          <TabItem Header="Jobs">
+          <TabItem Header="Jobs" Name="JobsTab">
             <DockPanel>
               <Border Classes="filterbar" DockPanel.Dock="Top">
                 <DockPanel>
@@ -260,7 +260,7 @@
               </DataGrid>
             </DockPanel>
           </TabItem>
-          <TabItem Header="Credits">
+          <TabItem Header="Credits" Name="CreditsTab">
             <DataGrid Name="CreditsGrid" IsReadOnly="True" CanUserResizeColumns="True" x:DataType="app:CreditRow">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Sprite" Binding="{Binding Rsi}" Width="320" FontFamily="{StaticResource MonoFont}" />
@@ -278,7 +278,7 @@
               </ListBox.ItemTemplate>
             </ListBox>
           </TabItem>
-          <TabItem Header="Source">
+          <TabItem Header="Source" Name="SourceTab">
             <TextBox Name="SourceText" Classes="mono" IsReadOnly="True" AcceptsReturn="True" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" />
           </TabItem>
