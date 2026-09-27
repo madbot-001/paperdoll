@@ -8,9 +8,9 @@ public partial class MainWindow
 {
     private async void OnShare(object? sender, RoutedEventArgs e)
     {
-        CommitTyping();
-        if (_session?.Look == null || _session.File == null)
+        if (_loading || _session?.Look == null || _session.File == null)
             return;
+        CommitTyping();
         try
         {
             var session = _session;

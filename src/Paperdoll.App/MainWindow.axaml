@@ -25,14 +25,14 @@
         <MenuItem Header="_Match a Server..." Click="OnMatchServer" />
       </MenuItem>
       <MenuItem Header="_View">
-        <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+1" HotKey="Ctrl+1" />
-        <MenuItem Header="_Markings" Click="OnShowTab" Tag="1" InputGesture="Ctrl+2" HotKey="Ctrl+2" />
-        <MenuItem Header="_Jobs" Click="OnShowTab" Tag="2" InputGesture="Ctrl+3" HotKey="Ctrl+3" />
-        <MenuItem Header="_Outfit" Click="OnShowTab" Tag="3" InputGesture="Ctrl+4" HotKey="Ctrl+4" />
-        <MenuItem Header="_Traits" Click="OnShowTab" Tag="4" InputGesture="Ctrl+5" HotKey="Ctrl+5" />
-        <MenuItem Header="_Credits" Click="OnShowTab" Tag="5" InputGesture="Ctrl+6" HotKey="Ctrl+6" />
-        <MenuItem Header="M_essages" Click="OnShowTab" Tag="6" InputGesture="Ctrl+7" HotKey="Ctrl+7" />
-        <MenuItem Header="S_ource" Click="OnShowTab" Tag="7" InputGesture="Ctrl+8" HotKey="Ctrl+8" />
+        <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+D1" HotKey="Ctrl+D1" />
+        <MenuItem Header="_Markings" Click="OnShowTab" Tag="1" InputGesture="Ctrl+D2" HotKey="Ctrl+D2" />
+        <MenuItem Header="_Jobs" Click="OnShowTab" Tag="2" InputGesture="Ctrl+D3" HotKey="Ctrl+D3" />
+        <MenuItem Header="_Outfit" Click="OnShowTab" Tag="3" InputGesture="Ctrl+D4" HotKey="Ctrl+D4" />
+        <MenuItem Header="_Traits" Click="OnShowTab" Tag="4" InputGesture="Ctrl+D5" HotKey="Ctrl+D5" />
+        <MenuItem Header="_Credits" Click="OnShowTab" Tag="5" InputGesture="Ctrl+D6" HotKey="Ctrl+D6" />
+        <MenuItem Header="M_essages" Click="OnShowTab" Tag="6" InputGesture="Ctrl+D7" HotKey="Ctrl+D7" />
+        <MenuItem Header="S_ource" Click="OnShowTab" Tag="7" InputGesture="Ctrl+D8" HotKey="Ctrl+D8" />
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_About Paperdoll" Click="OnAbout" />

@@ -63,6 +63,11 @@ public partial class MainWindow
     private bool _restorePending;
     // Whether this run's working copy is its own (reopened, or written since), not one left from before.
     private bool _restoredThisRun;
+    // The working copy was due and could not be written; closing asks until it is.
+    private bool _autosaveOwed;
+    // The working copy from last time could neither be read nor set aside, so none is written
+    // over it this run.
+    private bool _autosaveStuck;
     private bool _closeConfirmed;
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromSeconds(1) };
 
@@ -91,7 +96,7 @@ public partial class MainWindow
                 return;
             }
             // A working copy that cannot be written is not lost quietly: offer to save instead.
-            if (_autosave.IsEnabled && !WriteAutosave() && !_closeConfirmed)
+            if ((_autosave.IsEnabled || _autosaveOwed) && WriteAutosave() == Autosaved.Failed && !_closeConfirmed)
             {
                 e.Cancel = true;
                 _dirty = true;
@@ -155,23 +160,37 @@ public partial class MainWindow
         }
     }
 
-    // Writes the working copy. False only when it was due and could not be written.
-    private bool WriteAutosave()
+    private enum Autosaved
+    {
+        Written,
+        NotKept,
+        Failed,
+    }
+
+    /// <summary>Writes the working copy, when autosave is on and nothing holds it back.</summary>
+    private Autosaved WriteAutosave()
     {
         if (!_canAutosave || !_settings.Autosave || _session?.File == null || _restorePending || _loading)
-            return true;
+            return Autosaved.NotKept;
+        if (_autosaveStuck)
+        {
+            _autosaveOwed = true;
+            return Autosaved.Failed;
+        }
         try
         {
             Directory.CreateDirectory(DataDirectory);
             // The character as last edited, not as a fork switch has since fitted it.
             Core.SafeFile.WriteAllText(AutosavePath, _session.WorkingCopy());
             _restoredThisRun = true;
-            return true;
+            _autosaveOwed = false;
+            return Autosaved.Written;
         }
         catch (Exception e)
         {
+            _autosaveOwed = true;
             SetStatus($"Could not autosave: {e.Message}");
-            return false;
+            return Autosaved.Failed;
         }
     }
 
@@ -194,7 +213,8 @@ public partial class MainWindow
         }
         catch (Exception e)
         {
-            // Set aside, so the next autosave does not overwrite it.
+            // Set aside, so the next autosave does not overwrite it; failing that, not written
+            // over at all this run.
             string where;
             try
             {
@@ -203,7 +223,16 @@ public partial class MainWindow
             }
             catch (Exception)
             {
-                where = $"it is still at {AutosavePath}";
+                try
+                {
+                    File.Copy(AutosavePath, UnreadableAutosavePath, overwrite: true);
+                    where = $"a copy is kept as {UnreadableAutosavePath}";
+                }
+                catch (Exception)
+                {
+                    _autosaveStuck = true;
+                    where = $"it is left at {AutosavePath}, and autosave is paused so as not to write over it; use Save or Export";
+                }
             }
             SetStatus($"Could not reopen the autosaved character ({e.Message}); {where}.");
             return;
@@ -218,7 +247,7 @@ public partial class MainWindow
             {
                 _currentFile = await StorageProvider.TryGetFileFromPathAsync(_settings.WorkingFile!);
                 // Compared as Paperdoll would write them, so a game export is not taken for a change.
-                _dirty = _session.Normalized(fileText) != _session.Export();
+                _dirty = _session.Normalized(fileText) != _session.Normalized(text);
                 if (_settings.WorkingFileHash == null)
                 {
                     _settings = _settings with { WorkingFileHash = Fingerprint(fileText) };
@@ -327,7 +356,11 @@ public partial class MainWindow
         Title = $"{name}{(_dirty ? " *" : "")} - Paperdoll";
     }
 
-    private async void OnFiles(object? sender, RoutedEventArgs e) => await ShowFilesAsync(this);
+    private async void OnFiles(object? sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            await ShowFilesAsync(this);
+    }
 
     /// <summary>Where Paperdoll keeps its files; also opened from the Forks window.</summary>
     internal async Task ShowFilesAsync(Window owner)
@@ -367,7 +400,11 @@ public partial class MainWindow
             : "Autosave off: use Save or Export to keep your work.");
     }
 
-    private async void OnSave(object? sender, RoutedEventArgs e) => await SaveAsync();
+    private async void OnSave(object? sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            await SaveAsync();
+    }
 
     // Saves to the working file, or asks where when there is none. True once saved.
     private async Task<bool> SaveAsync()
@@ -378,11 +415,22 @@ public partial class MainWindow
         if (_currentFile == null)
             return await ExportAsync();
         // Another program (the game exporting, another Paperdoll) may have saved there since.
-        if (_currentFile.TryGetLocalPath() is { } path && File.Exists(path) && _settings.WorkingFileHash is { } hash
-            && Fingerprint(await File.ReadAllTextAsync(path)) != hash)
+        if (_currentFile.TryGetLocalPath() is { } path && File.Exists(path) && _settings.WorkingFileHash is { } hash)
         {
-            SetStatus($"{_currentFile.Name} has changed since Paperdoll last read or wrote it, so it is not overwritten; choose where to save.");
-            return await ExportAsync();
+            string? now;
+            try
+            {
+                now = await File.ReadAllTextAsync(path);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                now = null;
+            }
+            if (now == null || Fingerprint(now) != hash)
+            {
+                SetStatus($"{_currentFile.Name} has changed or cannot be read since Paperdoll last saved it, so it is not overwritten; choose where to save.");
+                return await ExportAsync();
+            }
         }
         return await WriteToAsync(_currentFile, "Saved");
     }
@@ -413,7 +461,7 @@ public partial class MainWindow
 
     private async void OnOpen(object? sender, RoutedEventArgs e)
     {
-        if (_session?.Content == null || !await MayReplaceCharacterAsync("opening another character"))
+        if (_loading || _session?.Content == null || !await MayReplaceCharacterAsync("opening another character"))
             return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -434,7 +482,9 @@ public partial class MainWindow
             // Paperdoll's own copies (the working copy, the previous one) are opened as new
             // characters, so Save never writes over them.
             var local = files[0].TryGetLocalPath();
-            var own = local != null && Path.GetFullPath(local).StartsWith(Path.GetFullPath(DataDirectory) + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+            // Windows and Mac folders ignore letter case.
+            var casing = OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var own = local != null && Path.GetFullPath(local).StartsWith(Path.GetFullPath(DataDirectory) + Path.DirectorySeparatorChar, casing);
             if (own)
                 ForgetWorkingFile();
             else
@@ -459,7 +509,11 @@ public partial class MainWindow
         }
     }
 
-    private async void OnExport(object? sender, RoutedEventArgs e) => await ExportAsync();
+    private async void OnExport(object? sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            await ExportAsync();
+    }
 
     // Asks where to write the character and writes it there. True once written.
     private async Task<bool> ExportAsync()

@@ -25,6 +25,7 @@ public partial class ForksWindow : Window
     {
         _session = session;
         _showFiles = showFiles;
+        Closing += (_, e) => e.Cancel |= _removing;
         Opened += async (_, _) =>
         {
             try
@@ -88,9 +89,10 @@ public partial class ForksWindow : Window
             return;
         }
         StatusText.Text = $"Removing {row.Fork.Name}...";
-        // Nothing else in the window until it is done: a second removal or a download at the
-        // same time would trip over the first.
+        // Nothing else in the window until it is done, and it stays open: a second removal or a
+        // download at the same time would trip over the first.
         IsEnabled = false;
+        _removing = true;
         try
         {
             await Task.Run(() => _session.RemoveForkAsync(row.Fork));
@@ -104,8 +106,11 @@ public partial class ForksWindow : Window
         finally
         {
             IsEnabled = true;
+            _removing = false;
         }
     }
+
+    private bool _removing;
 
     private async void OnFiles(object? sender, RoutedEventArgs e)
     {

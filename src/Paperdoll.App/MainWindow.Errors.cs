@@ -12,8 +12,12 @@ public partial class MainWindow
         _animation?.Stop();
         _refreshing = false;
         _keepInspector = false;
-        WriteAutosave();
-        SetStatus($"Something went wrong: {error.Message} Your working copy is saved"
-            + (log != null ? $"; the details are in {log}." : "."));
+        var kept = WriteAutosave() switch
+        {
+            Autosaved.Written => " Your working copy is saved.",
+            Autosaved.Failed => " Your working copy could not be saved: use Save or Export.",
+            _ => "",
+        };
+        SetStatus($"Something went wrong: {error.Message}{kept}" + (log != null ? $" The details are in {log}." : ""));
     }
 }

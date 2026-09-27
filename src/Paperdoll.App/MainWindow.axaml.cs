@@ -68,6 +68,10 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
+        // Nothing but the first load until it has started: a fork chosen meanwhile would load
+        // alongside it.
+        _loading = true;
+        SetBusy(true);
         try
         {
             LoadSettings();
@@ -86,6 +90,8 @@ public partial class MainWindow : Window
             start ??= statuses.FirstOrDefault(s => s.Downloaded && s.Editable && s.Fork.Id == "deltav")?.Fork
                 ?? statuses.FirstOrDefault(s => s.Downloaded && s.Editable)?.Fork;
 
+            _loading = false;
+            SetBusy(false);
             // The working copy is reopened on the first fork that loads.
             if (start != null)
                 await LoadForkAsync(start, update: false);
@@ -98,6 +104,11 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             SetStatus($"Could not start: {e.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            SetBusy(false);
         }
     }
 
@@ -130,9 +141,10 @@ public partial class MainWindow : Window
         SetStatus("Stopping...");
     }
 
+    /// <returns>True when the fork loaded and the window took it in without trouble.</returns>
     private async Task<bool> LoadAsync(ForkInfo fork, Prepare prepare)
     {
-        if (_session == null)
+        if (_session == null || _loading)
             return false;
         CommitTyping();
         // The working copy is written now; nothing may write it while the fork loads.
@@ -143,6 +155,7 @@ public partial class MainWindow : Window
         }
         var session = _session;
         var loaded = false;
+        var complete = false;
         _loading = true;
         using var cancel = new CancellationTokenSource();
         SetBusy(true, cancel);
@@ -153,8 +166,21 @@ public partial class MainWindow : Window
             var load = await Task.Run(() => prepare(session, source, progress, cancel.Token));
             session.Use(load);
             loaded = true;
-            OnForkLoaded();
+            // The working copy is reopened even if showing the fork went wrong, so a later load
+            // cannot reopen it over newer edits.
+            Exception? showing = null;
+            try
+            {
+                OnForkLoaded();
+            }
+            catch (Exception e)
+            {
+                showing = e;
+            }
             await RestoreAutosaveAsync();
+            if (showing != null)
+                throw showing;
+            complete = true;
         }
         catch (OperationCanceledException) when (!loaded)
         {
@@ -177,7 +203,7 @@ public partial class MainWindow : Window
         {
             SetStatus($"Could not list the downloaded forks: {e.Message}");
         }
-        return loaded;
+        return complete;
     }
 
     // A fork load is under way: the session is not to be saved or edited until it is done.
@@ -261,7 +287,8 @@ public partial class MainWindow : Window
     /// <summary>Runs an edit through the session and shows the result, or the error.</summary>
     private void Apply(Func<EditorSession, IReadOnlyList<RuleFix>> edit, bool keepInspector = false)
     {
-        if (_session?.File == null || _refreshing)
+        // Shortcut keys still reach here while a fork loads, which must not change anything.
+        if (_session?.File == null || _refreshing || _loading)
             return;
         try
         {
@@ -282,6 +309,8 @@ public partial class MainWindow : Window
 
     private async void OnForkChosen(object? sender, SelectionChangedEventArgs e)
     {
+        if (_loading)
+            return;
         if (_refreshing || ForkBox.SelectedItem is not ForkInfo fork || fork.Id == _session?.Fork?.Id)
             return;
         await LoadForkAsync(fork, update: false);
@@ -289,6 +318,8 @@ public partial class MainWindow : Window
 
     private async void OnMatchServer(object? sender, RoutedEventArgs e)
     {
+        if (_loading)
+            return;
         CommitTyping();
         if (_session == null || await new ServersWindow().ShowDialog<ServerChoice?>(this) is not { } choice)
             return;
@@ -335,7 +366,11 @@ public partial class MainWindow : Window
             await LoadForkAsync(fork, update: true);
     }
 
-    private async void OnForks(object? sender, RoutedEventArgs e) => await ShowForksAsync();
+    private async void OnForks(object? sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            await ShowForksAsync();
+    }
 
     private async Task ShowForksAsync()
     {
@@ -356,7 +391,7 @@ public partial class MainWindow : Window
 
     private async void OnNew(object? sender, RoutedEventArgs e)
     {
-        if (_session?.Look == null || !await MayReplaceCharacterAsync("starting a new one"))
+        if (_loading || _session?.Look == null || !await MayReplaceCharacterAsync("starting a new one"))
             return;
         _selected = new Node(NodeKind.Character);
         ForgetWorkingFile();
@@ -374,6 +409,8 @@ public partial class MainWindow : Window
 
     private void OnRandom(object? sender, RoutedEventArgs e)
     {
+        if (_loading)
+            return;
         CommitTyping();
         if (_session?.File == null)
             return;
