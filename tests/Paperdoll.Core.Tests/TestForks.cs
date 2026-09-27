@@ -51,8 +51,11 @@ public static class TestForks
     public static readonly ForkInfo A = new("a", "Fork A", "o/a", "main", AppearanceModel.New, false, ["a"]);
     public static readonly ForkInfo B = new("b", "Fork B", "o/b", "main", AppearanceModel.New, false, ["b"]);
 
-    public static EditorSession Session() => new(new MemoryForkStore()
+    public static EditorSession Session() => new(Store());
+
+    public static MemoryForkStore Store() => new MemoryForkStore()
         .Add("a", "Resources/Prototypes/body.yml", Body)
         .Add("a", "Resources/Prototypes/extra.yml", LizardsAndScars)
-        .Add("b", "Resources/Prototypes/body.yml", Body));
+        .Add("a", "Resources/Textures/Mobs/m.rsi/meta.json", """{"version":1,"size":{"x":32,"y":32},"states":[{"name":"scar"}]}""")
+        .Add("b", "Resources/Prototypes/body.yml", Body);
 }

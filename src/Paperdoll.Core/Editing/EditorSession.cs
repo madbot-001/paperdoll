@@ -136,8 +136,18 @@ public sealed class EditorSession : IAsyncDisposable
     {
         var content = await ForkContent.LoadAsync(Store, fork, progress, ct);
         progress?.Report("Reading sprites");
-        _reader ??= Store.OpenReader();
-        var textures = await MemoryTextures.LoadAsync(content, _reader, ct);
+        MemoryTextures textures;
+        try
+        {
+            textures = await MemoryTextures.LoadAsync(content, _reader ??= Store.OpenReader(), ct);
+        }
+        catch (Exception e) when (e is IOException or GitException && !ct.IsCancellationRequested)
+        {
+            // The reader, which runs for the whole session, has stopped (killed, or on Windows
+            // its window closed): start another, once.
+            await CloseReaderAsync();
+            textures = await MemoryTextures.LoadAsync(content, _reader = Store.OpenReader(), ct);
+        }
         var renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
 
         var file = source != null
@@ -165,10 +175,17 @@ public sealed class EditorSession : IAsyncDisposable
 
     private async Task CloseReaderAsync()
     {
-        if (_reader != null)
+        var reader = _reader;
+        _reader = null;
+        if (reader == null)
+            return;
+        try
         {
-            await _reader.DisposeAsync();
-            _reader = null;
+            await reader.DisposeAsync();
+        }
+        catch (Exception e) when (e is IOException or InvalidOperationException)
+        {
+            // It had already stopped.
         }
     }
 

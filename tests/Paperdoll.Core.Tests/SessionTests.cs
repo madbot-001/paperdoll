@@ -80,6 +80,19 @@ public class SessionTests
     }
 
     [Fact]
+    public async Task A_reader_that_has_stopped_is_started_again()
+    {
+        var store = TestForks.Store();
+        // The first reader reads the prototypes; the second, the session's own, has stopped.
+        store.DeadReader = 1;
+        await using var session = new EditorSession(store);
+
+        await session.LoadForkAsync(TestForks.A, update: false, ct: TestContext.Current.CancellationToken);
+
+        Assert.NotNull(session.Renderer!.Meta("Mobs/m.rsi"));
+    }
+
+    [Fact]
     public async Task A_file_that_fails_to_open_leaves_the_open_character_alone()
     {
         await using var session = await LizardInA();

@@ -64,7 +64,19 @@ public sealed class MemoryForkStore : IForkStore
 
     public Task<int> FetchAsync(string forkId, IEnumerable<StoreEntry> entries, CancellationToken ct = default) => Task.FromResult(0);
 
-    public IBlobReader OpenReader() => new Reader(_objects);
+    private int _readersOpened;
+
+    /// <summary>Which reader (counting from 0) to hand out already stopped, as a reader process that has died reads.</summary>
+    public int? DeadReader { get; set; }
+
+    public IBlobReader OpenReader() => _readersOpened++ == DeadReader ? new StoppedReader() : new Reader(_objects);
+
+    private sealed class StoppedReader : IBlobReader
+    {
+        public Task<byte[]?> ReadAsync(string objectId, CancellationToken ct = default) => throw new GitException("git cat-file stopped unexpectedly.");
+
+        public ValueTask DisposeAsync() => throw new IOException("Broken pipe");
+    }
 
     public Task RemoveAsync(string forkId, CancellationToken ct = default)
     {
