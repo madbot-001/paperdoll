@@ -200,7 +200,9 @@ public sealed partial class TraitCatalog
             if (category.MaxPoints is { } maxPoints && inCategory.Sum(t => t.Cost) + trait.Cost > maxPoints)
                 return $"This category has {maxPoints} points to spend.";
         }
-        if (rules.MaxCount is { } maxCount && trait.UsesSlots && selected.Count(t => t.UsesSlots) >= maxCount)
+        // A trait that takes no slot adds nothing to the overall count, but like any other it
+        // cannot be added once the count is full (Euphoria's server refuses it then).
+        if (rules.MaxCount is { } maxCount && selected.Count(t => t.UsesSlots) >= maxCount)
             return $"At most {maxCount} traits in all.";
         if (rules.MaxPoints is { } maxAll && selected.Sum(t => t.Cost) + trait.Cost > maxAll)
             return $"At most {maxAll} trait points in all.";

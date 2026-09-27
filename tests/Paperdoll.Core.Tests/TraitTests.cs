@@ -175,8 +175,10 @@ public class TraitTests
         Assert.Contains("at most 1", traits.WhyNot(traits.Traits["Mute"], Context(selected: "Scottish"), TraitRules.DeltaV));
         Assert.Contains("points", traits.WhyNot(traits.Traits["Lisp"], Context(selected: "Stutter"), TraitRules.Upstream));
         Assert.Contains("in all", traits.WhyNot(traits.Traits["Stutter"], Context(selected: "Scottish"), new TraitRules(TraitStyle.DeltaV, 1, null)));
-        // Taking no slot, it fits even where the overall count is full.
-        Assert.Null(traits.WhyNot(traits.Traits["Mute"], Context(selected: "Lisp"), new TraitRules(TraitStyle.DeltaV, 1, null)));
+        // Taking no slot, it leaves room in the overall count for another...
+        Assert.Null(traits.WhyNot(traits.Traits["Lisp"], Context(selected: "Mute"), new TraitRules(TraitStyle.DeltaV, 1, null)));
+        // ...but cannot be added once that count is full.
+        Assert.Contains("in all", traits.WhyNot(traits.Traits["Mute"], Context(selected: "Lisp"), new TraitRules(TraitStyle.DeltaV, 1, null)));
     }
 
     [Fact]
