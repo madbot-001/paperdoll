@@ -10,13 +10,13 @@ public static class InstanceLock
     // after a crash.
     private static FileStream? _held;
 
-    /// <summary>False when another Paperdoll already holds the lock.</summary>
-    public static bool TryAcquire()
+    /// <summary>False when another Paperdoll already holds the lock on the data folder.</summary>
+    public static bool TryAcquire(string dataDirectory)
     {
         try
         {
-            Directory.CreateDirectory(MainWindow.DataDirectory);
-            _held = new FileStream(Path.Combine(MainWindow.DataDirectory, "paperdoll.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            Directory.CreateDirectory(dataDirectory);
+            _held = new FileStream(Path.Combine(dataDirectory, "paperdoll.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             return true;
         }
         catch (IOException)

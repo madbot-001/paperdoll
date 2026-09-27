@@ -13,7 +13,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            if (!InstanceLock.TryAcquire())
+            if (!InstanceLock.TryAcquire(MainWindow.DataDirectory))
             {
                 desktop.MainWindow = new MessageWindow(
                     "Paperdoll is already open. Switch to that window: two copies would overwrite each other's working copy and settings.");
