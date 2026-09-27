@@ -42,15 +42,28 @@ public partial class FilesWindow : Window
         var delete = new Button { Content = "Delete", Classes = { "small" }, IsEnabled = File.Exists(_autosave) };
         delete.Click += (_, _) =>
         {
-            File.Delete(_autosave);
-            _autosaveDeleted?.Invoke();
-            StatusText.Text = "Deleted the working copy. With autosave on, the next change saves a new one.";
+            try
+            {
+                File.Delete(_autosave);
+                _autosaveDeleted?.Invoke();
+                StatusText.Text = "Deleted the working copy. With autosave on, the next change saves a new one.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Could not delete the working copy: {ex.Message}";
+            }
             Build();
         };
         Rows.Children.Add(Section("Working copy", _autosave,
             File.Exists(_autosave) ? $"Saved {File.GetLastWriteTime(_autosave):g}." : "None saved.",
             "The character as you last left it, reopened when Paperdoll starts (File > Autosave).",
             delete));
+
+        var previous = Path.Combine(Path.GetDirectoryName(_autosave)!, "autosave.prev.yml");
+        Rows.Children.Add(Section("Previous working copy", previous,
+            File.Exists(previous) ? $"Kept {File.GetLastWriteTime(previous):g}." : "None kept.",
+            "The working copy as it was before another character replaced it. If that was a mistake, open it with File > Open.",
+            null));
 
         Rows.Children.Add(Section("Settings", _settings, File.Exists(_settings) ? Size(new FileInfo(_settings).Length) + "." : "Not saved yet.",
             "Autosave and Random choices, and the file Save writes to.", null));
