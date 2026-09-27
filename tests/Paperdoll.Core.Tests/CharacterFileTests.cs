@@ -158,6 +158,23 @@ public class CharacterFileTests
     }
 
     [Fact]
+    public void Descriptions_are_cut_at_the_forks_own_length()
+    {
+        var text = new string('a', 800);
+        var upstream = CharacterFile.Parse(OldFile);
+        upstream.FlavorText = text;
+        var euphoria = CharacterFile.Parse(OldFile);
+        euphoria.FlavorText = text;
+
+        CharacterRules.EnsureValid(upstream, Catalog, Fork);
+        CharacterRules.EnsureValid(euphoria, Catalog, Fork with { MaxFlavorTextLength = 1024 });
+
+        Assert.Equal(512, upstream.FlavorText!.Length);
+        Assert.Equal(text, euphoria.FlavorText);
+        Assert.Equal(1024, KnownForks.Find("euphoria")!.MaxFlavorTextLength);
+    }
+
+    [Fact]
     public void The_rules_clean_the_name_text_and_markings()
     {
         var file = CharacterFile.Parse(OldFile);

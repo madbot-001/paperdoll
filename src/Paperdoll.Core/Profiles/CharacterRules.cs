@@ -21,7 +21,6 @@ public sealed record RuleFix(string Field, string Message);
 public static partial class CharacterRules
 {
     public const int MaxNameLength = 32;
-    public const int MaxFlavorTextLength = 512;
     public const string DefaultSpecies = "Human";
 
     private static readonly string[] Sexes = ["Male", "Female", "Unsexed"];
@@ -133,11 +132,11 @@ public static partial class CharacterRules
 
         var flavor = file.FlavorText ?? "";
         var cleanFlavor = RemoveMarkup(flavor);
-        if (cleanFlavor.Length > MaxFlavorTextLength)
-            cleanFlavor = cleanFlavor[..MaxFlavorTextLength];
+        if (cleanFlavor.Length > fork.MaxFlavorTextLength)
+            cleanFlavor = cleanFlavor[..fork.MaxFlavorTextLength];
         if (cleanFlavor != flavor)
         {
-            fixes.Add(new("flavorText", $"Description markup is removed and text cut to {MaxFlavorTextLength} characters."));
+            fixes.Add(new("flavorText", $"Description markup is removed and text cut to {fork.MaxFlavorTextLength} characters."));
             file.FlavorText = cleanFlavor;
         }
 

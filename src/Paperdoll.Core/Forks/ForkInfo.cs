@@ -56,6 +56,12 @@ public sealed record ForkInfo(
 
     /// <summary>The job players fall back to when they pick none (<c>SharedGameTicker.FallbackOverflowJob</c>).</summary>
     public string FallbackJob { get; init; } = "Passenger";
+
+    /// <summary>
+    /// The longest description the game keeps (<c>ic.flavor_text_length</c>, or older forks'
+    /// <c>MaxDescLength</c>): 512 upstream, 1024 in Euphoria, 2048 in Wayfarer and Triad.
+    /// </summary>
+    public int MaxFlavorTextLength { get; init; } = 512;
 }
 
 /// <summary>Character fields some forks add to the saved profile.</summary>
