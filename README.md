@@ -6,6 +6,12 @@ A character editor for Space Station 14. You can make and edit characters withou
 server, see them drawn the way the game draws them, and save them as the `.yml` file the lobby's
 Import button takes.
 
+![Paperdoll with a made-up Vulpkanin loaded on upstream Space Station 14](.github/screenshot.png)
+
+<sub>A made-up character on upstream Space Station 14. The game sprites in the picture are from
+[Space Station 14](https://github.com/space-wizards/space-station-14), CC-BY-SA 3.0 (each
+sprite's `meta.json` there names its authors), and so is the picture.</sub>
+
 Species, markings, colours, loadouts and traits are read from each fork's own repository, so the
 choices match that fork. Delta-V and Euphoria get the most attention, then upstream. Fork > Match
 a Server loads the exact version a server runs, read from its public info page, since servers

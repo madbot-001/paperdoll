@@ -59,6 +59,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## The README screenshot
+
+`.github/screenshot.png` shows sprites from
+[Space Station 14](https://github.com/space-wizards/space-station-14), licensed
+[CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) by their authors, named in each
+sprite's `meta.json` there. The picture is under CC-BY-SA 3.0 too, not the MIT licence.
+
 ## Libraries in the builds
 
 The ready-made builds include these libraries and the .NET runtime, so nothing else needs
