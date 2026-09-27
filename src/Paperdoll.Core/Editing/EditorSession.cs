@@ -31,7 +31,8 @@ public sealed class EditorSession : IAsyncDisposable
 {
     private IBlobReader? _reader;
 
-    private EditorSession(IForkStore store) => Store = store;
+    /// <summary>A session over a given store; <see cref="OpenAsync"/> picks the usual one.</summary>
+    public EditorSession(IForkStore store) => Store = store;
 
     public IForkStore Store { get; }
     public string StoreKind => Store is GitForkStore ? "git" : "GitHub API";
@@ -152,8 +153,8 @@ public sealed class EditorSession : IAsyncDisposable
         // The game starts every profile on MaleHuman; its rules then give species that cannot use it their default.
         if (catalog.HasVoices)
             file.Voice = species.Voices.Contains(CharacterRules.DefaultVoice) ? CharacterRules.DefaultVoice : species.DefaultVoice(species.Sexes[0]);
-        File = file;
-        ApplyRules();
+        var (fixes, look) = Checked(file);
+        (File, LastFixes, Look) = (file, fixes, look);
     }
 
     /// <summary>The job whose clothes the preview shows; null means the one the lobby would pick.</summary>
@@ -367,13 +368,17 @@ public sealed class EditorSession : IAsyncDisposable
     public string VoiceName(string voice) =>
         Content?.Characters.VoiceNames.TryGetValue(voice, out var key) == true ? Content.Strings[key] ?? voice : voice;
 
-    /// <summary>Opens an exported character and fits it to the loaded fork.</summary>
+    /// <summary>
+    /// Opens an exported character and fits it to the loaded fork. A file that cannot be read or
+    /// checked leaves the open character as it was.
+    /// </summary>
     public IReadOnlyList<RuleFix> Open(string yaml)
     {
         RequireContent();
-        File = CharacterFile.Parse(yaml);
-        ApplyRules();
-        return LastFixes;
+        var file = CharacterFile.Parse(yaml);
+        var (fixes, look) = Checked(file);
+        (File, LastFixes, Look) = (file, fixes, look);
+        return fixes;
     }
 
     /// <summary>Text for the lobby's Import button.</summary>
@@ -718,11 +723,13 @@ public sealed class EditorSession : IAsyncDisposable
     public IReadOnlyList<RuleFix> RandomizeName() => Edit(f =>
         f.Name = RandomName(RequireContent().Characters.Species[Look!.Species], f.Gender));
 
-    private void ApplyRules()
+    private void ApplyRules() => (LastFixes, Look) = Checked(RequireFile());
+
+    // The game's rules applied to a file, and the look they leave it with.
+    private (IReadOnlyList<RuleFix> Fixes, CharacterLook Look) Checked(CharacterFile file)
     {
-        var file = RequireFile();
-        LastFixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits, Content.Traits);
-        Look = file.ReadLook(Content.Characters);
+        var fixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits, Content.Traits);
+        return (fixes, file.ReadLook(Content.Characters));
     }
 
     private ForkContent RequireContent() => Content ?? throw new InvalidOperationException("No fork is loaded.");
