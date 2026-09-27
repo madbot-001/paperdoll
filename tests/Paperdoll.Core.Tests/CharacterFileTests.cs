@@ -165,6 +165,21 @@ public class CharacterFileTests
     }
 
     [Fact]
+    public void A_file_using_aliases_is_refused_at_once()
+    {
+        // Each level's key repeats the one before twice: eight levels take seconds to read.
+        var lines = new List<string> { "a0: &a0 [x, y]" };
+        for (var i = 1; i < 12; i++)
+            lines.Add($"a{i}: &a{i} [{{? *a{i - 1} : 1}}, {{? *a{i - 1} : 2}}]");
+        var text = "profile:\n  name: x\n" + string.Join("\n", lines.Select(l => "  " + l)) + "\n";
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        Assert.Throws<FormatException>(() => CharacterFile.Parse(text));
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
     public void A_file_nested_thousands_deep_is_refused_without_crashing()
     {
         var text = "profile:\n  junk: " + new string('[', 5000) + new string(']', 5000) + "\n";

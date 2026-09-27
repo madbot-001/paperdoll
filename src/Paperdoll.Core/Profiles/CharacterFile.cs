@@ -42,8 +42,8 @@ public sealed class CharacterFile
     }
 
     // Reading a YAML tree goes one call deeper per level, and running out of stack cannot be
-    // caught, so a file nested thousands deep would close Paperdoll. Its events are counted first,
-    // which takes no stack.
+    // caught, so a file nested thousands deep would close Paperdoll; aliases used as keys can make
+    // it take hours. Its events are looked through first, which takes no stack.
     private static void CheckDepth(string text)
     {
         var parser = new YamlDotNet.Core.Parser(new StringReader(text));
@@ -57,6 +57,9 @@ public sealed class CharacterFile
                 case YamlDotNet.Core.Events.MappingEnd or YamlDotNet.Core.Events.SequenceEnd:
                     depth--;
                     break;
+                // Exports never use them, and a few used as keys can make reading take hours.
+                case YamlDotNet.Core.Events.AnchorAlias:
+                    throw new FormatException("Not a character export: it uses YAML aliases, which exports never do.");
             }
         }
     }

@@ -47,6 +47,12 @@ public static class SafeFile
             WriteInPlace(path, data);
             return;
         }
+        catch
+        {
+            // A full disk, say: nothing is left behind, and the old file is untouched.
+            Delete(temp);
+            throw;
+        }
 
         try
         {
@@ -56,7 +62,12 @@ public static class SafeFile
         }
         catch
         {
-            Delete(temp);
+            // Windows can fail a replace after moving the old file away; the new one is then the
+            // only copy, so it is put in place rather than deleted.
+            if (!File.Exists(path) && File.Exists(temp))
+                File.Move(temp, path);
+            else
+                Delete(temp);
             throw;
         }
     }
@@ -78,6 +89,12 @@ public static class SafeFile
             }
             catch (IOException) when (attempt < 5)
             {
+                // Moved away by a failed replace: the new file simply goes where it was.
+                if (!File.Exists(path) && File.Exists(temp))
+                {
+                    File.Move(temp, path);
+                    return;
+                }
                 Thread.Sleep(100 * attempt);
             }
         }

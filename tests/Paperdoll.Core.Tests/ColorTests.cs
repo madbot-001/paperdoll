@@ -46,6 +46,7 @@ public class ColorTests
     [InlineData("#12")]
     [InlineData("#GGGGGG")]
     [InlineData("notacolour")]
+    [InlineData("rebeccapurple")]
     [InlineData("")]
     public void Anything_else_is_not_a_colour(string text) => Assert.False(Rgba.TryParse(text, out _));
 

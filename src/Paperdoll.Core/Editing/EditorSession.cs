@@ -154,7 +154,8 @@ public sealed class EditorSession : IAsyncDisposable
             ? CharacterFile.Parse(source)
             : CreateCharacter(content, fork, content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
                 ? CharacterRules.DefaultSpecies
-                : content.Characters.Selectable(fork.HiddenSpecies).First().Id);
+                // The first in the species list, which is in name order.
+                : content.Characters.Selectable(fork.HiddenSpecies).OrderBy(s => content.Strings.Get(s.NameKey), StringComparer.CurrentCulture).First().Id);
         var (fixes, look) = Checked(file, content, fork);
         progress?.Report($"{fork.Name} ready");
         return new ForkLoad(fork, content, renderer, file, fixes, look, source != null && fixes.Count > 0 ? source : null);

@@ -60,7 +60,8 @@ public readonly record struct Rgba(float R, float G, float B, float A = 1f)
     private static Rgba? Named(string name)
     {
         var known = System.Drawing.Color.FromName(name);
-        if (known.IsKnownColor && !known.IsSystemColor)
+        // .NET also knows RebeccaPurple, which the engine does not.
+        if (known.IsKnownColor && !known.IsSystemColor && known.ToKnownColor() != System.Drawing.KnownColor.RebeccaPurple)
             return new Rgba(known.R / 255f, known.G / 255f, known.B / 255f, known.A / 255f);
         return name.ToLowerInvariant() switch
         {
