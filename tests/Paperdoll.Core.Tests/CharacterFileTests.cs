@@ -157,6 +157,14 @@ public class CharacterFileTests
         Assert.Contains("'#5B3A1EFF'", again.ToYaml());
     }
 
+    [Fact]
+    public void A_file_nested_thousands_deep_is_refused_without_crashing()
+    {
+        var text = "profile:\n  junk: " + new string('[', 5000) + new string(']', 5000) + "\n";
+
+        Assert.Throws<FormatException>(() => CharacterFile.Parse(text));
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("NULL")]

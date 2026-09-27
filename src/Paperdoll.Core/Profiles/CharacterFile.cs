@@ -20,11 +20,15 @@ public sealed class CharacterFile
 
     private CharacterFile(YamlMappingNode root) => _root = root;
 
+    // Character files nest about eight levels deep; far deeper ones are made to crash readers.
+    private const int MaxDepth = 64;
+
     public static CharacterFile Parse(string text)
     {
         var yaml = new YamlStream();
         try
         {
+            CheckDepth(text);
             yaml.Load(new StringReader(text));
         }
         catch (YamlDotNet.Core.YamlException e)
@@ -35,6 +39,26 @@ public sealed class CharacterFile
             || !root.Children.TryGetValue(new YamlScalarNode("profile"), out var profile) || profile is not YamlMappingNode)
             throw new FormatException("Not a character export: it has no profile.");
         return new CharacterFile(root);
+    }
+
+    // Reading a YAML tree goes one call deeper per level, and running out of stack cannot be
+    // caught, so a file nested thousands deep would close Paperdoll. Its events are counted first,
+    // which takes no stack.
+    private static void CheckDepth(string text)
+    {
+        var parser = new YamlDotNet.Core.Parser(new StringReader(text));
+        var depth = 0;
+        while (parser.MoveNext())
+        {
+            switch (parser.Current)
+            {
+                case YamlDotNet.Core.Events.MappingStart or YamlDotNet.Core.Events.SequenceStart when ++depth > MaxDepth:
+                    throw new FormatException($"Not a character export: it nests more than {MaxDepth} levels deep.");
+                case YamlDotNet.Core.Events.MappingEnd or YamlDotNet.Core.Events.SequenceEnd:
+                    depth--;
+                    break;
+            }
+        }
     }
 
     /// <summary>A new, empty version 2 file, its keys in the order the game writes them.</summary>
