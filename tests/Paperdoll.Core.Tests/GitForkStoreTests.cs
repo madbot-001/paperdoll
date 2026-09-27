@@ -105,6 +105,48 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Removing_a_fork_frees_its_files_and_keeps_the_others()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var a = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "only in a" });
+        var b = SourceRepo.Create(_root, "b", new() { ["Resources/Prototypes/b.yml"] = "only in b" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), a.Url, ct);
+        await store.SyncAsync(Fork("b"), b.Url, ct);
+        var aFiles = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        var bFiles = await store.ListAsync("b", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", aFiles, ct);
+        await store.FetchAsync("b", bFiles, ct);
+
+        await store.RemoveAsync("a", ct);
+
+        Assert.Equal(aFiles.Select(e => e.ObjectId), await store.MissingAsync(aFiles.Select(e => e.ObjectId), ct));
+        Assert.Empty(await store.MissingAsync(bFiles.Select(e => e.ObjectId), ct));
+        Assert.Null(await store.CommitOfAsync("a", ct));
+    }
+
+    [Fact]
+    public async Task Lock_files_left_by_a_crash_are_cleared()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        foreach (var name in new[] { "shallow.lock", "config.lock" })
+        {
+            var lockFile = Path.Combine(_root, "store.git", name);
+            File.WriteAllText(lockFile, "");
+            File.SetLastWriteTimeUtc(lockFile, DateTime.UtcNow.AddHours(-1));
+        }
+        source.Commit(new() { ["Resources/Prototypes/a.yml"] = "newer" });
+
+        var commit = await store.SyncAsync(Fork("a"), source.Url, ct);
+
+        Assert.Equal(source.Head, commit);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "store.git"), "*.lock"));
+    }
+
+    [Fact]
     public async Task Syncing_again_moves_to_the_newest_commit()
     {
         var ct = TestContext.Current.CancellationToken;

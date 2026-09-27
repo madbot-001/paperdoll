@@ -123,7 +123,22 @@ public sealed class EditorSession : IAsyncDisposable
         (Fork, Content, Renderer, File, LastFixes, Look, _beforeSwitch) =
         (load.Fork, load.Content, load.Renderer, load.File, load.Fixes, load.Look, load.BeforeSwitch);
 
-    public Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default) => Store.RemoveAsync(fork.Id, ct);
+    /// <summary>Forgets a fork and frees its space.</summary>
+    public async Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default)
+    {
+        // The reader holds the store's files open, which on Windows stops them being deleted.
+        await CloseReaderAsync();
+        await Store.RemoveAsync(fork.Id, ct);
+    }
+
+    private async Task CloseReaderAsync()
+    {
+        if (_reader != null)
+        {
+            await _reader.DisposeAsync();
+            _reader = null;
+        }
+    }
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
@@ -151,11 +166,7 @@ public sealed class EditorSession : IAsyncDisposable
     public async Task<long> CleanUpStoreAsync(CancellationToken ct = default)
     {
         // Close the reader first; it is opened again when next needed.
-        if (_reader != null)
-        {
-            await _reader.DisposeAsync();
-            _reader = null;
-        }
+        await CloseReaderAsync();
         return await Store.CleanUpAsync(ct);
     }
 

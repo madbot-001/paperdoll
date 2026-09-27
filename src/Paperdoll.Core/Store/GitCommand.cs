@@ -7,7 +7,7 @@ namespace Paperdoll.Core.Store;
 public sealed class GitException(string message) : Exception(message);
 
 /// <summary>Runs the git program against one repository.</summary>
-internal sealed class GitCommand(string gitPath, string repository)
+internal sealed partial class GitCommand(string gitPath, string repository)
 {
     public string GitPath { get; } = gitPath;
     public string Repository { get; } = repository;
@@ -54,6 +54,46 @@ internal sealed class GitCommand(string gitPath, string repository)
     public async Task<byte[]> RunAsync(IEnumerable<string> args, string? input = null, CancellationToken ct = default)
     {
         var argList = args.ToList();
+        try
+        {
+            return await RunOnceAsync(argList, input, ct);
+        }
+        // git killed part way (a crash, the computer switched off) leaves its lock files behind,
+        // and every later command that needs them refuses. Old ones are removed and git asked again.
+        catch (GitException e) when (LockedOut().IsMatch(e.Message) && RemoveStaleLocks() > 0)
+        {
+            return await RunOnceAsync(argList, input, ct);
+        }
+    }
+
+    // Lock files older than this cannot belong to a git still running for Paperdoll.
+    private static readonly TimeSpan StaleLock = TimeSpan.FromMinutes(2);
+
+    private int RemoveStaleLocks()
+    {
+        var removed = 0;
+        foreach (var file in Directory.EnumerateFiles(Repository, "*.lock", SearchOption.AllDirectories))
+        {
+            try
+            {
+                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < StaleLock)
+                    continue;
+                File.Delete(file);
+                removed++;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // In use after all; left alone.
+            }
+        }
+        return removed;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\.lock'?: File exists|Unable to create '[^']*\.lock'|could not lock config file", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex LockedOut();
+
+    private async Task<byte[]> RunOnceAsync(List<string> argList, string? input, CancellationToken ct)
+    {
         using var process = Process.Start(StartInfo(argList))
             ?? throw new GitException($"Could not start {GitPath}.");
         // Cancelling stops git itself, not only the wait for it.

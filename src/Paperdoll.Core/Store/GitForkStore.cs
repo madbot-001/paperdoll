@@ -151,7 +151,8 @@ public sealed class GitForkStore : IForkStore
         if (remotes.Contains(forkId))
             await _git.RunAsync(["remote", "remove", forkId], ct: ct);
 
-        await _git.RunAsync(["gc", "--quiet", "--prune=now"], ct: ct);
+        // git's own gc keeps everything in promisor packs, so the fork's files would stay.
+        await CleanUpAsync(ct);
     }
 
     // Updating a fork leaves its old commit and files behind. Everything fetched here sits in
@@ -160,6 +161,11 @@ public sealed class GitForkStore : IForkStore
     public async Task<long> CleanUpAsync(CancellationToken ct = default)
     {
         var before = StoreSize.Of(Directory);
+        // git's remote-tracking refs (which fetch keeps up to date on the side) are not used here,
+        // and would keep a fork's newest version after it was moved to a server's older one.
+        var tracking = await _git.RunTextAsync(["for-each-ref", "--format=delete %(refname)", "refs/remotes/"], ct: ct);
+        if (tracking.Length > 0)
+            await _git.RunAsync(["update-ref", "--stdin"], tracking, ct);
         await _git.RunAsync(["reflog", "expire", "--expire=now", "--all"], ct: ct);
 
         var reachable = await _git.RunTextAsync(["rev-list", "--objects", "--all", "--missing=allow-promisor"], ct: ct);
@@ -173,12 +179,28 @@ public sealed class GitForkStore : IForkStore
 
         foreach (var file in System.IO.Directory.EnumerateFiles(packDir, "pack-*").ToList())
         {
-            if (!Path.GetFileName(file).StartsWith($"pack-{name}.", StringComparison.Ordinal))
+            if (Path.GetFileName(file).StartsWith($"pack-{name}.", StringComparison.Ordinal))
+                continue;
+            try
+            {
+                // git makes its packs read-only, which on Windows stops a plain delete.
+                File.SetAttributes(file, FileAttributes.Normal);
                 File.Delete(file);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // In use; its objects are all in the new pack too, so it goes next time.
+            }
         }
         // Indexes over the old packs would now point at missing files.
         foreach (var stale in new[] { Path.Combine(packDir, "multi-pack-index"), Path.Combine(Directory, "objects", "info", "commit-graph") })
-            File.Delete(stale);
+        {
+            if (File.Exists(stale))
+            {
+                File.SetAttributes(stale, FileAttributes.Normal);
+                File.Delete(stale);
+            }
+        }
         if (System.IO.Directory.Exists(Path.Combine(Directory, "objects", "info", "commit-graphs")))
             System.IO.Directory.Delete(Path.Combine(Directory, "objects", "info", "commit-graphs"), recursive: true);
         await _git.RunAsync(["prune", "--expire=now"], ct: ct);
