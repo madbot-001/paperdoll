@@ -66,6 +66,7 @@ public partial class MainWindow
         };
         Closing += (_, _) =>
         {
+            CommitTyping();
             if (_autosave.IsEnabled)
                 WriteAutosave();
         };
@@ -230,6 +231,7 @@ public partial class MainWindow
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.File == null)
             return;
         if (_currentFile == null)
@@ -263,6 +265,7 @@ public partial class MainWindow
 
     private async void OnOpen(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.Content == null)
             return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -300,6 +303,7 @@ public partial class MainWindow
 
     private async void OnExport(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.File == null)
             return;
         var name = string.IsNullOrWhiteSpace(_session.File.Name) ? "character" : _session.File.Name;

@@ -187,7 +187,7 @@ public partial class MainWindow
         return box;
     }
 
-    private static TextBox EntryText(string text, int maxLength, bool multiline, Action<string> commit)
+    private TextBox EntryText(string text, int maxLength, bool multiline, Action<string> commit)
     {
         var box = new TextBox { Text = text, MaxLength = maxLength, AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = multiline ? 60 : 0 };
         CommitOnEnterOrLeave(box, commit);

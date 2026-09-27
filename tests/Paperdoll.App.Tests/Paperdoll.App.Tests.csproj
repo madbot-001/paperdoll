@@ -16,4 +16,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Paperdoll.App\Paperdoll.App.csproj" />
   </ItemGroup>
+
+  <!-- The made-up forks the core tests use, so the window can be driven without a download. -->
+  <ItemGroup>
+    <Compile Include="..\Paperdoll.Core.Tests\MemoryForkStore.cs" Link="Shared\MemoryForkStore.cs" />
+    <Compile Include="..\Paperdoll.Core.Tests\TestForks.cs" Link="Shared\TestForks.cs" />
+  </ItemGroup>
 </Project>

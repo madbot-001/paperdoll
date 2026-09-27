@@ -106,6 +106,7 @@ public partial class MainWindow : Window
     {
         if (_session == null)
             return;
+        CommitTyping();
         IsEnabled = false;
         try
         {
@@ -229,6 +230,7 @@ public partial class MainWindow : Window
 
     private async void OnMatchServer(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session == null || await new ServersWindow().ShowDialog<ServerChoice?>(this) is not { } choice)
             return;
         IsEnabled = false;
@@ -272,6 +274,7 @@ public partial class MainWindow : Window
 
     private void OnNew(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.Look == null)
             return;
         _selected = new Node(NodeKind.Character);
@@ -286,6 +289,7 @@ public partial class MainWindow : Window
 
     private void OnRandom(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.File == null)
             return;
         var parts = _settings.RandomParts;

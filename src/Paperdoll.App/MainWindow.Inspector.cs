@@ -257,11 +257,7 @@ public partial class MainWindow
             PlaceholderText = "What others see when they examine the character",
             BorderThickness = new Thickness(0),
         };
-        description.LostFocus += (_, _) =>
-        {
-            if (description.Text != (session.File?.FlavorText ?? ""))
-                Apply(s => s.Edit(f => f.FlavorText = description.Text ?? ""));
-        };
+        CommitOnEnterOrLeave(description, text => Apply(s => s.Edit(f => f.FlavorText = text)));
         AddWide(description);
 
         AddCategory("File");
@@ -850,7 +846,7 @@ public partial class MainWindow
         new() { Text = text, Classes = { "mono" }, Margin = new Thickness(4, 3), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
 
     /// <summary>A colour swatch with its hex value; Enter or leaving the field applies it.</summary>
-    private static Control ColorField(Rgba color, Action<Rgba> changed, bool compact = false)
+    private Control ColorField(Rgba color, Action<Rgba> changed, bool compact = false)
     {
         var text = new TextBox
         {
@@ -895,7 +891,11 @@ public partial class MainWindow
         Background = Brush(color),
     };
 
-    private static void CommitOnEnterOrLeave(TextBox box, Action<string> commit)
+    // The text box being typed in, and how to commit what it holds. Typing is committed on Enter
+    // or on leaving the box; what saves, replaces or reads the whole character commits it first.
+    private Action? _pendingTyping;
+
+    private void CommitOnEnterOrLeave(TextBox box, Action<string> commit)
     {
         var original = box.Text ?? "";
         void Commit()
@@ -911,7 +911,21 @@ public partial class MainWindow
             if (e.Key == Key.Enter)
                 Commit();
         };
-        box.LostFocus += (_, _) => Commit();
+        box.GotFocus += (_, _) => _pendingTyping = Commit;
+        box.LostFocus += (_, _) =>
+        {
+            if (_pendingTyping == Commit)
+                _pendingTyping = null;
+            Commit();
+        };
+    }
+
+    /// <summary>Commits what is being typed, before the character is saved, replaced or read whole.</summary>
+    private void CommitTyping()
+    {
+        var commit = _pendingTyping;
+        _pendingTyping = null;
+        commit?.Invoke();
     }
 
     // A slider in steps of 0.01 with its value beside it.

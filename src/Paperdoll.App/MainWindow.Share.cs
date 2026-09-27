@@ -8,6 +8,7 @@ public partial class MainWindow
 {
     private async void OnShare(object? sender, RoutedEventArgs e)
     {
+        CommitTyping();
         if (_session?.Look == null || _session.File == null)
             return;
         var session = _session;

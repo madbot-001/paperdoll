@@ -29,7 +29,9 @@ public sealed class MemoryForkStore : IForkStore
 
     public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-    public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default) => Task.FromResult(_commits[fork.Id] = "c0ffee" + fork.Id);
+    // A commit id as long as a real one, made from the fork's id.
+    public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default) =>
+        Task.FromResult(_commits[fork.Id] = Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(fork.Id))));
 
     public Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default) => Task.FromResult(_commits[fork.Id] = commit);
 
