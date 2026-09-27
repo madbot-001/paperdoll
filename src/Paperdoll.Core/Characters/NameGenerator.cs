@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Paperdoll.Core.Locale;
 using Paperdoll.Core.Prototypes;
@@ -52,7 +53,7 @@ public sealed partial class NameGenerator(PrototypeIndex prototypes, FluentStrin
     {
         if (prototypes.Resolve("localizedDataset", datasetId) is { } localized
             && localized.Children.TryGetValue(new YamlScalarNode("values"), out var values) && values is YamlMappingNode map
-            && Scalar(map, "prefix") is { } prefix && int.TryParse(Scalar(map, "count"), out var count) && count > 0)
+            && Scalar(map, "prefix") is { } prefix && int.TryParse(Scalar(map, "count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
             return strings.Get(prefix + (_random.Next(count) + 1));
 
         if (prototypes.Resolve("dataset", datasetId) is { } plain

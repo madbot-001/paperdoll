@@ -97,6 +97,29 @@ public class TraitTests
         new(species, job, department, selected);
 
     [Fact]
+    public void Negative_costs_read_the_same_in_every_language_setting()
+    {
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            // Arabic and similar settings write the minus sign differently, so "-1" fails to parse in them.
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("ar-SA");
+            var traits = TraitCatalog.Build(PrototypeIndex.Load([new PrototypeSource("n.yml", Encoding.UTF8.GetBytes("""
+                - type: trait
+                  id: Hardy
+                  name: trait-hardy
+                  cost: -1
+                """))]));
+
+            Assert.Equal(-1, traits.Traits["Hardy"].Cost);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = before;
+        }
+    }
+
+    [Fact]
     public void Old_einstein_engines_ids_are_repaired()
     {
         Assert.Equal("AnimalFriend", TraitCatalog.NormalizeId("{Prototype: AnimalFriend}"));

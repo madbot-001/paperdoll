@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 
 namespace Paperdoll.Core.Store;
@@ -35,7 +36,7 @@ internal sealed class BlobReader : IBlobReader
             if (header.Length < 3)
                 return null;
 
-            var size = int.Parse(header[2]);
+            var size = int.Parse(header[2], CultureInfo.InvariantCulture);
             var data = new byte[size];
             await _output.ReadExactlyAsync(data, ct);
             await ReadLineAsync(ct); // the newline after the contents

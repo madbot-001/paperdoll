@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -273,7 +274,7 @@ public sealed class GitHubForkStore : IForkStore
             return;
 
         DateTimeOffset? resetsAt = null;
-        if (response.Headers.TryGetValues("x-ratelimit-reset", out var reset) && long.TryParse(reset.First(), out var seconds))
+        if (response.Headers.TryGetValues("x-ratelimit-reset", out var reset) && long.TryParse(reset.First(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
             resetsAt = DateTimeOffset.FromUnixTimeSeconds(seconds);
         throw new GitHubRateLimitException(resetsAt);
     }

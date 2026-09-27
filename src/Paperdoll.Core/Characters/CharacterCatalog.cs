@@ -718,7 +718,7 @@ public sealed class CharacterCatalog
         var maps = new Dictionary<int, SpriteRef>();
         foreach (var (sizeKey, layer) in sizes.Children)
         {
-            if (int.TryParse(((YamlScalarNode)sizeKey).Value, out var size) && layer is YamlMappingNode l && Str(l, "sprite") is { } rsi)
+            if (int.TryParse(((YamlScalarNode)sizeKey).Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var size) && layer is YamlMappingNode l && Str(l, "sprite") is { } rsi)
                 maps[size] = new SpriteRef(TexturePath(rsi), Str(l, "state"));
         }
         return maps.Count == 0 ? null : new DisplacementRef(maps);
@@ -753,7 +753,7 @@ public sealed class CharacterCatalog
         bool.TryParse(Str(node, key), out var value) ? value : null;
 
     private static int? Int(YamlMappingNode node, string key) =>
-        int.TryParse(Str(node, key), out var value) ? value : null;
+        int.TryParse(Str(node, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null;
 
     private static List<string>? Strings(YamlMappingNode node, string key) =>
         Get(node, key) switch

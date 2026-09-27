@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Paperdoll.Core.Store;
@@ -56,7 +57,7 @@ public static partial class ForkStores
     public static Version? ParseGitVersion(string output)
     {
         var match = VersionPattern().Match(output);
-        return match.Success ? new Version(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value)) : null;
+        return match.Success ? new Version(int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture)) : null;
     }
 
     [GeneratedRegex(@"git version (\d+)\.(\d+)")]

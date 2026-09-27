@@ -56,7 +56,7 @@ public abstract class SkinColoration
     {
         if (rule.IsUnary)
         {
-            var tone = int.TryParse(Scalar(species.Node, "defaultHumanSkinTone"), out var t) ? t : 20;
+            var tone = int.TryParse(Scalar(species.Node, "defaultHumanSkinTone"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : 20;
             return rule.FromUnary(tone);
         }
         return rule.Closest(Rgba.TryParse(species.DefaultSkinTone, out var c) ? c : Rgba.White);

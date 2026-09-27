@@ -3,6 +3,7 @@
 // The Delta-V-style limits (per-category trait counts, overall count and points, conditions and
 // conflicts) are written from how those forks behave, not from their code.
 
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Paperdoll.Core.Prototypes;
 using YamlDotNet.RepresentationModel;
@@ -247,7 +248,7 @@ public sealed partial class TraitCatalog
     private static string? Str(YamlMappingNode node, string key) =>
         node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar ? scalar.Value : null;
 
-    private static int? Int(YamlMappingNode node, string key) => int.TryParse(Str(node, key), out var value) ? value : null;
+    private static int? Int(YamlMappingNode node, string key) => int.TryParse(Str(node, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null;
 
     [GeneratedRegex(@"^\s*\{\s*Prototype\s*:\s*([^}\s]+)\s*\}\s*$")]
     private static partial Regex OldStyleId();

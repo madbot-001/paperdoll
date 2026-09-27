@@ -4,6 +4,7 @@
 // LoadoutSystem.GetFirstOrNull, Copyright (c) 2017-2026 Space Wizards Federation, MIT licence.
 // See THIRD-PARTY-NOTICES.md.
 
+using System.Globalization;
 using Paperdoll.Core.Prototypes;
 using YamlDotNet.RepresentationModel;
 
@@ -387,7 +388,7 @@ public sealed class OutfitCatalog
                 {
                     var amount = map.Children.TryGetValue(new YamlScalarNode("amount"), out var amountNode) ? amountNode : null;
                     var range = amount is YamlMappingNode ranged && Str(ranged, "range") is { } text ? text.Replace(",", " to", StringComparison.Ordinal) : null;
-                    result.Add(new FillItem(id, amount is YamlScalarNode { Value: { } n } && int.TryParse(n, out var count) ? count : 1, chance)
+                    result.Add(new FillItem(id, amount is YamlScalarNode { Value: { } n } && int.TryParse(n, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) ? count : 1, chance)
                     {
                         OneOf = oneOf,
                         AmountRange = range,
@@ -468,7 +469,7 @@ public sealed class OutfitCatalog
     private static string? Str(YamlMappingNode node, string key) =>
         node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar ? scalar.Value : null;
 
-    private static int? Int(YamlMappingNode node, string key) => int.TryParse(Str(node, key), out var value) ? value : null;
+    private static int? Int(YamlMappingNode node, string key) => int.TryParse(Str(node, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null;
 
     private static List<string> Strings(YamlMappingNode node, string key) =>
         node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlSequenceNode seq
