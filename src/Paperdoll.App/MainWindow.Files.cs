@@ -15,6 +15,13 @@ public sealed record AppSettings
     /// <summary>The file the character was last opened from or saved to, for Save.</summary>
     public string? WorkingFile { get; init; }
 
+    /// <summary>
+    /// A fingerprint of the text last read from or written to <see cref="WorkingFile"/>, so a file
+    /// that has changed since (another character saved there, the game exporting again) is never
+    /// taken for the working copy's and overwritten.
+    /// </summary>
+    public string? WorkingFileHash { get; init; }
+
     /// <summary>Servers each fork was matched to: fork id to the server's name and the commit it ran.</summary>
     public Dictionary<string, MatchedServer> MatchedServers { get; init; } = [];
 
@@ -137,21 +144,48 @@ public partial class MainWindow
         {
             var text = await File.ReadAllTextAsync(AutosavePath);
             _session.Open(text);
-            if (_settings.WorkingFile is { } path && File.Exists(path))
+            var detached = "";
+            var fileText = _settings.WorkingFile is { } path && File.Exists(path) ? await File.ReadAllTextAsync(path) : null;
+            if (fileText != null && WorkingFileMatches(fileText, _settings.WorkingFileHash, text))
             {
-                _currentFile = await StorageProvider.TryGetFileFromPathAsync(path);
-                _dirty = (await File.ReadAllTextAsync(path)) != text;
+                _currentFile = await StorageProvider.TryGetFileFromPathAsync(_settings.WorkingFile!);
+                _dirty = fileText != text;
             }
             else
+            {
+                if (fileText != null)
+                    detached = $" {Path.GetFileName(_settings.WorkingFile)} has changed since, so Save will ask where to save it.";
+                ForgetWorkingFile();
                 _dirty = true;
+            }
             SelectDressedJob();
             RefreshAll();
-            SetStatus($"Reopened {_session.File?.Name ?? "your character"} as you left it (autosaved {File.GetLastWriteTime(AutosavePath):g}).");
+            SetStatus($"Reopened {_session.File?.Name ?? "your character"} as you left it (autosaved {File.GetLastWriteTime(AutosavePath):g}).{detached}");
         }
         catch (Exception e)
         {
             SetStatus($"Could not reopen the autosaved character: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// Whether the working copy still belongs with its file: the file holds the text last read
+    /// from or written to it, or the same text as the working copy (so nothing could be lost).
+    /// </summary>
+    public static bool WorkingFileMatches(string fileText, string? savedHash, string workingCopy) =>
+        fileText == workingCopy || (savedHash != null && Fingerprint(fileText) == savedHash);
+
+    public static string Fingerprint(string text) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+
+    // New, or a working file that no longer matches: Save asks where to save.
+    private void ForgetWorkingFile()
+    {
+        _currentFile = null;
+        if (_settings.WorkingFile == null && _settings.WorkingFileHash == null)
+            return;
+        _settings = _settings with { WorkingFile = null, WorkingFileHash = null };
+        SaveSettings();
     }
 
     /// <summary>The fork an autosaved character was made for, so start can open that fork.</summary>
@@ -215,7 +249,7 @@ public partial class MainWindow
             await PickedFile.WriteAsync(file, text);
             _currentFile = file;
             _dirty = false;
-            _settings = _settings with { WorkingFile = file.TryGetLocalPath() };
+            _settings = _settings with { WorkingFile = file.TryGetLocalPath(), WorkingFileHash = Fingerprint(text) };
             SaveSettings();
             WriteAutosave();
             RefreshAll();
@@ -248,7 +282,7 @@ public partial class MainWindow
             _session.PreviewJob = null;
             _currentFile = files[0];
             _dirty = false;
-            _settings = _settings with { WorkingFile = files[0].TryGetLocalPath() };
+            _settings = _settings with { WorkingFile = files[0].TryGetLocalPath(), WorkingFileHash = Fingerprint(text) };
             SaveSettings();
             WriteAutosave();
             _refreshing = true;

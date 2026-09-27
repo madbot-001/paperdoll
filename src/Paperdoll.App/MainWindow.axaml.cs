@@ -275,7 +275,7 @@ public partial class MainWindow : Window
         if (_session?.Look == null)
             return;
         _selected = new Node(NodeKind.Character);
-        _currentFile = null;
+        ForgetWorkingFile();
         Apply(s =>
         {
             s.NewCharacter(s.Look!.Species);
