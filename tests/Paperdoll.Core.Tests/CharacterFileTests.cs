@@ -157,6 +157,32 @@ public class CharacterFileTests
         Assert.Contains("'#5B3A1EFF'", again.ToYaml());
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("NULL")]
+    [InlineData(" Null ")]
+    [InlineData("\t")]
+    public void Text_the_game_would_read_as_null_is_quoted(string text)
+    {
+        var file = CharacterFile.Parse(OldFile);
+
+        file.FlavorText = text;
+        var again = CharacterFile.Parse(file.ToYaml());
+
+        Assert.Contains("flavorText: \"", file.ToYaml());
+        Assert.Equal(text, again.FlavorText);
+    }
+
+    [Fact]
+    public void Broken_character_pairs_are_dropped_so_the_file_can_be_written()
+    {
+        var file = CharacterFile.Parse(OldFile);
+
+        file.FlavorText = "A\uD800B\uD83D\uDE00";
+
+        Assert.Equal("AB\uD83D\uDE00", CharacterFile.Parse(file.ToYaml()).FlavorText);
+    }
+
     [Fact]
     public void Descriptions_are_cut_at_the_forks_own_length()
     {

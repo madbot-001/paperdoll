@@ -590,7 +590,31 @@ public sealed class CharacterFile
             node.Children[new YamlScalarNode(key)] = Text(value);
     }
 
-    /// <summary>Empty strings go out as <c>""</c> to match the game's files.</summary>
-    internal static YamlScalarNode Text(string value) =>
-        value.Length == 0 ? new YamlScalarNode(value) { Style = YamlDotNet.Core.ScalarStyle.DoubleQuoted } : new YamlScalarNode(value);
+    /// <summary>
+    /// Text as the game writes it (<c>ValueDataNode</c>): quoted when blank or when it reads as
+    /// null ("null", "NULL", " Null "), which the game would otherwise take for no value at all.
+    /// Halves of broken character pairs are dropped, as nothing can write them.
+    /// </summary>
+    internal static YamlScalarNode Text(string value)
+    {
+        value = WithoutLoneSurrogates(value);
+        return string.IsNullOrWhiteSpace(value) || string.Equals(value.Trim(), "null", StringComparison.OrdinalIgnoreCase)
+            ? new YamlScalarNode(value) { Style = YamlDotNet.Core.ScalarStyle.DoubleQuoted }
+            : new YamlScalarNode(value);
+    }
+
+    private static string WithoutLoneSurrogates(string value)
+    {
+        if (!value.Any(char.IsSurrogate))
+            return value;
+        var kept = new System.Text.StringBuilder(value.Length);
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (char.IsHighSurrogate(value[i]) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                kept.Append(value[i]).Append(value[++i]);
+            else if (!char.IsSurrogate(value[i]))
+                kept.Append(value[i]);
+        }
+        return kept.ToString();
+    }
 }
