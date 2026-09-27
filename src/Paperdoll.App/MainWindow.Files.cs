@@ -51,6 +51,8 @@ public partial class MainWindow
     private static string AutosavePath => Path.Combine(DataDirectory, "autosave.yml");
     // The working copy before it was last replaced by another character, in case that was a mistake.
     private static string PreviousAutosavePath => Path.Combine(DataDirectory, "autosave.prev.yml");
+    // A working copy that could not be reopened, set aside rather than overwritten.
+    private static string UnreadableAutosavePath => Path.Combine(DataDirectory, "autosave.unreadable.yml");
 
     private AppSettings _settings = new();
     // Only the real app saves; windows made for screenshots never touch the user's files.
@@ -59,6 +61,8 @@ public partial class MainWindow
     private bool _dirty;
     // A working copy from last time that has not been reopened yet, which nothing may overwrite.
     private bool _restorePending;
+    // Whether this run's working copy is its own (reopened, or written since), not one left from before.
+    private bool _restoredThisRun;
     private bool _closeConfirmed;
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromSeconds(1) };
 
@@ -86,8 +90,20 @@ public partial class MainWindow
                 });
                 return;
             }
-            if (_autosave.IsEnabled)
-                WriteAutosave();
+            // A working copy that cannot be written is not lost quietly: offer to save instead.
+            if (_autosave.IsEnabled && !WriteAutosave() && !_closeConfirmed)
+            {
+                e.Cancel = true;
+                _dirty = true;
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    if (await MayReplaceCharacterAsync("closing Paperdoll without its working copy"))
+                    {
+                        _closeConfirmed = true;
+                        Close();
+                    }
+                });
+            }
         };
         AutosaveItem.PropertyChanged += (_, e) =>
         {
@@ -139,19 +155,23 @@ public partial class MainWindow
         }
     }
 
-    private void WriteAutosave()
+    // Writes the working copy. False only when it was due and could not be written.
+    private bool WriteAutosave()
     {
-        if (!_canAutosave || !_settings.Autosave || _session?.File == null || _restorePending)
-            return;
+        if (!_canAutosave || !_settings.Autosave || _session?.File == null || _restorePending || _loading)
+            return true;
         try
         {
             Directory.CreateDirectory(DataDirectory);
             // The character as last edited, not as a fork switch has since fitted it.
             Core.SafeFile.WriteAllText(AutosavePath, _session.WorkingCopy());
+            _restoredThisRun = true;
+            return true;
         }
         catch (Exception e)
         {
             SetStatus($"Could not autosave: {e.Message}");
+            return false;
         }
     }
 
@@ -164,18 +184,46 @@ public partial class MainWindow
         if (!_restorePending || _session?.Content == null)
             return;
         _restorePending = false;
+        string text;
         try
         {
-            var text = await File.ReadAllTextAsync(AutosavePath);
-            _session.Open(text);
-            if (_session.LastFixes.Count > 0)
-                KeepPreviousWorkingCopy();
-            var detached = "";
+            text = await File.ReadAllTextAsync(AutosavePath);
+            // Should this fork's rules change it, it stays as it was until edited.
+            _session.Open(text, keepUntilEdited: true);
+            _restoredThisRun = true;
+        }
+        catch (Exception e)
+        {
+            // Set aside, so the next autosave does not overwrite it.
+            string where;
+            try
+            {
+                File.Move(AutosavePath, UnreadableAutosavePath, overwrite: true);
+                where = $"it is kept as {UnreadableAutosavePath}";
+            }
+            catch (Exception)
+            {
+                where = $"it is still at {AutosavePath}";
+            }
+            SetStatus($"Could not reopen the autosaved character ({e.Message}); {where}.");
+            return;
+        }
+
+        // Reopened; now whether it still belongs with its file.
+        var detached = "";
+        try
+        {
             var fileText = _settings.WorkingFile is { } path && File.Exists(path) ? await File.ReadAllTextAsync(path) : null;
             if (fileText != null && WorkingFileMatches(fileText, _settings.WorkingFileHash, text))
             {
                 _currentFile = await StorageProvider.TryGetFileFromPathAsync(_settings.WorkingFile!);
-                _dirty = fileText != text;
+                // Compared as Paperdoll would write them, so a game export is not taken for a change.
+                _dirty = _session.Normalized(fileText) != _session.Export();
+                if (_settings.WorkingFileHash == null)
+                {
+                    _settings = _settings with { WorkingFileHash = Fingerprint(fileText) };
+                    SaveSettings();
+                }
             }
             else
             {
@@ -184,25 +232,37 @@ public partial class MainWindow
                 ForgetWorkingFile();
                 _dirty = true;
             }
-            SelectDressedJob();
-            RefreshAll();
-            SetStatus($"Reopened {_session.File?.Name ?? "your character"} as you left it (autosaved {File.GetLastWriteTime(AutosavePath):g}).{detached}");
         }
         catch (Exception e)
         {
-            // Kept aside, so the next autosave does not overwrite it.
-            KeepPreviousWorkingCopy();
-            SetStatus($"Could not reopen the autosaved character ({e.Message}); it is kept as autosave.prev.yml, which File > Files on this computer shows.");
+            detached = $" Its file could not be read ({e.Message}), so Save will ask where to save it.";
+            ForgetWorkingFile();
+            _dirty = true;
         }
+        SelectDressedJob();
+        RefreshAll();
+        SetStatus($"Reopened {_session.File?.Name ?? "your character"} as you left it (autosaved {File.GetLastWriteTime(AutosavePath):g}).{detached}");
     }
 
-    // Copies the working copy aside before another character replaces it.
+    /// <summary>
+    /// Before another character replaces the one being edited: with autosave on, the outgoing
+    /// character is kept as the previous working copy. A working copy from last time that was
+    /// never reopened is kept instead, and no longer waits to be reopened.
+    /// </summary>
     private void KeepPreviousWorkingCopy()
     {
+        if (!_canAutosave)
+            return;
         try
         {
-            if (File.Exists(AutosavePath))
-                File.Copy(AutosavePath, PreviousAutosavePath, overwrite: true);
+            if (_restorePending)
+            {
+                _restorePending = false;
+                if (File.Exists(AutosavePath))
+                    Core.SafeFile.WriteAllBytes(PreviousAutosavePath, File.ReadAllBytes(AutosavePath));
+            }
+            else if (_settings.Autosave && _session?.File != null)
+                Core.SafeFile.WriteAllText(PreviousAutosavePath, _session.WorkingCopy());
         }
         catch (Exception e)
         {
@@ -274,7 +334,11 @@ public partial class MainWindow
     {
         if (_session == null)
             return;
-        await new FilesWindow(_session, AutosavePath, SettingsPath, () => _autosave.Stop()).ShowDialog(owner);
+        await new FilesWindow(_session, AutosavePath, SettingsPath, () =>
+        {
+            _autosave.Stop();
+            _restorePending = false;
+        }).ShowDialog(owner);
     }
 
     private void OnAutosaveToggled()
@@ -282,7 +346,22 @@ public partial class MainWindow
         _settings = _settings with { Autosave = AutosaveItem.IsChecked };
         SaveSettings();
         if (_settings.Autosave)
+        {
+            // A working copy left from when autosave was last on is kept, not overwritten.
+            if (!_restoredThisRun && File.Exists(AutosavePath))
+            {
+                try
+                {
+                    Core.SafeFile.WriteAllBytes(PreviousAutosavePath, File.ReadAllBytes(AutosavePath));
+                }
+                catch (Exception e)
+                {
+                    SetStatus($"Could not keep the old working copy: {e.Message}");
+                }
+            }
+            _restoredThisRun = true;
             WriteAutosave();
+        }
         SetStatus(_settings.Autosave
             ? "Autosave on: the character is kept a second after each change and reopened next time."
             : "Autosave off: use Save or Export to keep your work.");
@@ -296,7 +375,16 @@ public partial class MainWindow
         CommitTyping();
         if (_session?.File == null)
             return false;
-        return _currentFile == null ? await ExportAsync() : await WriteToAsync(_currentFile, "Saved");
+        if (_currentFile == null)
+            return await ExportAsync();
+        // Another program (the game exporting, another Paperdoll) may have saved there since.
+        if (_currentFile.TryGetLocalPath() is { } path && File.Exists(path) && _settings.WorkingFileHash is { } hash
+            && Fingerprint(await File.ReadAllTextAsync(path)) != hash)
+        {
+            SetStatus($"{_currentFile.Name} has changed since Paperdoll last read or wrote it, so it is not overwritten; choose where to save.");
+            return await ExportAsync();
+        }
+        return await WriteToAsync(_currentFile, "Saved");
     }
 
     // Writes the character to a file the user chose, which then becomes the one Save writes to.
@@ -306,6 +394,7 @@ public partial class MainWindow
         {
             var text = _session!.Export();
             await PickedFile.WriteAsync(file, text);
+            _session.KeepSwitchChanges();
             _currentFile = file;
             _dirty = false;
             _settings = _settings with { WorkingFile = file.TryGetLocalPath(), WorkingFileHash = Fingerprint(text) };
@@ -339,20 +428,30 @@ public partial class MainWindow
             await using var stream = await files[0].OpenReadAsync();
             var text = await new StreamReader(stream).ReadToEndAsync();
             var wasOld = Core.Profiles.CharacterFile.Parse(text).IsOldModel;
+            KeepPreviousWorkingCopy();
             _session.Open(text);
             _session.PreviewJob = null;
-            _currentFile = files[0];
-            _dirty = false;
-            _settings = _settings with { WorkingFile = files[0].TryGetLocalPath(), WorkingFileHash = Fingerprint(text) };
-            SaveSettings();
-            KeepPreviousWorkingCopy();
+            // Paperdoll's own copies (the working copy, the previous one) are opened as new
+            // characters, so Save never writes over them.
+            var local = files[0].TryGetLocalPath();
+            var own = local != null && Path.GetFullPath(local).StartsWith(Path.GetFullPath(DataDirectory) + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+            if (own)
+                ForgetWorkingFile();
+            else
+            {
+                _currentFile = files[0];
+                _settings = _settings with { WorkingFile = local, WorkingFileHash = Fingerprint(text) };
+                SaveSettings();
+            }
+            _dirty = own;
             WriteAutosave();
             _refreshing = true;
             SelectDressedJob();
             _refreshing = false;
             RefreshAll();
             var converted = wasOld && _session.Content?.Characters.Species.GetValueOrDefault(_session.Look!.Species)?.Old == null;
-            SetStatus($"Opened {files[0].Name}" + (converted ? ", converted from the old appearance model." : "."));
+            SetStatus($"Opened {files[0].Name}" + (converted ? ", converted from the old appearance model." : ".")
+                + (own ? " It is one of Paperdoll's own copies, so Save asks where to keep it." : ""));
         }
         catch (Exception ex)
         {

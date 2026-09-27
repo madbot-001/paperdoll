@@ -51,6 +51,33 @@ public class SessionTests
     }
 
     [Fact]
+    public async Task A_fork_that_fails_to_load_leaves_the_session_as_it_was()
+    {
+        await using var session = await LizardInA();
+        // A fork with nothing in it: no species at all, so no character can be fitted to it.
+        var empty = new ForkInfo("c", "Fork C", "o/c", "main", AppearanceModel.New, false, ["c"]);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => session.LoadForkAsync(empty, update: false, ct: TestContext.Current.CancellationToken));
+
+        Assert.Equal("a", session.Fork!.Id);
+        Assert.Equal("Lizard", session.Look!.Species);
+        Assert.Equal("Scar", Assert.Single(session.Look.Markings["Torso"]["Chest"]).Id);
+    }
+
+    [Fact]
+    public async Task Saving_after_a_switch_keeps_what_the_switch_changed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var session = await LizardInA();
+
+        await session.LoadForkAsync(TestForks.B, update: false, ct: ct);
+        session.KeepSwitchChanges();
+        await session.LoadForkAsync(TestForks.A, update: false, ct: ct);
+
+        Assert.Equal("Human", session.Look!.Species);
+    }
+
+    [Fact]
     public async Task A_file_that_fails_to_open_leaves_the_open_character_alone()
     {
         await using var session = await LizardInA();

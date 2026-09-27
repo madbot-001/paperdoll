@@ -101,29 +101,57 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LoadForkAsync(ForkInfo fork, bool update)
+    /// <summary>
+    /// Loads a fork: read and fitted in the background while the window keeps showing the session
+    /// unchanged, then taken into use at once. True if it loaded.
+    /// </summary>
+    private async Task<bool> LoadForkAsync(ForkInfo fork, bool update)
     {
         if (_session == null)
-            return;
+            return false;
         CommitTyping();
+        // The working copy is written now; nothing may write it while the fork loads.
+        if (_autosave.IsEnabled)
+        {
+            _autosave.Stop();
+            WriteAutosave();
+        }
+        var session = _session;
+        var loaded = false;
+        _loading = true;
         IsEnabled = false;
         try
         {
+            var source = session.CharacterSource();
             var progress = new Progress<string>(SetStatus);
-            await Task.Run(() => _session.LoadForkAsync(fork, update, progress));
-            await RefreshForkBoxAsync();
+            var load = await Task.Run(() => session.PrepareForkAsync(fork, update, source, progress));
+            session.Use(load);
+            loaded = true;
             OnForkLoaded();
             await RestoreAutosaveAsync();
         }
         catch (Exception e)
         {
-            SetStatus($"Could not load {fork.Name}: {e.Message}");
+            SetStatus(loaded ? $"{fork.Name} loaded, but: {e.Message}" : $"Could not load {fork.Name}: {e.Message}");
         }
         finally
         {
+            _loading = false;
             IsEnabled = true;
         }
+        try
+        {
+            await RefreshForkBoxAsync();
+        }
+        catch (Exception e)
+        {
+            SetStatus($"Could not list the downloaded forks: {e.Message}");
+        }
+        return loaded;
     }
+
+    // A fork load is under way: the session is not to be saved or edited until it is done.
+    private bool _loading;
 
     /// <summary>Rebuilds what depends on the fork, then the rest.</summary>
     private void OnForkLoaded()
@@ -233,26 +261,28 @@ public partial class MainWindow : Window
         CommitTyping();
         if (_session == null || await new ServersWindow().ShowDialog<ServerChoice?>(this) is not { } choice)
             return;
+        ForkInfo fork;
+        string commit;
         IsEnabled = false;
         try
         {
             var progress = new Progress<string>(SetStatus);
-            var (fork, commit) = await Task.Run(() => _session.MatchServerAsync(choice.Address, progress));
+            var session = _session;
+            (fork, commit) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress));
             _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
             SaveSettings();
-            await RefreshForkBoxAsync();
-            OnForkLoaded();
-            await RestoreAutosaveAsync();
-            SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
         }
         catch (Exception ex)
         {
             SetStatus($"Could not match {choice.Name}: {ex.Message}");
+            return;
         }
         finally
         {
             IsEnabled = true;
         }
+        if (await LoadForkAsync(fork, update: false))
+            SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
     }
 
     private async void OnUpdateFork(object? sender, RoutedEventArgs e)

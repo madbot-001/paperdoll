@@ -18,6 +18,11 @@ public sealed record ForkStatus(ForkInfo Fork, string? Commit)
 }
 
 /// <summary>A sprite on screen and its licence, for the credits pane.</summary>
+/// <summary>A fork read and a character fitted to it, ready for <see cref="EditorSession.Use"/>.</summary>
+/// <param name="BeforeSwitch">The character as it was, when fitting it to this fork changed it.</param>
+public sealed record ForkLoad(ForkInfo Fork, ForkContent Content, PaperdollRenderer Renderer, CharacterFile File,
+    IReadOnlyList<RuleFix> Fixes, CharacterLook Look, string? BeforeSwitch);
+
 public sealed record CreditLine(string Rsi, string? License, string? Copyright)
 {
     public bool NonCommercial => License?.Contains("NC", StringComparison.Ordinal) == true;
@@ -72,9 +77,26 @@ public sealed class EditorSession : IAsyncDisposable
 
     /// <summary>
     /// Makes a fork the one being edited: downloads it if needed, reads its data and sprites. An
-    /// open character is checked against the new data rather than replaced; otherwise a new one starts.
+    /// open character is checked against the new data rather than replaced; otherwise a new one
+    /// starts. The window uses <see cref="PrepareForkAsync"/> and <see cref="Use"/> instead, so
+    /// the session never changes while it reads it.
     /// </summary>
-    public async Task LoadForkAsync(ForkInfo fork, bool update, IProgress<string>? progress = null, CancellationToken ct = default)
+    public async Task LoadForkAsync(ForkInfo fork, bool update, IProgress<string>? progress = null, CancellationToken ct = default) =>
+        Use(await PrepareForkAsync(fork, update, CharacterSource(), progress, ct));
+
+    /// <summary>
+    /// What a fork load fits to the new fork: the character as it was before any earlier switch
+    /// changed it, so switching back restores what another fork's rules dropped. Null for none.
+    /// </summary>
+    public string? CharacterSource() => File == null ? null : _beforeSwitch ?? File.ToYaml();
+
+    /// <summary>
+    /// Reads a fork and fits the character to it without changing the session, so it can run away
+    /// from the window's thread while the window keeps using the session. A failure leaves
+    /// everything as it was.
+    /// </summary>
+    /// <param name="source">The character to fit, from <see cref="CharacterSource"/>; null starts a new one.</param>
+    public async Task<ForkLoad> PrepareForkAsync(ForkInfo fork, bool update, string? source, IProgress<string>? progress = null, CancellationToken ct = default)
     {
         if (update || await Store.CommitOfAsync(fork.Id, ct) == null)
         {
@@ -86,28 +108,22 @@ public sealed class EditorSession : IAsyncDisposable
         progress?.Report("Reading sprites");
         _reader ??= Store.OpenReader();
         var textures = await MemoryTextures.LoadAsync(content, _reader, ct);
+        var renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
 
-        Fork = fork;
-        Content = content;
-        Renderer = new PaperdollRenderer(content.Characters, content.Prototypes, textures);
-        if (File != null)
-        {
-            // Checked from the character as it was before any earlier switch changed it, so
-            // switching back restores what this fork's rules dropped.
-            var source = _beforeSwitch ?? File.ToYaml();
-            var file = CharacterFile.Parse(source);
-            var (fixes, look) = Checked(file);
-            (File, LastFixes, Look) = (file, fixes, look);
-            _beforeSwitch = fixes.Count > 0 ? source : null;
-        }
-        else
-        {
-            NewCharacter(content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
+        var file = source != null
+            ? CharacterFile.Parse(source)
+            : CreateCharacter(content, fork, content.Characters.Species.ContainsKey(CharacterRules.DefaultSpecies)
                 ? CharacterRules.DefaultSpecies
-                : Selectable().First().Id);
-        }
+                : content.Characters.Selectable(fork.HiddenSpecies).First().Id);
+        var (fixes, look) = Checked(file, content, fork);
         progress?.Report($"{fork.Name} ready");
+        return new ForkLoad(fork, content, renderer, file, fixes, look, source != null && fixes.Count > 0 ? source : null);
     }
+
+    /// <summary>Takes a prepared fork into use, all at once.</summary>
+    public void Use(ForkLoad load) =>
+        (Fork, Content, Renderer, File, LastFixes, Look, _beforeSwitch) =
+        (load.Fork, load.Content, load.Renderer, load.File, load.Fixes, load.Look, load.BeforeSwitch);
 
     public Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default) => Store.RemoveAsync(fork.Id, ct);
 
@@ -117,7 +133,7 @@ public sealed class EditorSession : IAsyncDisposable
     /// Loads the fork a server runs, at the commit it was built from, so the choices match that
     /// server rather than the fork's newest code. Update goes back to the newest.
     /// </summary>
-    public async Task<(ForkInfo Fork, string Commit)> MatchServerAsync(string address, IProgress<string>? progress = null, CancellationToken ct = default)
+    public async Task<(ForkInfo Fork, string Commit)> SyncToServerAsync(string address, IProgress<string>? progress = null, CancellationToken ct = default)
     {
         progress?.Report("Asking the server what it runs");
         var build = await new Servers.GameServers(Http).BuildAsync(address, ct);
@@ -130,7 +146,6 @@ public sealed class EditorSession : IAsyncDisposable
 
         progress?.Report($"Getting {fork.Name} at the server's version");
         var commit = await Store.SyncToCommitAsync(fork, build.Version!, ct);
-        await LoadForkAsync(fork, update: false, progress, ct);
         return (fork, commit);
     }
 
@@ -158,23 +173,30 @@ public sealed class EditorSession : IAsyncDisposable
     /// <summary>A new character of the species with the game's defaults.</summary>
     public void NewCharacter(string speciesId)
     {
-        var catalog = RequireContent().Characters;
+        var file = CreateCharacter(RequireContent(), Fork!, speciesId);
+        var (fixes, look) = Checked(file);
+        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
+    }
+
+    // A new character of a species, as the lobby starts one.
+    private static CharacterFile CreateCharacter(ForkContent content, ForkInfo fork, string speciesId)
+    {
+        var catalog = content.Characters;
         var species = catalog.Species[speciesId];
-        var file = CharacterFile.CreateNew(Fork!.ServerForkIds.FirstOrDefault() ?? Fork.Id);
-        file.Name = RandomName(species, "Epicene");
+        var file = CharacterFile.CreateNew(fork.ServerForkIds.FirstOrDefault() ?? fork.Id);
+        file.Name = RandomNamer(content, fork)(species, "Epicene");
         file.Age = Math.Max(species.MinAge, Math.Min(species.YoungAge, species.MaxAge));
         file.Gender = "Epicene";
         file.WriteLook(LookDefaults.Create(catalog, speciesId, species.Sexes[0], catalog.DefaultSkin(species), Rgba.Parse("#000000")), catalog);
         // The species' default size, which the lobby's reset buttons give.
-        if (CharacterSize.HasHeight(Fork))
-            CharacterSize.WriteHeight(file, Fork, CharacterSize.CheckHeight(species.DefaultHeight, species, Fork));
-        if (CharacterSize.HasWidth(Fork))
+        if (CharacterSize.HasHeight(fork))
+            CharacterSize.WriteHeight(file, fork, CharacterSize.CheckHeight(species.DefaultHeight, species, fork));
+        if (CharacterSize.HasWidth(fork))
             CharacterSize.WriteWidth(file, CharacterSize.CheckWidth(species.DefaultWidth, species));
         // The game starts every profile on MaleHuman; its rules then give species that cannot use it their default.
         if (catalog.HasVoices)
             file.Voice = species.Voices.Contains(CharacterRules.DefaultVoice) ? CharacterRules.DefaultVoice : species.DefaultVoice(species.Sexes[0]);
-        var (fixes, look) = Checked(file);
-        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
+        return file;
     }
 
     /// <summary>The job whose clothes the preview shows; null means the one the lobby would pick.</summary>
@@ -392,13 +414,33 @@ public sealed class EditorSession : IAsyncDisposable
     /// Opens an exported character and fits it to the loaded fork. A file that cannot be read or
     /// checked leaves the open character as it was.
     /// </summary>
-    public IReadOnlyList<RuleFix> Open(string yaml)
+    /// <param name="keepUntilEdited">
+    /// Keep the text as it was, as the working copy, until the character is edited, when the
+    /// rules change it (reopening a working copy in another fork than it was made for).
+    /// </param>
+    public IReadOnlyList<RuleFix> Open(string yaml, bool keepUntilEdited = false)
     {
         RequireContent();
         var file = CharacterFile.Parse(yaml);
         var (fixes, look) = Checked(file);
-        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
+        (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, keepUntilEdited && fixes.Count > 0 ? yaml : null);
         return fixes;
+    }
+
+    /// <summary>
+    /// Keeps what a fork switch changed, as saving does: switching back no longer brings back the
+    /// version from before.
+    /// </summary>
+    public void KeepSwitchChanges() => _beforeSwitch = null;
+
+    /// <summary>A character's text as <see cref="Export"/> would give it, without opening it.</summary>
+    public string Normalized(string yaml)
+    {
+        RequireContent();
+        var file = CharacterFile.Parse(yaml);
+        Checked(file);
+        file.LabelFor(Fork!);
+        return file.ToYaml();
     }
 
     /// <summary>Text for the lobby's Import button.</summary>
@@ -686,8 +728,7 @@ public sealed class EditorSession : IAsyncDisposable
     }
 
     /// <summary>A random name for the species, already in the form the game's name rule leaves it (so "Vish'ra" is "Vish'Ra").</summary>
-    public string RandomName(SpeciesInfo species, string? gender) =>
-        CharacterRules.CheckName(new NameGenerator(RequireContent().Prototypes, Content!.Strings).Next(species, gender), Fork!.NameRule);
+    public string RandomName(SpeciesInfo species, string? gender) => RandomNamer(RequireContent(), Fork!)(species, gender);
 
     /// <summary>
     /// Randomises the chosen parts, keeping the rest (its locks). Unlike the game's randomiser,
@@ -748,11 +789,17 @@ public sealed class EditorSession : IAsyncDisposable
     private void ApplyRules() => (LastFixes, Look) = Checked(RequireFile());
 
     // The game's rules applied to a file, and the look they leave it with.
-    private (IReadOnlyList<RuleFix> Fixes, CharacterLook Look) Checked(CharacterFile file)
+    private (IReadOnlyList<RuleFix> Fixes, CharacterLook Look) Checked(CharacterFile file) => Checked(file, RequireContent(), Fork!);
+
+    private static (IReadOnlyList<RuleFix> Fixes, CharacterLook Look) Checked(CharacterFile file, ForkContent content, ForkInfo fork)
     {
-        var fixes = CharacterRules.EnsureValid(file, Content!.Characters, Fork!, RandomName, Content.Outfits, Content.Traits);
-        return (fixes, file.ReadLook(Content.Characters));
+        var fixes = CharacterRules.EnsureValid(file, content.Characters, fork, RandomNamer(content, fork), content.Outfits, content.Traits);
+        return (fixes, file.ReadLook(content.Characters));
     }
+
+    // Random names for a fork, already in the form its name rule leaves them.
+    private static Func<SpeciesInfo, string?, string> RandomNamer(ForkContent content, ForkInfo fork) =>
+        (species, gender) => CharacterRules.CheckName(new NameGenerator(content.Prototypes, content.Strings).Next(species, gender), fork.NameRule);
 
     private ForkContent RequireContent() => Content ?? throw new InvalidOperationException("No fork is loaded.");
     private CharacterFile RequireFile() => File ?? throw new InvalidOperationException("No character is open.");
