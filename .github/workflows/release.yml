@@ -12,10 +12,13 @@ on:
 permissions:
   contents: read
 
+# No usage data from the tools either: .NET, Avalonia's build step, the GitHub CLI.
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
   AVALONIA_TELEMETRY_OPTOUT: '1'
+  GH_TELEMETRY: 'false'
+  DO_NOT_TRACK: '1'
 
 jobs:
   test:
