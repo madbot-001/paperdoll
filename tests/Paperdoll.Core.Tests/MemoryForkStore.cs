@@ -37,6 +37,15 @@ public sealed class MemoryForkStore : IForkStore
 
     public Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default) => Task.FromResult(_commits.GetValueOrDefault(forkId));
 
+    public Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default)
+    {
+        if (previousCommit == null)
+            _commits.Remove(forkId);
+        else
+            _commits[forkId] = previousCommit;
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(_commits));
 

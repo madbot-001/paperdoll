@@ -152,6 +152,25 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_update_goes_back_to_the_version_before_with_its_files()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "old" });
+        var store = await NewStoreAsync();
+        var old = await store.SyncAsync(Fork("a"), ct);
+        var oldFiles = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", oldFiles, ct);
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "new" });
+        await store.SyncAsync(Fork("a"), ct);
+
+        await store.RevertSyncAsync("a", old, ct);
+        await store.CleanUpAsync(ct);
+
+        Assert.Equal(old, await store.CommitOfAsync("a", ct));
+        Assert.Empty(await store.MissingAsync(oldFiles.Select(e => e.ObjectId), ct));
+    }
+
+    [Fact]
     public void Sprites_are_listed_a_folder_below_textures_at_a_time()
     {
         var roots = Forks.ForkContent.ListingRoots([

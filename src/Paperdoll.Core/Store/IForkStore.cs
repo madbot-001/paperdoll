@@ -27,6 +27,12 @@ public interface IForkStore
     /// <summary>Every synced fork's commit, by fork id, in one go.</summary>
     Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Undoes the last sync after its files could not be loaded: the fork goes back to the commit
+    /// it was on, whose files are still here, or back to not downloaded when it had none.
+    /// </summary>
+    Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default);
+
     /// <summary>Every file under the given folders in a synced fork's commit.</summary>
     Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default);
 

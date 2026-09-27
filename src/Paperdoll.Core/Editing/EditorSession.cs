@@ -96,12 +96,44 @@ public sealed class EditorSession : IAsyncDisposable
     /// <param name="source">The character to fit, from <see cref="CharacterSource"/>; null starts a new one.</param>
     public async Task<ForkLoad> PrepareForkAsync(ForkInfo fork, bool update, string? source, IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        if (update || await Store.CommitOfAsync(fork.Id, ct) == null)
-        {
-            progress?.Report($"Checking {fork.Name} for its newest version");
-            await Store.SyncAsync(fork, ct);
-        }
+        var previous = await Store.CommitOfAsync(fork.Id, ct);
+        if (!update && previous != null)
+            return await PrepareAsync(fork, source, progress, ct);
 
+        progress?.Report($"Checking {fork.Name} for its newest version");
+        await Store.SyncAsync(fork, ct);
+        try
+        {
+            return await PrepareAsync(fork, source, progress, ct);
+        }
+        catch
+        {
+            // A version that cannot be loaded (offline part way, out of requests) is not kept:
+            // the fork stays on the version it had, which still opens without the network.
+            await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Loads a fork at the commit it was already synced to, such as one just matched to a server;
+    /// if it cannot be loaded, the fork goes back to <paramref name="previous"/>.
+    /// </summary>
+    public async Task<ForkLoad> PrepareSyncedForkAsync(ForkInfo fork, string? previous, string? source, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        try
+        {
+            return await PrepareAsync(fork, source, progress, ct);
+        }
+        catch
+        {
+            await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
+            throw;
+        }
+    }
+
+    private async Task<ForkLoad> PrepareAsync(ForkInfo fork, string? source, IProgress<string>? progress, CancellationToken ct)
+    {
         var content = await ForkContent.LoadAsync(Store, fork, progress, ct);
         progress?.Report("Reading sprites");
         _reader ??= Store.OpenReader();
@@ -146,7 +178,8 @@ public sealed class EditorSession : IAsyncDisposable
     /// Loads the fork a server runs, at the commit it was built from, so the choices match that
     /// server rather than the fork's newest code. Update goes back to the newest.
     /// </summary>
-    public async Task<(ForkInfo Fork, string Commit)> SyncToServerAsync(string address, IProgress<string>? progress = null, CancellationToken ct = default)
+    /// <returns>The fork, the commit it now has, and the commit it had before (null if none), for <see cref="PrepareSyncedForkAsync"/>.</returns>
+    public async Task<(ForkInfo Fork, string Commit, string? Previous)> SyncToServerAsync(string address, IProgress<string>? progress = null, CancellationToken ct = default)
     {
         progress?.Report("Asking the server what it runs");
         var build = await new Servers.GameServers(Http).BuildAsync(address, ct);
@@ -158,8 +191,9 @@ public sealed class EditorSession : IAsyncDisposable
             throw new InvalidOperationException($"This server gives its version as {build.Version ?? "nothing"}, not a git commit, so it cannot be matched.");
 
         progress?.Report($"Getting {fork.Name} at the server's version");
+        var previous = await Store.CommitOfAsync(fork.Id, ct);
         var commit = await Store.SyncToCommitAsync(fork, build.Version!, ct);
-        return (fork, commit);
+        return (fork, commit, previous);
     }
 
     /// <summary>Frees space old fork versions left behind. Returns the bytes freed.</summary>

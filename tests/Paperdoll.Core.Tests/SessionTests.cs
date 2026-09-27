@@ -62,6 +62,8 @@ public class SessionTests
         Assert.Equal("a", session.Fork!.Id);
         Assert.Equal("Lizard", session.Look!.Species);
         Assert.Equal("Scar", Assert.Single(session.Look.Markings["Torso"]["Chest"]).Id);
+        // Never loaded, so it is not left looking downloaded.
+        Assert.Null(await session.Store.CommitOfAsync("c", TestContext.Current.CancellationToken));
     }
 
     [Fact]

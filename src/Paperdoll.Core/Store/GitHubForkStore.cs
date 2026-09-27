@@ -70,15 +70,33 @@ public sealed class GitHubForkStore : IForkStore
         var commit = (await SendAsync(request, ct)).Trim();
 
         var record = await LoadForkAsync(fork.Id, ct) ?? new ForkRecord(fork.Repository, fork.Branch, commit, []);
-        // A new version starts its own lists, so clean-up can tell what the old one used.
+        // A new version starts its own lists, so clean-up can tell what the old one used. The old
+        // record is kept until the next clean-up, in case the new version fails to load.
         if (record.Commit != commit)
+        {
+            SafeFile.WriteAllText(PreviousPath(fork.Id), JsonSerializer.Serialize(record, Json));
             record = record with { Objects = [], Trees = [] };
+        }
         await SaveForkAsync(fork.Id, record with { Repository = fork.Repository, Branch = fork.Branch, Commit = commit }, ct);
         return commit;
     }
 
     public async Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default) =>
         (await LoadForkAsync(forkId, ct))?.Commit;
+
+    public async Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default)
+    {
+        if (previousCommit == null)
+        {
+            File.Delete(ForkPath(forkId));
+            return;
+        }
+        var previous = File.Exists(PreviousPath(forkId)) ? ReadJson<ForkRecord>(await File.ReadAllBytesAsync(PreviousPath(forkId), ct)) : null;
+        if (previous?.Commit == previousCommit)
+            SafeFile.WriteAllText(ForkPath(forkId), JsonSerializer.Serialize(previous, Json));
+        else if (await LoadForkAsync(forkId, ct) is { } record)
+            await SaveForkAsync(forkId, record with { Commit = previousCommit, Objects = [], Trees = [] }, ct);
+    }
 
     public async Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default)
     {
@@ -154,6 +172,7 @@ public sealed class GitHubForkStore : IForkStore
     public async Task RemoveAsync(string forkId, CancellationToken ct = default)
     {
         File.Delete(ForkPath(forkId));
+        File.Delete(PreviousPath(forkId));
         await CleanUpAsync(ct);
     }
 
@@ -162,6 +181,9 @@ public sealed class GitHubForkStore : IForkStore
     public async Task<long> CleanUpAsync(CancellationToken ct = default)
     {
         var before = StoreSize.Of(Directory);
+        // Versions kept in case an update failed to load are dropped with the rest.
+        foreach (var previous in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json.previous"))
+            File.Delete(previous);
         var keepObjects = new HashSet<string>(StringComparer.Ordinal);
         var keepTrees = new HashSet<string>(StringComparer.Ordinal);
         var keepAllTrees = false;
@@ -207,6 +229,9 @@ public sealed class GitHubForkStore : IForkStore
 
     private string ObjectPath(string id) => Path.Combine(Directory, "objects", id[..2], id[2..]);
     private string ForkPath(string forkId) => Path.Combine(Directory, "forks", forkId + ".json");
+
+    // The record of the version before the last sync, until the next clean-up.
+    private string PreviousPath(string forkId) => Path.Combine(Directory, "forks", forkId + ".json.previous");
 
     private static string EscapePath(string path) =>
         string.Join('/', path.Split('/').Select(Uri.EscapeDataString));

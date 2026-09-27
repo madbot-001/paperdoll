@@ -105,7 +105,13 @@ public partial class MainWindow : Window
     /// Loads a fork: read and fitted in the background while the window keeps showing the session
     /// unchanged, then taken into use at once. True if it loaded.
     /// </summary>
-    private async Task<bool> LoadForkAsync(ForkInfo fork, bool update)
+    private Task<bool> LoadForkAsync(ForkInfo fork, bool update) =>
+        LoadAsync(fork, (session, source, progress) => session.PrepareForkAsync(fork, update, source, progress));
+
+    // How a load reads its fork: the character to fit in, and where to report progress.
+    private delegate Task<ForkLoad> Prepare(EditorSession session, string? source, IProgress<string> progress);
+
+    private async Task<bool> LoadAsync(ForkInfo fork, Prepare prepare)
     {
         if (_session == null)
             return false;
@@ -124,7 +130,7 @@ public partial class MainWindow : Window
         {
             var source = session.CharacterSource();
             var progress = new Progress<string>(SetStatus);
-            var load = await Task.Run(() => session.PrepareForkAsync(fork, update, source, progress));
+            var load = await Task.Run(() => prepare(session, source, progress));
             session.Use(load);
             loaded = true;
             OnForkLoaded();
@@ -263,14 +269,13 @@ public partial class MainWindow : Window
             return;
         ForkInfo fork;
         string commit;
+        string? previous;
         IsEnabled = false;
         try
         {
             var progress = new Progress<string>(SetStatus);
             var session = _session;
-            (fork, commit) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress));
-            _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
-            SaveSettings();
+            (fork, commit, previous) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress));
         }
         catch (Exception ex)
         {
@@ -281,8 +286,14 @@ public partial class MainWindow : Window
         {
             IsEnabled = true;
         }
-        if (await LoadForkAsync(fork, update: false))
+        // A server version that cannot be loaded leaves the fork as it was.
+        if (await LoadAsync(fork, (session, source, progress) => session.PrepareSyncedForkAsync(fork, previous, source, progress)))
+        {
+            _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
+            SaveSettings();
+            RefreshAll();
             SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
+        }
     }
 
     private async void OnUpdateFork(object? sender, RoutedEventArgs e)

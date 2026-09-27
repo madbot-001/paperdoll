@@ -126,6 +126,30 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_update_goes_back_to_the_version_before_without_the_network()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "old" });
+        var store = await NewStoreAsync();
+        var old = await store.SyncAsync(Fork("a"), source.Url, ct);
+        var oldFiles = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", oldFiles, ct);
+        source.Commit(new() { ["Resources/Prototypes/a.yml"] = "new" });
+        await store.SyncAsync(Fork("a"), source.Url, ct);
+        // The source is gone: nothing can be fetched any more.
+        Directory.Move(Path.Combine(_root, "source-a"), Path.Combine(_root, "gone"));
+
+        await store.RevertSyncAsync("a", old, ct);
+
+        Assert.Equal(old, await store.CommitOfAsync("a", ct));
+        Assert.Equal(oldFiles, await store.ListAsync("a", ["Resources/Prototypes"], ct));
+        Assert.Empty(await store.MissingAsync(oldFiles.Select(e => e.ObjectId), ct));
+
+        await store.RevertSyncAsync("a", null, ct);
+        Assert.Null(await store.CommitOfAsync("a", ct));
+    }
+
+    [Fact]
     public async Task Lock_files_left_by_a_crash_are_cleared()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -93,6 +93,14 @@ public sealed class GitForkStore : IForkStore
             .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
     }
 
+    public async Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default)
+    {
+        if (previousCommit == null)
+            await _git.RunAsync(["update-ref", "-d", RefFor(forkId)], ct: ct);
+        else
+            await _git.RunAsync(["update-ref", RefFor(forkId), previousCommit], ct: ct);
+    }
+
     /// <summary>Reads listings only; needs no network.</summary>
     public async Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default)
     {
