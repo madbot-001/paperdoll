@@ -80,6 +80,13 @@ public class CharacterFileTests
           - { sprite: Mobs/body.rsi, state: a }
           - { sprite: Mobs/body.rsi, state: b }
         - type: marking
+          id: Bands
+          bodyPart: Chest
+          sprites:
+          - { sprite: Mobs/body.rsi, state: a }
+          - { sprite: Mobs/body.rsi, state: b }
+          - { sprite: Mobs/body.rsi, state: c }
+        - type: marking
           id: HumanTail
           bodyPart: Tail
           sprites: [ { sprite: Mobs/tail.rsi, state: tail } ]
@@ -206,6 +213,28 @@ public class CharacterFileTests
         Assert.Equal(512, upstream.FlavorText!.Length);
         Assert.Equal(text, euphoria.FlavorText);
         Assert.Equal(1024, KnownForks.Find("euphoria")!.MaxFlavorTextLength);
+    }
+
+    [Theory]
+    [InlineData(MarkingColorRepair.RepeatLast, "#00FF00")]
+    [InlineData(MarkingColorRepair.RepeatFirst, "#FF0000")]
+    [InlineData(MarkingColorRepair.AllWhite, "#FFFFFF")]
+    public void A_marking_that_gained_sprites_gets_its_colours_as_the_fork_gives_them(MarkingColorRepair repair, string added)
+    {
+        var file = CharacterFile.Parse(OldFile);
+        CharacterRules.EnsureValid(file, Catalog, Fork);
+        var look = file.ReadLook(Catalog);
+        // A marking with three sprites saved with two colours, as before it gained one.
+        var twoColours = new MarkingEntry("Bands", [Rgba.Parse("#FF0000"), Rgba.Parse("#00FF00")]);
+        var markings = look.Markings.ToDictionary(o => o.Key, o => o.Value.ToDictionary(l => l.Key, l => l.Value.ToList()));
+        markings["Torso"]["Chest"] = [twoColours];
+
+        var valid = CharacterRules.EnsureValidLook(new CharacterLook { Species = look.Species, Sex = look.Sex, SkinColor = look.SkinColor, EyeColor = look.EyeColor, Markings = markings },
+            Catalog.Species["Human"], Catalog, colorRepair: repair);
+
+        var colors = valid.Markings["Torso"]["Chest"].Single(m => m.Id == "Bands").Colors;
+        Assert.Equal(3, colors.Count);
+        Assert.Equal(Rgba.Parse(added), colors[2]);
     }
 
     [Fact]

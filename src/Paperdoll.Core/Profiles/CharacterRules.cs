@@ -182,7 +182,7 @@ public static partial class CharacterRules
 
         var checkedLook = species.Old != null
             ? OldAppearanceRules.EnsureValidLook(look, species, catalog, fixes, file.IsOldModel ? file.OldMarkingList() : null)
-            : EnsureValidLook(look, species, catalog, fixes);
+            : EnsureValidLook(look, species, catalog, fixes, fork.MarkingColorRepair);
         file.WriteLook(new CharacterLook
         {
             Species = speciesId,
@@ -273,7 +273,9 @@ public static partial class CharacterRules
     /// required layers given their default markings. The sex used is the one on the look. Species on
     /// the old appearance model follow <see cref="OldAppearanceRules"/> instead.
     /// </summary>
-    public static CharacterLook EnsureValidLook(CharacterLook look, SpeciesInfo species, CharacterCatalog catalog, List<RuleFix>? fixes = null)
+    /// <param name="colorRepair">How the fork fits a marking's colours to its sprites.</param>
+    public static CharacterLook EnsureValidLook(CharacterLook look, SpeciesInfo species, CharacterCatalog catalog, List<RuleFix>? fixes = null,
+        MarkingColorRepair colorRepair = MarkingColorRepair.RepeatLast)
     {
         if (species.Old != null)
             return OldAppearanceRules.EnsureValidLook(look, species, catalog, fixes);
@@ -301,7 +303,7 @@ public static partial class CharacterRules
             var group = organ.MarkingGroup != null ? catalog.MarkingsGroups.GetValueOrDefault(organ.MarkingGroup) : null;
             var before = Count(sets);
 
-            ValidColors(sets, catalog);
+            ValidColors(sets, catalog, colorRepair);
             ValidGroupAndSex(sets, catalog, group, look.Sex);
             ValidLayers(sets, catalog, organ.MarkingLayers);
             ValidLimits(sets, catalog, group, organ.MarkingLayers, skin, eyes);
@@ -317,8 +319,9 @@ public static partial class CharacterRules
         static float Round(float v) => MathF.Round(Math.Clamp(v, 0, 1) * 255f) / 255f;
     }
 
-    // Fewer colours than sprites: repeat the last (or white); more: drop the extras.
-    private static void ValidColors(Dictionary<string, List<MarkingEntry>> sets, CharacterCatalog catalog)
+    // Colours to match the sprites, as the fork fits them: fewer than sprites repeat the last (or
+    // white) or, in Euphoria, the first; more are dropped. Delta-V makes them all white instead.
+    private static void ValidColors(Dictionary<string, List<MarkingEntry>> sets, CharacterCatalog catalog, MarkingColorRepair repair)
     {
         foreach (var markings in sets.Values)
         {
@@ -331,8 +334,13 @@ public static partial class CharacterRules
                 }
                 var colors = markings[i].Colors.ToList();
                 var sprites = marking.Sprites.Count;
-                if (colors.Count < sprites)
-                    colors.AddRange(Enumerable.Repeat(colors.Count == 0 ? Rgba.White : colors[^1], sprites - colors.Count));
+                if (colors.Count != sprites && repair == MarkingColorRepair.AllWhite)
+                    colors = Enumerable.Repeat(Rgba.White, sprites).ToList();
+                else if (colors.Count < sprites)
+                {
+                    var fill = colors.Count == 0 ? Rgba.White : repair == MarkingColorRepair.RepeatFirst ? colors[0] : colors[^1];
+                    colors.AddRange(Enumerable.Repeat(fill, sprites - colors.Count));
+                }
                 else if (colors.Count > sprites)
                     colors = colors.Take(sprites).ToList();
                 markings[i] = markings[i] with { Colors = colors };

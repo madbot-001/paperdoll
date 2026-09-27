@@ -62,6 +62,22 @@ public sealed record ForkInfo(
     /// <c>MaxDescLength</c>): 512 upstream, 1024 in Euphoria, 2048 in Wayfarer and Triad.
     /// </summary>
     public int MaxFlavorTextLength { get; init; } = 512;
+
+    /// <summary>How a marking's colours are fitted when it has gained or lost sprites (<c>MarkingManager.EnsureValidColors</c>).</summary>
+    public MarkingColorRepair MarkingColorRepair { get; init; } = MarkingColorRepair.RepeatLast;
+}
+
+/// <summary>What a fork does with a marking's colours when their number no longer matches its sprites.</summary>
+public enum MarkingColorRepair
+{
+    /// <summary>Extra colours are dropped and missing ones repeat the last (upstream, and most forks).</summary>
+    RepeatLast,
+
+    /// <summary>Every colour becomes white (Delta-V).</summary>
+    AllWhite,
+
+    /// <summary>Extra colours are dropped and missing ones repeat the first (Euphoria, for tails that gained a back half).</summary>
+    RepeatFirst,
 }
 
 /// <summary>Character fields some forks add to the saved profile.</summary>
