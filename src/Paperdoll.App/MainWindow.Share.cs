@@ -11,15 +11,22 @@ public partial class MainWindow
         CommitTyping();
         if (_session?.Look == null || _session.File == null)
             return;
-        var session = _session;
-        var name = string.IsNullOrWhiteSpace(session.File.Name) ? "Unnamed" : session.File.Name.Trim();
-        var sides = new[] { Direction.South, Direction.North, Direction.East, Direction.West }.Select(d => session.Render(d)).ToList();
-        var request = new ShareRequest(sides, session.SpriteScale(), new Preview.ShareText(name, ShareSubtitle(), ShareCredit()), FullCredits(name), name + ".png");
-        await new ShareWindow(request, _settings.Share ?? new(), options =>
+        try
         {
-            _settings = _settings with { Share = options };
-            SaveSettings();
-        }).ShowDialog(this);
+            var session = _session;
+            var name = string.IsNullOrWhiteSpace(session.File.Name) ? "Unnamed" : session.File.Name.Trim();
+            var sides = new[] { Direction.South, Direction.North, Direction.East, Direction.West }.Select(d => session.Render(d)).ToList();
+            var request = new ShareRequest(sides, session.SpriteScale(), new Preview.ShareText(name, ShareSubtitle(), ShareCredit()), FullCredits(name), name + ".png");
+            await new ShareWindow(request, _settings.Share ?? new(), options =>
+            {
+                _settings = _settings with { Share = options };
+                SaveSettings();
+            }).ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not make a picture: {ex.Message}");
+        }
     }
 
     // "Vulpkanin · Security Officer": the species (or the custom species name) and the job the preview dresses for.

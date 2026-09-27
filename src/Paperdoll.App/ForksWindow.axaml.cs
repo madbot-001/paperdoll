@@ -25,7 +25,17 @@ public partial class ForksWindow : Window
     {
         _session = session;
         _showFiles = showFiles;
-        Opened += async (_, _) => await RefreshAsync();
+        Opened += async (_, _) =>
+        {
+            try
+            {
+                await RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Could not list the forks: {ex.Message}";
+            }
+        };
     }
 
     private async Task RefreshAsync()
@@ -78,9 +88,23 @@ public partial class ForksWindow : Window
             return;
         }
         StatusText.Text = $"Removing {row.Fork.Name}...";
-        await _session.RemoveForkAsync(row.Fork);
-        await RefreshAsync();
-        StatusText.Text = $"Removed {row.Fork.Name}.";
+        // Nothing else in the window until it is done: a second removal or a download at the
+        // same time would trip over the first.
+        IsEnabled = false;
+        try
+        {
+            await Task.Run(() => _session.RemoveForkAsync(row.Fork));
+            await RefreshAsync();
+            StatusText.Text = $"Removed {row.Fork.Name}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not remove {row.Fork.Name}: {ex.Message}";
+        }
+        finally
+        {
+            IsEnabled = true;
+        }
     }
 
     private async void OnFiles(object? sender, RoutedEventArgs e)

@@ -268,7 +268,14 @@ public partial class MainWindow : Window
         if (_session == null)
             return;
         var choice = await new ForksWindow(_session, ShowFilesAsync).ShowDialog<ForkChoice?>(this);
-        await RefreshForkBoxAsync();
+        try
+        {
+            await RefreshForkBoxAsync();
+        }
+        catch (Exception e)
+        {
+            SetStatus($"Could not list the downloaded forks: {e.Message}");
+        }
         if (choice != null)
             await LoadForkAsync(choice.Fork, choice.Update);
     }
