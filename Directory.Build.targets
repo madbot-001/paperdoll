@@ -1,0 +1,6 @@
+<Project>
+  <!-- Avalonia's build tools report usage statistics to Avalonia each time a project is built.
+       Paperdoll sends nothing anywhere, its builds included, so the step is replaced with one that
+       does nothing (the same as setting AVALONIA_TELEMETRY_OPTOUT=1). -->
+  <Target Name="AvaloniaStats" />
+</Project>

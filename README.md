@@ -21,10 +21,20 @@ Einstein Engines, Misfits and RMC-14 aren't supported yet. So far it has only be
 
 ## Running it
 
-From a build: unpack it and run `Paperdoll` (Linux, macOS) or `Paperdoll.exe` (Windows). Nothing
-else needs installing. The Windows and macOS builds haven't been tried on those systems yet, and
-macOS may refuse to open an unsigned program downloaded from the internet until you allow it in
-System Settings, Privacy & Security.
+From a build: download the one for your system from the Releases page, unpack it and run
+`Paperdoll` (Linux, macOS) or `Paperdoll.exe` (Windows). Nothing else needs installing. The
+Windows and macOS builds haven't been tried on those systems yet. They aren't signed by a
+publisher, so Windows may warn about an unknown publisher (More info, then Run anyway), and macOS
+may refuse to open it until you allow it in System Settings, Privacy & Security.
+
+`SHA256SUMS.txt` beside the builds lists each one's SHA-256 checksum, so you can check that a
+download is the one built here, unchanged: `sha256sum -c SHA256SUMS.txt --ignore-missing` on Linux,
+or compare with what `Get-FileHash` shows in PowerShell on Windows.
+
+A character file is a plain text file ending in `.yml`. Paperdoll only reads it, and refuses a
+file that isn't a character. If someone sends you anything else as a character (a program, a zip,
+a link to download one), don't open it, and only get Paperdoll from this repository's Releases
+page.
 
 From source, with the .NET 10 SDK:
 
@@ -45,7 +55,9 @@ dotnet build
 dotnet test
 ```
 
-`tools/publish.sh` makes the builds above in `publish/`, one per system.
+`tools/publish.sh` makes the builds above in `publish/`, one per system. Pushing a version tag
+(`v0.2.0`, the same as `<Version>` in `Directory.Build.props`) has GitHub test and build them and
+make a draft release with the builds and their checksums, to be published by hand.
 
 Some tests are skipped unless you ask for them. `PAPERDOLL_NETWORK_TESTS=1` runs the ones that
 download from GitHub. Exported characters you put in `tests/private/` (ignored by git) are opened

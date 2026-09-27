@@ -1,0 +1,82 @@
+name: Release
+
+# Pushing a version tag (v0.2.0, the same as <Version> in Directory.Build.props) tests Paperdoll,
+# builds it for each system and makes a draft release holding the builds and their checksums.
+# Nothing is published until the draft is published by hand on the Releases page. It can also be
+# run by hand from the Actions tab, which builds without making a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  AVALONIA_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to exact commits, so a changed tag upstream cannot change what builds.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but Directory.Build.props says $version."
+            exit 1
+          fi
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test
+
+  build:
+    needs: test
+    # All four builds are made here: .NET signs the macOS ones as macOS requires even when made
+    # on Linux.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - run: tools/publish.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: builds
+          path: |
+            publish/*.zip
+            publish/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: builds
+          path: builds
+      # Lets anyone check that a download is the one built here, unchanged.
+      - name: Checksums
+        run: cd builds && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" builds/*
+          --repo "$GITHUB_REPOSITORY" --draft --verify-tag
+          --title "Paperdoll ${GITHUB_REF_NAME#v}" --generate-notes
