@@ -1,0 +1,4 @@
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/madbot-001/paperdoll/security/advisories/new
+    about: For anything that could harm someone's computer or data; see SECURITY.md.

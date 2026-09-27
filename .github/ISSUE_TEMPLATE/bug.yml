@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in Paperdoll doesn't work as it should
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Everything in an issue is public, attachments included. If the problem needs a character
+        file, attach one you're happy for anyone to see, or make a new one that shows it.
+  - type: input
+    id: version
+    attributes:
+      label: Paperdoll version
+      description: Help > About Paperdoll shows it.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows
+        - Linux
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+    validations:
+      required: true
+  - type: input
+    id: fork
+    attributes:
+      label: Fork
+      description: The one loaded when it happened; the status bar at the bottom shows it and its version.
+      placeholder: "Delta-V 6f62813a"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error text
+      description: >
+        If Paperdoll showed an error, paste it here. It also says where its errors.log is. That
+        file holds error details, not characters, but it can name your files and folders, so
+        look it over before pasting from it.
+      render: text
