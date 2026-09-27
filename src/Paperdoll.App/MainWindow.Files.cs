@@ -49,12 +49,17 @@ public partial class MainWindow
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Paperdoll");
     private static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
     private static string AutosavePath => Path.Combine(DataDirectory, "autosave.yml");
+    // The working copy before it was last replaced by another character, in case that was a mistake.
+    private static string PreviousAutosavePath => Path.Combine(DataDirectory, "autosave.prev.yml");
 
     private AppSettings _settings = new();
     // Only the real app saves; windows made for screenshots never touch the user's files.
     private bool _canAutosave;
     private IStorageFile? _currentFile;
     private bool _dirty;
+    // A working copy from last time that has not been reopened yet, which nothing may overwrite.
+    private bool _restorePending;
+    private bool _closeConfirmed;
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private void SetUpFiles()
@@ -64,9 +69,23 @@ public partial class MainWindow
             _autosave.Stop();
             WriteAutosave();
         };
-        Closing += (_, _) =>
+        Closing += (_, e) =>
         {
             CommitTyping();
+            // With autosave off, closing would lose unsaved changes, so ask first.
+            if (_canAutosave && !_settings.Autosave && _dirty && !_closeConfirmed)
+            {
+                e.Cancel = true;
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    if (await MayReplaceCharacterAsync("closing Paperdoll"))
+                    {
+                        _closeConfirmed = true;
+                        Close();
+                    }
+                });
+                return;
+            }
             if (_autosave.IsEnabled)
                 WriteAutosave();
         };
@@ -122,7 +141,7 @@ public partial class MainWindow
 
     private void WriteAutosave()
     {
-        if (!_canAutosave || !_settings.Autosave || _session?.File == null)
+        if (!_canAutosave || !_settings.Autosave || _session?.File == null || _restorePending)
             return;
         try
         {
@@ -136,15 +155,21 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>At start, reopens the working copy from last time, if there is one.</summary>
+    /// <summary>
+    /// Reopens the working copy from last time on the first fork that loads. If the fork's rules
+    /// change it, the version from before is kept as the previous working copy.
+    /// </summary>
     private async Task RestoreAutosaveAsync()
     {
-        if (!_settings.Autosave || !File.Exists(AutosavePath) || _session?.Content == null)
+        if (!_restorePending || _session?.Content == null)
             return;
+        _restorePending = false;
         try
         {
             var text = await File.ReadAllTextAsync(AutosavePath);
             _session.Open(text);
+            if (_session.LastFixes.Count > 0)
+                KeepPreviousWorkingCopy();
             var detached = "";
             var fileText = _settings.WorkingFile is { } path && File.Exists(path) ? await File.ReadAllTextAsync(path) : null;
             if (fileText != null && WorkingFileMatches(fileText, _settings.WorkingFileHash, text))
@@ -165,8 +190,42 @@ public partial class MainWindow
         }
         catch (Exception e)
         {
-            SetStatus($"Could not reopen the autosaved character: {e.Message}");
+            // Kept aside, so the next autosave does not overwrite it.
+            KeepPreviousWorkingCopy();
+            SetStatus($"Could not reopen the autosaved character ({e.Message}); it is kept as autosave.prev.yml, which File > Files on this computer shows.");
         }
+    }
+
+    // Copies the working copy aside before another character replaces it.
+    private void KeepPreviousWorkingCopy()
+    {
+        try
+        {
+            if (File.Exists(AutosavePath))
+                File.Copy(AutosavePath, PreviousAutosavePath, overwrite: true);
+        }
+        catch (Exception e)
+        {
+            SetStatus($"Could not keep the previous working copy: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Before something replaces the character: true if its changes are saved, or the user saves
+    /// them now or chooses to lose them; false to stop.
+    /// </summary>
+    private async Task<bool> MayReplaceCharacterAsync(string what)
+    {
+        CommitTyping();
+        if (!_dirty || _session?.File == null)
+            return true;
+        var name = string.IsNullOrWhiteSpace(_session.File.Name) ? "This character" : _session.File.Name;
+        return await new UnsavedWindow(name, what).ShowDialog<UnsavedChoice?>(this) switch
+        {
+            UnsavedChoice.Save => await SaveAsync(),
+            UnsavedChoice.Discard => true,
+            _ => false,
+        };
     }
 
     /// <summary>
@@ -229,21 +288,19 @@ public partial class MainWindow
             : "Autosave off: use Save or Export to keep your work.");
     }
 
-    private async void OnSave(object? sender, RoutedEventArgs e)
+    private async void OnSave(object? sender, RoutedEventArgs e) => await SaveAsync();
+
+    // Saves to the working file, or asks where when there is none. True once saved.
+    private async Task<bool> SaveAsync()
     {
         CommitTyping();
         if (_session?.File == null)
-            return;
-        if (_currentFile == null)
-        {
-            OnExport(sender, e);
-            return;
-        }
-        await WriteToAsync(_currentFile, "Saved");
+            return false;
+        return _currentFile == null ? await ExportAsync() : await WriteToAsync(_currentFile, "Saved");
     }
 
     // Writes the character to a file the user chose, which then becomes the one Save writes to.
-    private async Task WriteToAsync(IStorageFile file, string verb)
+    private async Task<bool> WriteToAsync(IStorageFile file, string verb)
     {
         try
         {
@@ -256,17 +313,18 @@ public partial class MainWindow
             WriteAutosave();
             RefreshAll();
             SetStatus($"{verb} {file.Name}. In the game, open the character editor and press Import.");
+            return true;
         }
         catch (Exception ex)
         {
             SetStatus($"Could not save {file.Name}: {ex.Message}");
+            return false;
         }
     }
 
     private async void OnOpen(object? sender, RoutedEventArgs e)
     {
-        CommitTyping();
-        if (_session?.Content == null)
+        if (_session?.Content == null || !await MayReplaceCharacterAsync("opening another character"))
             return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -287,6 +345,7 @@ public partial class MainWindow
             _dirty = false;
             _settings = _settings with { WorkingFile = files[0].TryGetLocalPath(), WorkingFileHash = Fingerprint(text) };
             SaveSettings();
+            KeepPreviousWorkingCopy();
             WriteAutosave();
             _refreshing = true;
             SelectDressedJob();
@@ -301,11 +360,14 @@ public partial class MainWindow
         }
     }
 
-    private async void OnExport(object? sender, RoutedEventArgs e)
+    private async void OnExport(object? sender, RoutedEventArgs e) => await ExportAsync();
+
+    // Asks where to write the character and writes it there. True once written.
+    private async Task<bool> ExportAsync()
     {
         CommitTyping();
         if (_session?.File == null)
-            return;
+            return false;
         var name = string.IsNullOrWhiteSpace(_session.File.Name) ? "character" : _session.File.Name;
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
@@ -314,8 +376,6 @@ public partial class MainWindow
             DefaultExtension = "yml",
             FileTypeChoices = [CharacterFiles],
         });
-        if (file == null)
-            return;
-        await WriteToAsync(file, "Exported");
+        return file != null && await WriteToAsync(file, "Exported");
     }
 }

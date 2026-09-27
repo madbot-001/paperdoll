@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         try
         {
             LoadSettings();
+            _restorePending = _settings.Autosave && File.Exists(AutosavePath);
             SetStatus("Opening the fork store");
             _session = await Task.Run(() => EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE")));
             var statuses = await _session.ForkStatusesAsync();
@@ -85,11 +86,9 @@ public partial class MainWindow : Window
             start ??= statuses.FirstOrDefault(s => s.Downloaded && s.Editable && s.Fork.Id == "deltav")?.Fork
                 ?? statuses.FirstOrDefault(s => s.Downloaded && s.Editable)?.Fork;
 
+            // The working copy is reopened on the first fork that loads.
             if (start != null)
-            {
                 await LoadForkAsync(start, update: false);
-                await RestoreAutosaveAsync();
-            }
             else
             {
                 SetStatus("No fork downloaded yet. Choose Fork > Forks... to download one.");
@@ -114,6 +113,7 @@ public partial class MainWindow : Window
             await Task.Run(() => _session.LoadForkAsync(fork, update, progress));
             await RefreshForkBoxAsync();
             OnForkLoaded();
+            await RestoreAutosaveAsync();
         }
         catch (Exception e)
         {
@@ -242,6 +242,7 @@ public partial class MainWindow : Window
             SaveSettings();
             await RefreshForkBoxAsync();
             OnForkLoaded();
+            await RestoreAutosaveAsync();
             SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
         }
         catch (Exception ex)
@@ -272,18 +273,21 @@ public partial class MainWindow : Window
             await LoadForkAsync(choice.Fork, choice.Update);
     }
 
-    private void OnNew(object? sender, RoutedEventArgs e)
+    private async void OnNew(object? sender, RoutedEventArgs e)
     {
-        CommitTyping();
-        if (_session?.Look == null)
+        if (_session?.Look == null || !await MayReplaceCharacterAsync("starting a new one"))
             return;
         _selected = new Node(NodeKind.Character);
         ForgetWorkingFile();
+        KeepPreviousWorkingCopy();
         Apply(s =>
         {
             s.NewCharacter(s.Look!.Species);
             return s.LastFixes;
         });
+        // A new character has nothing to lose until it is edited.
+        _dirty = false;
+        UpdateTitle();
         SetStatus("New character. Give it a name in the inspector.");
     }
 
