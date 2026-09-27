@@ -114,9 +114,7 @@ public partial class ShareWindow : Window
             return;
         try
         {
-            await using var stream = await file.OpenWriteAsync();
-            stream.SetLength(0);
-            await stream.WriteAsync(SharePicture.Png(_picture));
+            await PickedFile.WriteAsync(file, SharePicture.Png(_picture));
             StatusText.Text = $"Saved {file.Name}.";
         }
         catch (Exception ex)

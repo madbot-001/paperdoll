@@ -92,7 +92,7 @@ public partial class MainWindow
         try
         {
             Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
+            Core.SafeFile.WriteAllText(SettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception e)
         {
@@ -120,7 +120,7 @@ public partial class MainWindow
         {
             Directory.CreateDirectory(DataDirectory);
             // The character as last edited, not as a fork switch has since fitted it.
-            File.WriteAllText(AutosavePath, _session.WorkingCopy());
+            Core.SafeFile.WriteAllText(AutosavePath, _session.WorkingCopy());
         }
         catch (Exception e)
         {
@@ -212,12 +212,7 @@ public partial class MainWindow
         try
         {
             var text = _session!.Export();
-            await using (var stream = await file.OpenWriteAsync())
-            {
-                stream.SetLength(0);
-                await using var writer = new StreamWriter(stream);
-                await writer.WriteAsync(text);
-            }
+            await PickedFile.WriteAsync(file, text);
             _currentFile = file;
             _dirty = false;
             _settings = _settings with { WorkingFile = file.TryGetLocalPath() };
