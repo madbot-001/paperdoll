@@ -37,6 +37,9 @@ public sealed class MemoryForkStore : IForkStore
 
     public Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default) => Task.FromResult(_commits.GetValueOrDefault(forkId));
 
+    public Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(_commits));
+
     public Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default)
     {
         var prefixes = folders.Select(f => f.TrimEnd('/') + "/").ToList();

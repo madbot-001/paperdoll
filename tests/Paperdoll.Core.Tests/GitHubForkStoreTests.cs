@@ -132,6 +132,26 @@ public sealed class GitHubForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_record_cut_short_reads_as_not_downloaded_and_blocks_no_clean_up()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _github.AddRepo("owner/a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        _github.AddRepo("owner/b", new() { ["Resources/Prototypes/b.yml"] = "b" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), ct);
+        await store.SyncAsync(Fork("b"), ct);
+        var entries = await store.ListAsync("a", ["Resources/Prototypes"], ct);
+        await store.FetchAsync("a", entries, ct);
+        var record = Path.Combine(_root, "store", "forks", "b.json");
+        File.WriteAllText(record, File.ReadAllText(record)[..10]);
+
+        Assert.Null(await store.CommitOfAsync("b", ct));
+        Assert.Equal(["a"], (await store.CommitsAsync(ct)).Keys);
+        Assert.Equal(0, await store.CleanUpAsync(ct));
+        Assert.Empty(await store.MissingAsync(entries.Select(e => e.ObjectId), ct));
+    }
+
+    [Fact]
     public async Task A_file_that_does_not_match_its_id_is_rejected()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -80,6 +80,18 @@ public sealed class GitHubForkStore : IForkStore
     public async Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default) =>
         (await LoadForkAsync(forkId, ct))?.Commit;
 
+    public async Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default)
+    {
+        var commits = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json"))
+        {
+            var id = Path.GetFileNameWithoutExtension(file);
+            if (await LoadForkAsync(id, ct) is { } record)
+                commits[id] = record.Commit;
+        }
+        return commits;
+    }
+
     public async Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default)
     {
         var fork = await RequireForkAsync(forkId, ct);
@@ -153,7 +165,10 @@ public sealed class GitHubForkStore : IForkStore
         var keepAllTrees = false;
         foreach (var file in System.IO.Directory.EnumerateFiles(Path.Combine(Directory, "forks"), "*.json"))
         {
-            var record = (await LoadForkAsync(Path.GetFileNameWithoutExtension(file), ct))!;
+            // A record that cannot be read gives no way to tell its files from leftovers, so
+            // nothing is deleted.
+            if (await LoadForkAsync(Path.GetFileNameWithoutExtension(file), ct) is not { } record)
+                return 0;
             keepObjects.UnionWith(record.Objects);
             if (record.Trees == null)
                 keepAllTrees = true;
@@ -236,15 +251,16 @@ public sealed class GitHubForkStore : IForkStore
         var name = id + (recursive ? ".r" : "");
         fork.Trees?.Add(name);
         var cache = Path.Combine(Directory, "trees", name + ".json");
-        if (File.Exists(cache))
-            return JsonSerializer.Deserialize<TreeListing>(await File.ReadAllBytesAsync(cache, ct), Json)!;
+        // A listing cut short by a crash is asked for again.
+        if (File.Exists(cache) && ReadJson<TreeListing>(await File.ReadAllBytesAsync(cache, ct)) is { } cached)
+            return cached;
 
         using var request = ApiRequest($"repos/{fork.Repository}/git/trees/{id}" + (recursive ? "?recursive=1" : ""));
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
         var text = await SendAsync(request, ct);
 
         var listing = JsonSerializer.Deserialize<TreeListing>(text, Json)!;
-        await File.WriteAllTextAsync(cache, text, ct);
+        SafeFile.WriteAllText(cache, text);
         return listing;
     }
 
@@ -279,19 +295,34 @@ public sealed class GitHubForkStore : IForkStore
         throw new GitHubRateLimitException(resetsAt);
     }
 
+    // A record cut short by a crash reads as none: the fork is downloaded again rather than
+    // stopping Paperdoll from starting.
     private async Task<ForkRecord?> LoadForkAsync(string forkId, CancellationToken ct)
     {
         var path = ForkPath(forkId);
-        if (!File.Exists(path))
+        return File.Exists(path) ? ReadJson<ForkRecord>(await File.ReadAllBytesAsync(path, ct)) : null;
+    }
+
+    private static T? ReadJson<T>(byte[] data) where T : class
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(data, Json);
+        }
+        catch (JsonException)
+        {
             return null;
-        return JsonSerializer.Deserialize<ForkRecord>(await File.ReadAllBytesAsync(path, ct), Json);
+        }
     }
 
     private async Task<ForkRecord> RequireForkAsync(string forkId, CancellationToken ct) =>
         await LoadForkAsync(forkId, ct) ?? throw new InvalidOperationException($"Fork {forkId} has not been synced.");
 
-    private Task SaveForkAsync(string forkId, ForkRecord record, CancellationToken ct) =>
-        File.WriteAllTextAsync(ForkPath(forkId), JsonSerializer.Serialize(record, Json), ct);
+    private Task SaveForkAsync(string forkId, ForkRecord record, CancellationToken ct)
+    {
+        SafeFile.WriteAllText(ForkPath(forkId), JsonSerializer.Serialize(record, Json));
+        return Task.CompletedTask;
+    }
 
     /// <param name="Trees">Cached listings the current version used; null in records from before these were tracked.</param>
     private sealed record ForkRecord(string Repository, string Branch, string Commit, HashSet<string> Objects, HashSet<string>? Trees = null);

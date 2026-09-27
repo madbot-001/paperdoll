@@ -24,6 +24,9 @@ public interface IForkStore
     /// <summary>The commit a fork was last synced to, or null if it never was.</summary>
     Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default);
 
+    /// <summary>Every synced fork's commit, by fork id, in one go.</summary>
+    Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default);
+
     /// <summary>Every file under the given folders in a synced fork's commit.</summary>
     Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default);
 

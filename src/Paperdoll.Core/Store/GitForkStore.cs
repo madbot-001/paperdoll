@@ -84,6 +84,15 @@ public sealed class GitForkStore : IForkStore
         }
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> CommitsAsync(CancellationToken ct = default)
+    {
+        var text = await _git.RunTextAsync(["for-each-ref", "--format=%(refname:lstrip=2) %(objectname)", "refs/paperdoll/"], ct: ct);
+        return text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split(' '))
+            .Where(parts => parts.Length == 2)
+            .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
+    }
+
     /// <summary>Reads listings only; needs no network.</summary>
     public async Task<IReadOnlyList<StoreEntry>> ListAsync(string forkId, IEnumerable<string> folders, CancellationToken ct = default)
     {

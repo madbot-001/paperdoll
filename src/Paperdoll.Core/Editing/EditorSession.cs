@@ -69,10 +69,8 @@ public sealed class EditorSession : IAsyncDisposable
 
     public async Task<IReadOnlyList<ForkStatus>> ForkStatusesAsync(CancellationToken ct = default)
     {
-        var list = new List<ForkStatus>();
-        foreach (var fork in KnownForks.All)
-            list.Add(new ForkStatus(fork, await Store.CommitOfAsync(fork.Id, ct)));
-        return list;
+        var commits = await Store.CommitsAsync(ct);
+        return KnownForks.All.Select(fork => new ForkStatus(fork, commits.GetValueOrDefault(fork.Id))).ToList();
     }
 
     /// <summary>

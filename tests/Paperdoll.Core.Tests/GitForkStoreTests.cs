@@ -90,6 +90,21 @@ public sealed class GitForkStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Every_forks_commit_comes_in_one_go()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var a = SourceRepo.Create(_root, "a", new() { ["Resources/Prototypes/a.yml"] = "a" });
+        var b = SourceRepo.Create(_root, "b", new() { ["Resources/Prototypes/b.yml"] = "b" });
+        var store = await NewStoreAsync();
+        await store.SyncAsync(Fork("a"), a.Url, ct);
+        await store.SyncAsync(Fork("b"), b.Url, ct);
+
+        var commits = await store.CommitsAsync(ct);
+
+        Assert.Equal(new Dictionary<string, string> { ["a"] = a.Head, ["b"] = b.Head }, commits);
+    }
+
+    [Fact]
     public async Task Syncing_again_moves_to_the_newest_commit()
     {
         var ct = TestContext.Current.CancellationToken;
