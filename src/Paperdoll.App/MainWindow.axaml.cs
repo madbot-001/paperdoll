@@ -182,7 +182,8 @@ public partial class MainWindow : Window
                 throw showing;
             complete = true;
         }
-        catch (OperationCanceledException) when (!loaded)
+        // Only Cancel stops a load; a download that timed out failed like any other.
+        catch (OperationCanceledException) when (!loaded && cancel.IsCancellationRequested)
         {
             SetStatus($"Stopped. {fork.Name} stays as it was.");
         }
@@ -335,7 +336,7 @@ public partial class MainWindow : Window
                 var session = _session;
                 (fork, commit, previous) = await Task.Run(() => session.SyncToServerAsync(choice.Address, progress, cancel.Token));
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
             {
                 SetStatus("Stopped.");
                 return;

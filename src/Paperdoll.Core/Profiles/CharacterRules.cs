@@ -132,15 +132,21 @@ public static partial class CharacterRules
 
         var flavor = file.FlavorText ?? "";
         var cleanFlavor = MarkupText.Stable(flavor);
-        if (cleanFlavor.Length > fork.MaxFlavorTextLength)
+        var cut = cleanFlavor.Length > fork.MaxFlavorTextLength;
+        if (cut)
             cleanFlavor = cleanFlavor[..fork.MaxFlavorTextLength];
         if (cleanFlavor != flavor)
         {
             var reading = MarkupText.Read(flavor);
-            fixes.Add(new("flavorText", reading.RefusedAt >= 0 || reading.StoppedAt >= 0
-                ? "The game refuses a description with a [ that starts no markup tag, and stops reading one at a backslash; "
-                  + "brackets became parentheses and such backslashes were dropped, so it keeps the whole text."
-                : $"Description markup is removed and text cut to {fork.MaxFlavorTextLength} characters, as the game does."));
+            var notes = new List<string>();
+            if (reading.RefusedAt >= 0 || reading.StoppedAt >= 0)
+                notes.Add("The game refuses a description with a [ that starts no markup tag, and stops reading one at a backslash; "
+                    + "brackets became parentheses and such backslashes were dropped.");
+            else if (MarkupText.Stable(flavor) != flavor)
+                notes.Add("Description markup is removed, as the game does.");
+            if (cut)
+                notes.Add($"The description was cut to {fork.MaxFlavorTextLength} characters, the most the game keeps.");
+            fixes.Add(new("flavorText", string.Join(" ", notes)));
             file.FlavorText = cleanFlavor;
         }
 

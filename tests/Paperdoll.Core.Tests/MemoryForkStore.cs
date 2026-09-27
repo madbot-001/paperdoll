@@ -29,9 +29,14 @@ public sealed class MemoryForkStore : IForkStore
 
     public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
 
+    /// <summary>What downloading a fork throws, as a network failure or a timeout would.</summary>
+    public Exception? SyncFails { get; set; }
+
     // A commit id as long as a real one, made from the fork's id.
     public Task<string> SyncAsync(ForkInfo fork, CancellationToken ct = default) =>
-        Task.FromResult(_commits[fork.Id] = Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(fork.Id))));
+        SyncFails is { } failure
+            ? Task.FromException<string>(failure)
+            : Task.FromResult(_commits[fork.Id] = Convert.ToHexStringLower(SHA1.HashData(Encoding.UTF8.GetBytes(fork.Id))));
 
     public Task<string> SyncToCommitAsync(ForkInfo fork, string commit, CancellationToken ct = default) => Task.FromResult(_commits[fork.Id] = commit);
 

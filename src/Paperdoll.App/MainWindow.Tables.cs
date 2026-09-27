@@ -189,7 +189,12 @@ public partial class MainWindow
 
     private void RefreshShownTab()
     {
-        if (_session?.Look == null || BottomTabs.SelectedItem is not TabItem tab || !_staleTabs.Remove(tab))
+        if (_session?.Look == null || BottomTabs.SelectedItem is not TabItem tab)
+            return;
+        // Only the species row highlighted follows the character.
+        if (tab == SpeciesTab && !_staleTabs.Contains(tab))
+            SelectCurrentSpecies();
+        if (!_staleTabs.Remove(tab))
             return;
         var session = _session;
         if (tab == SpeciesTab)
@@ -246,6 +251,16 @@ public partial class MainWindow
         var wasRefreshing = _refreshing;
         _refreshing = true;
         SpeciesGrid.ItemsSource = rows;
+        _refreshing = wasRefreshing;
+        SelectCurrentSpecies();
+    }
+
+    private void SelectCurrentSpecies()
+    {
+        if (SpeciesGrid.ItemsSource is not IEnumerable<SpeciesRow> rows)
+            return;
+        var wasRefreshing = _refreshing;
+        _refreshing = true;
         SpeciesGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == _session?.Look?.Species);
         _refreshing = wasRefreshing;
     }
