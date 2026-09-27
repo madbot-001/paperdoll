@@ -30,6 +30,19 @@ public sealed class ForkStoresTests : IDisposable
     }
 
     [Fact]
+    public async Task Forks_downloaded_without_git_stay_in_use_once_git_is_installed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A fork downloaded through the API before git was installed.
+        Directory.CreateDirectory(Path.Combine(_root, "files", "forks"));
+        File.WriteAllText(Path.Combine(_root, "files", "forks", "deltav.json"), "{}");
+
+        var store = await ForkStores.OpenAsync(_root, ct: ct);
+
+        Assert.IsType<GitHubForkStore>(store);
+    }
+
+    [Fact]
     public async Task Falls_back_to_the_github_api_without_git()
     {
         var ct = TestContext.Current.CancellationToken;

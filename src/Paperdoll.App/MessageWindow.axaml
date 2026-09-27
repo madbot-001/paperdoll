@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Paperdoll.App.MessageWindow"
+        Icon="/Assets/icon.png"
+        Title="Paperdoll"
+        Width="420" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterScreen">
+  <DockPanel Margin="12">
+    <Button DockPanel.Dock="Bottom" Content="OK" Width="90" HorizontalAlignment="Right" Margin="0,12,0,0" Click="OnOk" IsDefault="True" IsCancel="True" />
+    <TextBlock Name="MessageText" TextWrapping="Wrap" />
+  </DockPanel>
+</Window>
