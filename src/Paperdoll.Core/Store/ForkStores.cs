@@ -34,12 +34,8 @@ public static partial class ForkStores
     {
         try
         {
-            var info = new ProcessStartInfo(gitPath, "--version")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
+            var info = GitCommand.NewStartInfo(gitPath);
+            info.ArgumentList.Add("--version");
             using var process = Process.Start(info);
             if (process == null)
                 return null;

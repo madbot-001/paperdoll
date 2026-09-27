@@ -197,20 +197,58 @@ public sealed class GitForkStoreTests : IDisposable
             Git("-c", "user.name=test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "files");
         }
 
-        private string Git(params string[] args)
+        private string Git(params string[] args) => GitIn(_dir, args);
+    }
+
+    private static string GitIn(string dir, params string[] args)
+    {
+        var info = new ProcessStartInfo("git") { RedirectStandardOutput = true, RedirectStandardError = true };
+        info.ArgumentList.Add("-C");
+        info.ArgumentList.Add(dir);
+        foreach (var arg in args)
+            info.ArgumentList.Add(arg);
+        using var process = Process.Start(info)!;
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"git {string.Join(' ', args)}: {error}");
+        return output;
+    }
+
+    [Fact]
+    public async Task A_server_asking_for_a_password_fails_at_once_without_asking_anyone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A server that answers everything with "sign in", like GitHub for a repository that is gone.
+        using var listener = new System.Net.HttpListener();
+        var port = System.Net.IPEndPoint.Parse("127.0.0.1:0");
+        using (var probe = new System.Net.Sockets.TcpListener(port))
         {
-            var info = new ProcessStartInfo("git") { RedirectStandardOutput = true, RedirectStandardError = true };
-            info.ArgumentList.Add("-C");
-            info.ArgumentList.Add(_dir);
-            foreach (var arg in args)
-                info.ArgumentList.Add(arg);
-            using var process = Process.Start(info)!;
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException($"git {string.Join(' ', args)}: {error}");
-            return output;
+            probe.Start();
+            port = (System.Net.IPEndPoint)probe.LocalEndpoint;
         }
+        listener.Prefixes.Add($"http://127.0.0.1:{port.Port}/");
+        listener.Start();
+        _ = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                var context = await listener.GetContextAsync();
+                context.Response.StatusCode = 401;
+                context.Response.AddHeader("WWW-Authenticate", "Basic realm=\"test\"");
+                context.Response.Close();
+            }
+        }, ct);
+        var store = new GitForkStore(Path.Combine(_root, "asking.git"));
+        await store.InitializeAsync(ct);
+        // A password program that would keep git waiting, as a sign-in window would.
+        GitIn(Path.Combine(_root, "asking.git"), "config", "credential.helper", "!f() { sleep 30; }; f");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        await Assert.ThrowsAsync<GitException>(() => store.SyncAsync(Fork("gone"), $"http://127.0.0.1:{port.Port}/gone.git", ct));
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(15), $"git waited {clock.Elapsed.TotalSeconds:0} s");
+        listener.Stop();
     }
 }
