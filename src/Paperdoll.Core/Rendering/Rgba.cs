@@ -7,30 +7,69 @@ public readonly record struct Rgba(float R, float G, float B, float A = 1f)
 {
     public static readonly Rgba White = new(1, 1, 1);
 
-    /// <summary>Reads <c>#RRGGBB</c> or <c>#RRGGBBAA</c>.</summary>
-    public static Rgba Parse(string hex)
-    {
-        var text = hex.TrimStart('#');
-        if (text.Length is not (6 or 8))
-            throw new FormatException($"Not a colour: {hex}");
-        byte Part(int i) => byte.Parse(text.AsSpan(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        return new Rgba(Part(0) / 255f, Part(1) / 255f, Part(2) / 255f, text.Length == 8 ? Part(3) / 255f : 1f);
-    }
+    /// <summary>Reads a colour as <see cref="TryParse"/> does, or throws.</summary>
+    public static Rgba Parse(string text) =>
+        TryParse(text, out var color) ? color : throw new FormatException($"Not a colour: {text}");
 
-    public static bool TryParse(string? hex, out Rgba color)
+    /// <summary>
+    /// Reads a colour as the engine does (<c>Color.TryFromName</c>, then <c>TryFromHex</c>): a
+    /// colour name, or <c>#RGB</c>, <c>#RGBA</c>, <c>#RRGGBB</c> or <c>#RRGGBBAA</c>. Six or
+    /// eight hex digits without the <c>#</c> are taken too. Anything else gives white.
+    /// </summary>
+    public static bool TryParse(string? text, out Rgba color)
     {
         color = White;
-        if (hex == null)
+        if (string.IsNullOrEmpty(text))
             return false;
-        try
+        if (text[0] != '#' && Named(text) is { } named)
         {
-            color = Parse(hex);
+            color = named;
             return true;
         }
-        catch (FormatException)
+
+        var hex = text.StartsWith('#') ? text.AsSpan(1) : text.Length is 6 or 8 ? text.AsSpan() : [];
+        Span<byte> parts = stackalloc byte[4];
+        parts[3] = 255;
+        switch (hex.Length)
         {
-            return false;
+            // One digit a channel, doubled: #F80 is #FF8800.
+            case 3 or 4:
+                for (var i = 0; i < hex.Length; i++)
+                {
+                    if (!byte.TryParse(hex.Slice(i, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var digit))
+                        return false;
+                    parts[i] = (byte)(digit * 17);
+                }
+                break;
+            case 6 or 8:
+                for (var i = 0; i < hex.Length / 2; i++)
+                {
+                    if (!byte.TryParse(hex.Slice(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parts[i]))
+                        return false;
+                }
+                break;
+            default:
+                return false;
         }
+        color = new Rgba(parts[0] / 255f, parts[1] / 255f, parts[2] / 255f, parts[3] / 255f);
+        return true;
+    }
+
+    // The engine's colour names: the web's (which .NET knows) and four of its own (from
+    // RobustToolbox's Color.cs, MIT; see THIRD-PARTY-NOTICES.md).
+    private static Rgba? Named(string name)
+    {
+        var known = System.Drawing.Color.FromName(name);
+        if (known.IsKnownColor && !known.IsSystemColor)
+            return new Rgba(known.R / 255f, known.G / 255f, known.B / 255f, known.A / 255f);
+        return name.ToLowerInvariant() switch
+        {
+            "betterviolet" => new Rgba(126 / 255f, 3 / 255f, 168 / 255f),
+            "ruber" => new Rgba(204 / 255f, 71 / 255f, 120 / 255f),
+            "seablue" => new Rgba(0, 66 / 255f, 153 / 255f),
+            "vividgamboge" => new Rgba(1, 153 / 255f, 0),
+            _ => null,
+        };
     }
 
     public string ToHex() =>

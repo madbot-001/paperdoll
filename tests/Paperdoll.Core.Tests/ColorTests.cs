@@ -29,6 +29,26 @@ public class ColorTests
         Assert.Equal(hex, Rgba.FromHsl(hh, ss, ll, aa).ToHex());
     }
 
+    [Theory]
+    [InlineData("#F80", "#FF8800FF")]
+    [InlineData("#F808", "#FF880088")]
+    [InlineData("black", "#000000FF")]
+    [InlineData("White", "#FFFFFFFF")]
+    [InlineData("transparent", "#FFFFFF00")]
+    [InlineData("betterviolet", "#7E03A8FF")]
+    public void Colours_are_read_in_every_form_the_engine_reads(string text, string hex)
+    {
+        Assert.True(Rgba.TryParse(text, out var color));
+        Assert.Equal(hex, color.ToHex());
+    }
+
+    [Theory]
+    [InlineData("#12")]
+    [InlineData("#GGGGGG")]
+    [InlineData("notacolour")]
+    [InlineData("")]
+    public void Anything_else_is_not_a_colour(string text) => Assert.False(Rgba.TryParse(text, out _));
+
     [Fact]
     public void Six_digit_colours_are_opaque()
     {
