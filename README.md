@@ -21,26 +21,18 @@ Paperdoll only downloads game data. Your characters stay on your computer: nothi
 shared, and it never reads other players' characters.
 
 It's early. Most forks can be downloaded, previewed from all four sides, edited and exported:
-Delta-V, Euphoria, upstream and others on the new appearance model, and Goob, Frontier, Starlight
+Delta-V upstream and others on the new appearance model, and Goob, Frontier, Starlight
 and others still on the old one, where characters are saved in the old shape those forks expect.
-Einstein Engines, Misfits and RMC-14 aren't supported yet. So far it has only been run on Linux.
+Einstein Engines, Misfits and RMC-14 aren't supported yet.
 
 ## Running it
 
 From a build: download the one for your system from the Releases page, unpack it and run
-`Paperdoll` (Linux, macOS) or `Paperdoll.exe` (Windows). Nothing else needs installing. The
-Windows and macOS builds haven't been tried on those systems yet. They aren't signed by a
-publisher, so Windows may warn about an unknown publisher (More info, then Run anyway), and macOS
-may refuse to open it until you allow it in System Settings, Privacy & Security.
+`Paperdoll` (Linux, macOS) or `Paperdoll.exe` (Windows). Nothing else needs installing. 
 
 `SHA256SUMS.txt` beside the builds lists each one's SHA-256 checksum, so you can check that a
 download is the one built here, unchanged: `sha256sum -c SHA256SUMS.txt --ignore-missing` on Linux,
 or compare with what `Get-FileHash` shows in PowerShell on Windows.
-
-A character file is a plain text file ending in `.yml`. Paperdoll only reads it, and refuses a
-file that isn't a character. If someone sends you anything else as a character (a program, a zip,
-a link to download one), don't open it, and only get Paperdoll from this repository's Releases
-page.
 
 From source, with the .NET 10 SDK:
 
