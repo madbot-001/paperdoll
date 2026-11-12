@@ -39,6 +39,9 @@ public sealed record AppSettings
 
     /// <summary>Whether the colour sliders show HSV or RGB; one choice for every colour.</summary>
     public Controls.ColorMode ColorMode { get; init; }
+
+    /// <summary>Whether the Forks window lists forks whose servers are 18+.</summary>
+    public bool ShowAdultForks { get; init; }
 }
 
 public sealed record MatchedServer(string Name, string Commit);

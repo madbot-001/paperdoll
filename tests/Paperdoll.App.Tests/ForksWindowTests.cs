@@ -35,13 +35,13 @@ public sealed class ForksWindowTests : IDisposable
 
     private sealed record Shown(List<ForkRow> Rows, List<string?> Cells, bool LineShown, string? Line);
 
-    private static async Task<Shown> OpenAsync(IReadOnlyList<string>? folders)
+    private static async Task<Shown> OpenAsync(IReadOnlyList<string>? folders, bool showAdult = true)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var editor = TestForks.Session();
         return await HeadlessApp.Session.Dispatch(async () =>
         {
-            var window = new ForksWindow(editor, launcherFolders: folders) { Width = 720, Height = 420 };
+            var window = new ForksWindow(editor, launcherFolders: folders, showAdult: showAdult) { Width = 720, Height = 420 };
             window.Show();
             await (Task)typeof(ForksWindow).GetMethod("RefreshAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .Invoke(window, [])!;
@@ -99,5 +99,49 @@ public sealed class ForksWindowTests : IDisposable
         Assert.All(shown.Rows, r => Assert.Equal("", r.LastPlayed));
         Assert.False(shown.LineShown);
         Assert.True(plain.Rows.Select(r => r.Editable).SequenceEqual(plain.Rows.Select(r => r.Editable).OrderByDescending(e => e == "Yes")));
+    }
+
+    [Fact]
+    public async Task Forks_with_18_plus_servers_are_listed_only_when_asked_for_and_are_marked()
+    {
+        var launcher = Launcher(("euphoria", "2026-11-02 12:00:00"));
+
+        var hidden = await OpenAsync([launcher], showAdult: false);
+        var shown = await OpenAsync([launcher]);
+
+        Assert.DoesNotContain(hidden.Rows, r => r.Fork.Adult);
+        Assert.Contains(hidden.Rows, r => r.Fork.Id == "deltav");
+        Assert.Equal(["euphoria", "floof", "lonestar", "triad", "wayfarer"], shown.Rows.Where(r => r.Fork.Adult).Select(r => r.Fork.Id).Order());
+        Assert.Equal("Euphoria (18+)", shown.Rows.Single(r => r.Fork.Id == "euphoria").Name);
+        Assert.Equal("Delta-V", shown.Rows.Single(r => r.Fork.Id == "deltav").Name);
+        Assert.Equal(shown.Rows.Where(r => !r.Fork.Adult), hidden.Rows);
+    }
+
+    [Fact]
+    public async Task Ticking_the_18_plus_box_lists_them_and_reports_the_choice()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var editor = TestForks.Session();
+        var (before, after, reported) = await HeadlessApp.Session.Dispatch(async () =>
+        {
+            var choices = new List<bool>();
+            var window = new ForksWindow(editor, adultChanged: choices.Add) { Width = 720, Height = 420 };
+            window.Show();
+            var refresh = typeof(ForksWindow).GetMethod("RefreshAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            await (Task)refresh.Invoke(window, [])!;
+            var grid = NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!;
+            var first = grid.ItemsSource!.Cast<ForkRow>().Count(r => r.Fork.Adult);
+
+            NameScopeExtensions.Find<CheckBox>(window, "AdultBox")!.IsChecked = true;
+            await (Task)refresh.Invoke(window, [])!;
+            Dispatcher.UIThread.RunJobs();
+            var second = grid.ItemsSource!.Cast<ForkRow>().Count(r => r.Fork.Adult);
+            window.Close();
+            return (first, second, choices);
+        }, ct);
+
+        Assert.Equal(0, before);
+        Assert.Equal(5, after);
+        Assert.Equal([true], reported);
     }
 }

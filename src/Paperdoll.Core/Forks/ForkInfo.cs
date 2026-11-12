@@ -54,6 +54,9 @@ public sealed record ForkInfo(
 
     public ProfileExtras Extras { get; init; } = ProfileExtras.None;
 
+    /// <summary>Whether the fork's servers list themselves as 18+ on the server hub (its <c>18+</c> tag, as of 2026-11-12).</summary>
+    public bool Adult { get; init; }
+
     /// <summary>How the fork keeps character records, where it has them (<see cref="ProfileExtras.Records"/>).</summary>
     public Profiles.RecordFormat RecordFormat { get; init; } = Profiles.RecordFormat.CosmaticDrift;
 

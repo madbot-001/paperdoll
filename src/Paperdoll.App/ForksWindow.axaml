@@ -17,6 +17,8 @@
       <Button Content="Close" Click="OnClose" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
     </StackPanel>
     <TextBlock DockPanel.Dock="Bottom" Name="StatusText" Classes="hint" Margin="0,6,0,0" />
+    <CheckBox DockPanel.Dock="Bottom" Name="AdultBox" Content="Show 18+ forks" Margin="0,6,0,0" IsCheckedChanged="OnAdultChanged"
+              ToolTip.Tip="Forks whose servers are listed as 18+. One you have already downloaded is always shown." />
     <TextBlock DockPanel.Dock="Bottom" Name="LauncherText" Classes="hint" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="False" />
     <Border Classes="pane">
     <DataGrid Name="ForkGrid" IsReadOnly="True" SelectionMode="Single" SelectionChanged="OnSelection" x:DataType="app:ForkRow">

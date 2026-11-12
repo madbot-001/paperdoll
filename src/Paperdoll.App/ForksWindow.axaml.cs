@@ -25,11 +25,17 @@ public partial class ForksWindow : Window
     // Where the SS14 launcher may keep the forks it has run; none unless given.
     private readonly IReadOnlyList<string> _launcherFolders = [];
 
-    public ForksWindow(EditorSession session, Func<Window, Task>? showFiles = null, IReadOnlyList<string>? launcherFolders = null) : this()
+    // Called with the new choice when the 18+ box is ticked or cleared, to keep it.
+    private readonly Action<bool>? _adultChanged;
+
+    public ForksWindow(EditorSession session, Func<Window, Task>? showFiles = null, IReadOnlyList<string>? launcherFolders = null,
+        bool showAdult = false, Action<bool>? adultChanged = null) : this()
     {
         _session = session;
         _showFiles = showFiles;
         _launcherFolders = launcherFolders ?? [];
+        AdultBox.IsChecked = showAdult;
+        _adultChanged = adultChanged;
         Closing += (_, e) => e.Cancel |= _removing;
         Opened += async (_, _) =>
         {
@@ -60,9 +66,12 @@ public partial class ForksWindow : Window
             else if (!played.TryGetValue(fork.Id, out var seen) || used.LastUsed > seen)
                 played[fork.Id] = used.LastUsed;
         }
+        // 18+ forks are listed only when asked for; one already downloaded or open stays, so it can be removed.
+        var showAdult = AdultBox.IsChecked == true;
         var rows = statuses
+            .Where(s => showAdult || !s.Fork.Adult || s.Commit != null || s.Fork.Id == _session.Fork?.Id)
             .OrderByDescending(s => played.GetValueOrDefault(s.Fork.Id)).ThenByDescending(s => s.Editable).ThenBy(s => s.Fork.Name)
-            .Select(s => new ForkRow(s.Fork, s.Fork.Name, s.Fork.Model == AppearanceModel.New ? "New" : "Old",
+            .Select(s => new ForkRow(s.Fork, s.Fork.Adult ? $"{s.Fork.Name} (18+)" : s.Fork.Name, s.Fork.Model == AppearanceModel.New ? "New" : "Old",
                 s.Editable ? "Yes" : "Not yet", s.Commit?[..8] ?? "", s.Fork.Repository,
                 played.TryGetValue(s.Fork.Id, out var last) ? last.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : ""))
             .ToList();
@@ -70,6 +79,22 @@ public partial class ForksWindow : Window
         LauncherText.IsVisible = unknown.Count > 0;
         LauncherText.Text = $"Also in your SS14 launcher, not known to Paperdoll: {string.Join(", ", unknown)}.";
         UpdateButtons();
+    }
+
+    private async void OnAdultChanged(object? sender, RoutedEventArgs e)
+    {
+        // Not while the window is being set up: it lists the forks itself once it opens.
+        if (!IsVisible)
+            return;
+        _adultChanged?.Invoke(AdultBox.IsChecked == true);
+        try
+        {
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not list the forks: {ex.Message}";
+        }
     }
 
     private ForkRow? Selected => ForkGrid.SelectedItem as ForkRow;
