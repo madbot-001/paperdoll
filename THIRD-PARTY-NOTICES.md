@@ -9,6 +9,9 @@ libraries listed under [Libraries in the builds](#libraries-in-the-builds).
 https://github.com/space-wizards/RobustToolbox. Code contributed after 13 March 2019 is MIT
 licensed (the engine's `legal.md`); only such code is ported.
 
+Paperdoll also ships the engine's English colour names, `Resources/Locale/en-US/color-naming.ftl`
+(written 2025, MIT under the same rule), as `src/Paperdoll.Core/Locale/color-naming.ftl`.
+
 ```
  Copyright (c) 2019 Space Station 14 Contributors
 
@@ -46,6 +49,34 @@ in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Oklab
+
+https://bottosson.github.io/posts/oklab/. The colour names use the Oklab colour conversion, by
+way of the engine's `Robust.Shared.Maths/Color.cs`, in `src/Paperdoll.Core/Locale/ColorNaming.cs`.
+It is public domain or under the MIT licence, at the user's choice.
+
+```
+Copyright (c) 2020 Björn Ottosson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.

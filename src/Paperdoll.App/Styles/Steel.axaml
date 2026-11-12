@@ -143,6 +143,35 @@
   <Style Selector="NumericUpDown">
     <Setter Property="BorderBrush" Value="#4A535E" />
   </Style>
+  <!-- Colour sliders: the track shows the colours the slider leads to (its Background); the
+       thumb, white edged in black, shows on any of them. The track is inset by half the thumb so
+       that its ends meet the thumb's centre at either end. -->
+  <Style Selector="Slider.color">
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid Background="Transparent">
+          <Border Name="track" Height="12" Margin="4,0" VerticalAlignment="Center" Background="{TemplateBinding Background}"
+                  BorderBrush="{StaticResource LineBrush}" BorderThickness="1" />
+          <Track Name="PART_Track" Orientation="Horizontal"
+                 Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Value="{TemplateBinding Value, Mode=TwoWay}"
+                 IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+            <Thumb Name="thumb" Width="8" Height="18">
+              <Thumb.Template>
+                <ControlTemplate>
+                  <Border Background="#FFFFFF" BorderBrush="#000000" BorderThickness="1" />
+                </ControlTemplate>
+              </Thumb.Template>
+            </Thumb>
+          </Track>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Slider.color:focus-visible /template/ Border#track">
+    <Setter Property="BorderBrush" Value="{StaticResource HoverLineBrush}" />
+  </Style>
 
   <Style Selector="ListBox">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />

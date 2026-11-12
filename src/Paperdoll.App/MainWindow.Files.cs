@@ -36,6 +36,9 @@ public sealed record AppSettings
 
     /// <summary>How the last picture to share was laid out.</summary>
     public Preview.ShareOptions? Share { get; init; }
+
+    /// <summary>Whether the colour sliders show HSV or RGB; one choice for every colour.</summary>
+    public Controls.ColorMode ColorMode { get; init; }
 }
 
 public sealed record MatchedServer(string Name, string Commit);
@@ -110,6 +113,9 @@ public partial class MainWindow
                 });
             }
         };
+        // The colour sliders' HSV / RGB switch is kept with the settings.
+        Controls.ColorSliders.ModeChanged += OnColorModeChanged;
+        Closed += (_, _) => Controls.ColorSliders.ModeChanged -= OnColorModeChanged;
         AutosaveItem.PropertyChanged += (_, e) =>
         {
             if (e.Property == MenuItem.IsCheckedProperty && AutosaveItem.IsChecked != _settings.Autosave)
@@ -130,7 +136,16 @@ public partial class MainWindow
             SetStatus($"Could not read settings, using the defaults: {e.Message}");
         }
         AutosaveItem.IsChecked = _settings.Autosave;
+        Controls.ColorSliders.Mode = _settings.ColorMode == Controls.ColorMode.Rgb ? Controls.ColorMode.Rgb : Controls.ColorMode.Hsv;
         BuildRandomParts();
+    }
+
+    private void OnColorModeChanged(Controls.ColorMode mode)
+    {
+        if (mode == _settings.ColorMode)
+            return;
+        _settings = _settings with { ColorMode = mode };
+        SaveSettings();
     }
 
     private void SaveSettings()

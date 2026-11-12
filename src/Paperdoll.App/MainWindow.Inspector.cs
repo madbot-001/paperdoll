@@ -21,6 +21,8 @@ public partial class MainWindow
     {
         Inspector.Children.Clear();
         Inspector.RowDefinitions.Clear();
+        // A box taken off the page commits nothing later: what it holds can no longer be seen.
+        _pendingTyping = null;
         PageHost.VerticalScrollBarVisibility = _tab == EditorTab.Description ? Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled : Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
         var look = _session!.Look!;
         var species = _session.Content!.Characters.Species[look.Species];
@@ -229,8 +231,8 @@ public partial class MainWindow
             AddRow("Skin tone", panel, $"{species.SkinColoration}: one slider");
         }
         else
-            AddRow("Skin", ColorField(look.SkinColor, color => Apply(s => s.SetSkin(color))), $"{species.SkinColoration}: nearest allowed colour is used");
-        AddRow("Eyes", ColorField(look.EyeColor, color => Apply(s => s.SetEyes(color))));
+            AddRow("Skin", ColorBlock("skin", look.SkinColor, color => s => s.SetSkin(color), l => l.SkinColor), $"{species.SkinColoration}: nearest allowed colour is used");
+        AddRow("Eyes", ColorBlock("eyes", look.EyeColor, color => s => s.SetEyes(color), l => l.EyeColor));
 
         AddCategory("Round start");
         var spawnLabels = CharacterRules.SpawnPriorities
@@ -385,7 +387,7 @@ public partial class MainWindow
                 continue;
             var colorIndex = c;
             var label = c < marking.Sprites.Count ? marking.Sprites[c].State ?? $"Sprite {c + 1}" : $"Sprite {c + 1}";
-            AddRow(label, ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color))));
+            AddRow(label, ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color)), key: $"marking/{organ.Category}/{layer}/{index}/{colorIndex}"));
         }
 
         AddCategory("Sprites");
@@ -670,7 +672,7 @@ public partial class MainWindow
         var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         colorRow.Children.Add(tint);
         if (tinted)
-            colorRow.Children.Add(ColorField(current, color => Save(entry with { Color = Core.Editing.EditorSession.CustomizationColor(color).ToHex() })));
+            colorRow.Children.Add(ColorField(current, color => Save(entry with { Color = Core.Editing.EditorSession.CustomizationColor(color).ToHex() }), key: $"item/{job}/{groupId}/{entry.Prototype}"));
 
         panel.Children.Add(name);
         panel.Children.Add(description);
@@ -800,7 +802,7 @@ public partial class MainWindow
             if (marking?.IsColorLinked(c) == true)
                 continue;
             var colorIndex = c;
-            colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true));
+            colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true, key: $"marking/{organ}/{layer}/{index}/{colorIndex}"));
         }
 
         var picture = new Border { Width = 32, Height = 32, Margin = new Thickness(0, 0, 4, 0), Child = MarkingPicture(organ, layer, entry.Id, 32) is { } image ? new Image { Source = image } : null };
@@ -878,7 +880,7 @@ public partial class MainWindow
         new() { Text = text, Classes = { "mono" }, Margin = new Thickness(4, 3), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
 
     /// <summary>A colour swatch with its hex value; Enter or leaving the field applies it.</summary>
-    private Control ColorField(Rgba color, Action<Rgba> changed, bool compact = false)
+    private Control ColorField(Rgba color, Action<Rgba> changed, bool compact = false, string? key = null)
     {
         var text = new TextBox
         {
@@ -902,12 +904,43 @@ public partial class MainWindow
                 _liveColor?.Invoke(picked, changed);
             else
                 changed(picked);
-        });
+        }, DescribeColor, key);
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
         panel.Children.Add(swatch);
         panel.Children.Add(text);
         return panel;
     }
+
+    /// <summary>
+    /// The colour sliders for a field shown on the page, as in the lobby. The page is not built
+    /// again for their edits, so focus and typing stay where they are: the block already shows
+    /// the new values. Once an edit is committed (a slider let go, − or +, a number or a hex), the
+    /// block shows the colour the character got, which a skin rule may have changed.
+    /// </summary>
+    private Controls.ColorSliders ColorBlock(string key, Rgba color, Func<Rgba, Func<Core.Editing.EditorSession, IReadOnlyList<RuleFix>>> edit, Func<CharacterLook, Rgba> read)
+    {
+        Controls.ColorSliders? block = null;
+        block = new(color, (picked, live) =>
+        {
+            Apply(edit(picked), keepInspector: true);
+            if (!live && _session?.Look is { } look && read(look).ToHex() != block!.Color.ToHex())
+                block.SetColor(read(look));
+        }, DescribeColor, key, Typing);
+        return block;
+    }
+
+    // A box in the colour sliders tells the window its commit, as CommitOnEnterOrLeave does.
+    private void Typing(Action commit, bool focused)
+    {
+        if (focused)
+            _pendingTyping = commit;
+        else if (_pendingTyping == commit)
+            _pendingTyping = null;
+    }
+
+    // The colour's name in the fork's words, else in the engine's English ones.
+    private string? DescribeColor(Rgba color) =>
+        _session?.Content is { } content ? Core.Locale.ColorNaming.Describe(color, content.Strings, Core.Locale.ColorNaming.Bundled) : null;
 
     /// <summary>Applies a colour while a picker is open, without rebuilding the inspector under it.</summary>
     private static Action<Rgba, Action<Rgba>>? _liveColor;

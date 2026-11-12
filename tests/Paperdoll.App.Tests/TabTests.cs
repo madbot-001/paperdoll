@@ -92,7 +92,7 @@ public class TabTests
     }
 
     // Opens the window on a new character on the fork, as a user would see it, and runs the test in it.
-    private static async Task OnWindow(ForkInfo fork, Func<MainWindow, EditorSession, Task> test, double width = 1100, double height = 720)
+    internal static async Task OnWindow(ForkInfo fork, Func<MainWindow, EditorSession, Task> test, double width = 1100, double height = 720)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var editor = TestForks.Session();
@@ -285,7 +285,7 @@ public class TabTests
         return Task.CompletedTask;
     });
 
-    private static void Apply(MainWindow window, Func<EditorSession, IReadOnlyList<Core.Profiles.RuleFix>> edit) =>
+    internal static void Apply(MainWindow window, Func<EditorSession, IReadOnlyList<Core.Profiles.RuleFix>> edit) =>
         typeof(MainWindow).GetMethod("Apply", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, [edit, false]);
 
     private static string HeaderText(TreeViewItem item) =>
@@ -343,7 +343,7 @@ public class TabTests
         return Task.CompletedTask;
     });
 
-    private static IEnumerable<T> InPage<T>(MainWindow window) where T : Control =>
+    internal static IEnumerable<T> InPage<T>(MainWindow window) where T : Control =>
         Find<ScrollViewer>(window, "PageHost").GetVisualDescendants().OfType<T>();
 
     [Fact]
@@ -377,7 +377,7 @@ public class TabTests
     });
 
     // Types into a box as a user would: focus it, then set its text without leaving it.
-    private static void Type(TextBox box, string text)
+    internal static void Type(TextBox box, string text)
     {
         box.Focus();
         Dispatcher.UIThread.RunJobs();
@@ -452,7 +452,7 @@ public class TabTests
     });
 
     // Clicks a control with the mouse, as the strip's own test does.
-    private static void Click(MainWindow window, Control control)
+    internal static void Click(MainWindow window, Control control)
     {
         var at = control.TranslatePoint(default, window)!.Value + new Point(control.Bounds.Width / 2, control.Bounds.Height / 2);
         window.MouseDown(at, MouseButton.Left);

@@ -5,7 +5,8 @@ namespace Paperdoll.Core.Tests;
 
 /// <summary>
 /// Three small made-up forks held in memory: "a" has lizards and scars, "b" has neither, "c" has a
-/// job, an antagonist, a trait, a species that takes no markings and both profile extras that add tabs.
+/// job, an antagonist, a trait, a species that takes no markings, a species with a one-slider skin
+/// tone, one whose skin is held to a range, colour names and both profile extras that add tabs.
 /// </summary>
 public static class TestForks
 {
@@ -96,6 +97,56 @@ public static class TestForks
             category: Torso
         """;
 
+    // Skin set by one slider, as upstream's humans have it.
+    private const string Toned = """
+        - type: species
+          id: Toned
+          name: species-name-toned
+          roundStart: true
+          dollPrototype: Doll
+          skinColoration: Toned
+        - type: skinColoration
+          id: Toned
+          strategy: !type:HumanTonedSkinColoration {}
+        - type: species
+          id: Dim
+          name: species-name-dim
+          roundStart: true
+          dollPrototype: Doll
+          skinColoration: HalfBright
+        - type: skinColoration
+          id: HalfBright
+          strategy: !type:ClampedHsvColoration
+            value: [0.5, 1]
+        """;
+
+    // Made-up words for the colour names the engine's strings give.
+    private const string ColorNames = """
+        color-hue-chroma-lightness = {$lightness} {$chroma} {$hue}
+        color-hue-chroma = {$chroma} {$hue}
+        color-hue-lightness = {$lightness} {$hue}
+        color-very-dark = deep
+        color-dark = dim
+        color-light = bright
+        color-very-light = glowing
+        color-mixed-hue = {$a}-{$b}
+        color-pale = washed
+        color-gray-adjective = dull
+        color-strong = vivid
+        color-pink = rose
+        color-red = scarlet
+        color-orange = amber
+        color-yellow = lemon
+        color-green = leaf
+        color-cyan = teal
+        color-blue = sky
+        color-purple = violet
+        color-brown = umber
+        color-white = snow
+        color-gray = ash
+        color-black = coal
+        """;
+
     public static readonly ForkInfo A = new("a", "Fork A", "o/a", "main", AppearanceModel.New, false, ["a"]);
     public static readonly ForkInfo B = new("b", "Fork B", "o/b", "main", AppearanceModel.New, false, ["b"]);
 
@@ -110,5 +161,7 @@ public static class TestForks
         .Add("b", "Resources/Prototypes/body.yml", Body)
         .Add("c", "Resources/Prototypes/body.yml", Body)
         .Add("c", "Resources/Prototypes/roles.yml", JobAntagTrait)
-        .Add("c", "Resources/Prototypes/blob.yml", Blob);
+        .Add("c", "Resources/Prototypes/blob.yml", Blob)
+        .Add("c", "Resources/Prototypes/toned.yml", Toned)
+        .Add("c", "Resources/Locale/en-US/color.ftl", ColorNames);
 }
