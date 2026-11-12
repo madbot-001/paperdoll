@@ -273,6 +273,12 @@ public sealed class CharacterCatalog
     public bool HasVoices => VoiceNames.Count > 0;
     public IReadOnlyDictionary<string, string> VoiceNames { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>
+    /// Starlight's voices for silicon roles: its <c>voice</c> prototypes (text-to-speech voices,
+    /// not upstream's emote sounds) marked <c>silicon: true</c>, with the locale key of each name.
+    /// </summary>
+    public IReadOnlyList<(string Id, string NameKey)> SiliconVoices { get; init; } = [];
+
     /// <summary>Species a player can pick: round-start and not hidden by the fork.</summary>
     public IEnumerable<SpeciesInfo> Selectable(IEnumerable<string> hidden)
     {
@@ -338,6 +344,10 @@ public sealed class CharacterCatalog
             ? index.OfKind("emoteSounds").Where(p => !p.Abstract).ToDictionary(p => p.Id,
                 p => Str(index.Resolve("emoteSounds", p.Id), "voiceSelectorName") ?? "humanoid-profile-editor-voice-none", StringComparer.Ordinal)
             : new Dictionary<string, string>();
+        var siliconVoices = index.OfKind("voice").Where(p => !p.Abstract)
+            .Select(p => (p.Id, Node: index.Resolve("voice", p.Id)))
+            .Where(v => Str(v.Node, "silicon") is "true" or "True")
+            .Select(v => (v.Id, Str(v.Node, "name") ?? v.Id)).ToList();
 
         var groups = new Dictionary<string, MarkingsGroupInfo>(StringComparer.Ordinal);
         foreach (var proto in index.OfKind("markingsGroup").Where(p => !p.Abstract))
@@ -360,6 +370,7 @@ public sealed class CharacterCatalog
             Markings = markings,
             SkinColorations = colorations,
             VoiceNames = voiceNames,
+            SiliconVoices = siliconVoices,
         };
     }
 

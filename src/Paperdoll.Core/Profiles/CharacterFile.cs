@@ -376,6 +376,22 @@ public sealed class CharacterFile
     public string? Name { get => Scalar(Profile, "name"); set => SetScalar(Profile, "name", value); }
     public string? FlavorText { get => Scalar(Profile, "flavorText"); set => SetScalar(Profile, "flavorText", value); }
 
+    /// <summary>
+    /// Starlight's physical description, which it saves under two names that hold the same text:
+    /// <c>physicalDescription</c> and <c>flavorText</c>. Setting it sets both. When a file has
+    /// both and they differ, the game keeps <c>flavorText</c>: its reader sets fields in reverse
+    /// order of their names, so that one is set last.
+    /// </summary>
+    public string? PhysicalDescription
+    {
+        get => FlavorText ?? Scalar(Profile, "physicalDescription");
+        set
+        {
+            SetScalar(Profile, "physicalDescription", value);
+            FlavorText = value;
+        }
+    }
+
     /// <summary>Where the character spawns when joining mid-round: None, Arrivals or Cryosleep.</summary>
     public string? SpawnPriority { get => Scalar(Profile, "spawnPriority"); set => SetScalar(Profile, "spawnPriority", value); }
 
@@ -474,6 +490,16 @@ public sealed class CharacterFile
         Appearance.Children.TryGetValue(new YamlScalarNode("markings"), out var list) && list is YamlSequenceNode seq
             ? seq.Children.OfType<YamlMappingNode>().Select(ReadMarking).OfType<MarkingEntry>().ToList()
             : [];
+
+    /// <summary>Whether Starlight's appearance flag (<c>hairGlowing</c>, <c>facialHairGlowing</c> or <c>eyeGlowing</c>) is on.</summary>
+    public bool IsGlowing(string key) => Scalar(Appearance, key) is "True" or "true";
+
+    /// <summary>Turns a glowing flag on or off. Off is only written where the file already has the flag.</summary>
+    public void SetGlowing(string key, bool on)
+    {
+        if (on || Appearance.Children.ContainsKey(new YamlScalarNode(key)))
+            SetScalar(Appearance, key, on ? "True" : "False");
+    }
 
     /// <summary>The old model's hair or facial hair colour, which the file keeps even without hair.</summary>
     public Rgba? OldHairColor(bool facial) =>

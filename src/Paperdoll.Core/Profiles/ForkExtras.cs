@@ -1,6 +1,7 @@
 // The extra character fields of Delta-V and Euphoria: character records and allergies (from
 // Cosmatic Drift) and Euphoria's custom species name. Written for Paperdoll from how those forks
 // behave; their code is AGPLv3, so none of it is copied. Limits and defaults match theirs.
+// Also the key names of Starlight's character info, read from its profile.
 
 using System.Globalization;
 using Paperdoll.Core.Characters;
@@ -33,6 +34,26 @@ public static class CustomSpeciesName
         if (value != written)
             file.SetValue(Key, value);
     }
+}
+
+/// <summary>
+/// The keys of Starlight's character info. The game names each after its field with only the
+/// first letter lowered, so its <c>OOCNotes</c> is saved as <c>oOCNotes</c>. None has a length
+/// limit, and the game writes each one, empty when unused.
+/// </summary>
+public static class CharacterInfo
+{
+    public const string PersonalityDescription = "personalityDescription";
+    public const string ExploitableInfo = "exploitableInfo";
+    public const string Secrets = "secrets";
+    public const string PersonalNotes = "personalNotes";
+    public const string OocNotes = "oOCNotes";
+    public const string SiliconVoice = "siliconVoice";
+
+    // In the appearance.
+    public const string HairGlowing = "hairGlowing";
+    public const string FacialHairGlowing = "facialHairGlowing";
+    public const string EyeGlowing = "eyeGlowing";
 }
 
 /// <summary>One entry in a character record list: a title, who was involved, and what happened.</summary>

@@ -28,7 +28,7 @@ public partial class MainWindow
         var species = _session.Content!.Characters.Species[look.Species];
         var organ = _selected.Organ != null ? species.Organs.FirstOrDefault(o => o.Category == _selected.Organ) : null;
 
-        // Jobs and Description have a page of their own whatever part is selected; the utility tabs have none.
+        // Jobs, Description, IC Info and OOC Info have a page of their own whatever part is selected; the utility tabs have none.
         switch (_tab)
         {
             case EditorTab.Jobs:
@@ -36,6 +36,12 @@ public partial class MainWindow
                 return;
             case EditorTab.Description:
                 InspectDescription();
+                return;
+            case EditorTab.IcInfo:
+                InspectIcInfo();
+                return;
+            case EditorTab.OocInfo:
+                InspectOocInfo();
                 return;
             case var tab when EditorTabs.IsUtility(tab):
                 return;
@@ -171,6 +177,26 @@ public partial class MainWindow
             AddRow("Voice", voice);
         }
 
+        // Starlight: the voice the character speaks with as a borg or AI.
+        var siliconVoices = session.Content!.Characters.SiliconVoices;
+        if (session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.SiliconVoice) && siliconVoices.Count > 0)
+        {
+            var ids = siliconVoices.Select(v => v.Id).ToList();
+            var silicon = new ComboBox
+            {
+                ItemsSource = siliconVoices.Select(v => session.Content.Strings[v.NameKey] ?? v.Id).ToList(),
+                SelectedIndex = ids.IndexOf(file.GetValue(CharacterInfo.SiliconVoice) ?? ""),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            silicon.SelectionChanged += (_, _) =>
+            {
+                if (silicon.SelectedIndex >= 0 && ids[silicon.SelectedIndex] != session.File?.GetValue(CharacterInfo.SiliconVoice))
+                    Apply(s => s.Edit(f => f.SetValue(CharacterInfo.SiliconVoice, ids[silicon.SelectedIndex])));
+            };
+            ToolTip.SetTip(silicon, file.GetValue(CharacterInfo.SiliconVoice));
+            AddRow("Silicon voice", silicon, "Spoken with as a borg or AI. With none chosen, the lobby picks one at random.");
+        }
+
         var age = new NumericUpDown
         {
             Minimum = species.MinAge,
@@ -232,7 +258,16 @@ public partial class MainWindow
         }
         else
             AddRow("Skin", ColorBlock("skin", look.SkinColor, color => s => s.SetSkin(color), l => l.SkinColor), $"{species.SkinColoration}: nearest allowed colour is used");
-        AddRow("Eyes", ColorBlock("eyes", look.EyeColor, color => s => s.SetEyes(color), l => l.EyeColor));
+        var eyes = ColorBlock("eyes", look.EyeColor, color => s => s.SetEyes(color), l => l.EyeColor);
+        if (GlowingBox(CharacterInfo.EyeGlowing) is { } eyesGlow)
+        {
+            var stack = new StackPanel();
+            stack.Children.Add(eyes);
+            stack.Children.Add(eyesGlow);
+            AddRow("Eyes", stack);
+        }
+        else
+            AddRow("Eyes", eyes);
 
         AddCategory("Round start");
         var spawnLabels = CharacterRules.SpawnPriorities
@@ -298,6 +333,63 @@ public partial class MainWindow
         // The box fills the page; the page does not scroll, the box does.
         Inspector.RowDefinitions[^1].Height = GridLength.Star;
     }
+
+    private void InspectIcInfo()
+    {
+        InspectorTitle.Text = "IC Info";
+        var file = _session!.File!;
+        AddInfoText("Physical description", "What anyone who examines the character reads first.",
+            file.PhysicalDescription, text => f => f.PhysicalDescription = text);
+        AddInfoText("Personality description", "Shown to anyone who examines the character, after the physical description.",
+            file.GetValue(CharacterInfo.PersonalityDescription), text => f => f.SetValue(CharacterInfo.PersonalityDescription, text));
+        AddInfoText("Exploitable info", "Seen by antagonists and ghosts who examine the character, and by its player.",
+            file.GetValue(CharacterInfo.ExploitableInfo), text => f => f.SetValue(CharacterInfo.ExploitableInfo, text));
+        AddInfoText("Secrets", "Seen only by the character's player.",
+            file.GetValue(CharacterInfo.Secrets), text => f => f.SetValue(CharacterInfo.Secrets, text));
+        AddWide(new TextBlock { Text = "Each server chooses which of these it uses.", Classes = { "hint" }, Margin = new Thickness(4, 4), TextWrapping = TextWrapping.Wrap });
+    }
+
+    private void InspectOocInfo()
+    {
+        InspectorTitle.Text = "OOC Info";
+        var file = _session!.File!;
+        AddInfoText("Personal notes", "Seen only by you, the character's player.",
+            file.GetValue(CharacterInfo.PersonalNotes), text => f => f.SetValue(CharacterInfo.PersonalNotes, text));
+        AddInfoText("OOC notes", "Shown to anyone who opens the character's info window.",
+            file.GetValue(CharacterInfo.OocNotes), text => f => f.SetValue(CharacterInfo.OocNotes, text));
+        AddWide(new TextBlock { Text = "Each server chooses whether it uses these.", Classes = { "hint" }, Margin = new Thickness(4, 4), TextWrapping = TextWrapping.Wrap });
+    }
+
+    // One of Starlight's character info texts: a heading, a box for several lines, and who reads it.
+    private void AddInfoText(string title, string hint, string? text, Func<string, Action<CharacterFile>> write)
+    {
+        AddCategory(title);
+        var box = new TextBox { Text = text ?? "", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 70 };
+        CommitOnEnterOrLeave(box, typed => Apply(s => s.Edit(write(typed))));
+        var stack = new StackPanel();
+        stack.Children.Add(box);
+        stack.Children.Add(new TextBlock { Text = hint, Classes = { "hint" }, Margin = new Thickness(4, 0, 4, 2), TextWrapping = TextWrapping.Wrap });
+        AddWide(stack);
+    }
+
+    // Starlight's glowing flag for a colour, as a check box beside it; null where the fork has none.
+    private CheckBox? GlowingBox(string key)
+    {
+        if (!_session!.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.Glowing))
+            return null;
+        var box = new CheckBox { Content = "Glowing", IsChecked = _session.File!.IsGlowing(key), Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center };
+        box.IsCheckedChanged += (_, _) =>
+        {
+            if (!_refreshing && box.IsChecked is { } on)
+                Apply(s => s.Edit(f => f.SetGlowing(key, on)), keepInspector: true);
+        };
+        return box;
+    }
+
+    // The glowing flag that goes with the old model's hair or facial hair colour.
+    private string? HairGlowingKey(string organ) =>
+        _session!.Content!.Characters.Species[_session.Look!.Species].Old == null ? null
+            : organ switch { "Hair" => CharacterInfo.HairGlowing, "FacialHair" => CharacterInfo.FacialHairGlowing, _ => null };
 
     private void InspectOrgan(OrganInfo organ)
     {
@@ -387,7 +479,10 @@ public partial class MainWindow
                 continue;
             var colorIndex = c;
             var label = c < marking.Sprites.Count ? marking.Sprites[c].State ?? $"Sprite {c + 1}" : $"Sprite {c + 1}";
-            AddRow(label, ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color)), key: $"marking/{organ.Category}/{layer}/{index}/{colorIndex}"));
+            var field = ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ.Category, layer, index, colorIndex, color)), key: $"marking/{organ.Category}/{layer}/{index}/{colorIndex}");
+            if (c == 0 && HairGlowingKey(organ.Category) is { } glowKey && GlowingBox(glowKey) is { } glow)
+                ((Panel)field).Children.Add(glow);
+            AddRow(label, field);
         }
 
         AddCategory("Sprites");
@@ -803,6 +898,8 @@ public partial class MainWindow
                 continue;
             var colorIndex = c;
             colors.Children.Add(ColorField(entry.Colors[c], color => Apply(s => s.SetMarkingColor(organ, layer, index, colorIndex, color)), compact: true, key: $"marking/{organ}/{layer}/{index}/{colorIndex}"));
+            if (c == 0 && HairGlowingKey(organ) is { } glowKey && GlowingBox(glowKey) is { } glow)
+                colors.Children.Add(glow);
         }
 
         var picture = new Border { Width = 32, Height = 32, Margin = new Thickness(0, 0, 4, 0), Child = MarkingPicture(organ, layer, entry.Id, 32) is { } image ? new Image { Source = image } : null };

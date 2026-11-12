@@ -130,7 +130,9 @@ public static partial class CharacterRules
         if (unavailable != file.PreferenceUnavailable)
             file.PreferenceUnavailable = unavailable;
 
-        var flavor = file.FlavorText ?? "";
+        // Starlight keeps the description under two names (see CharacterFile.PhysicalDescription).
+        var twoNames = fork.Extras.HasFlag(ProfileExtras.IcInfo);
+        var flavor = (twoNames ? file.PhysicalDescription : file.FlavorText) ?? "";
         var cleanFlavor = MarkupText.Stable(flavor, out var mending);
         var cut = cleanFlavor.Length > fork.MaxFlavorTextLength;
         if (cut)
@@ -147,7 +149,16 @@ public static partial class CharacterRules
             if (cut)
                 notes.Add($"The description was cut to {fork.MaxFlavorTextLength} characters, the most the game keeps.");
             fixes.Add(new("flavorText", string.Join(" ", notes)));
-            file.FlavorText = cleanFlavor;
+            if (twoNames)
+                file.PhysicalDescription = cleanFlavor;
+            else
+                file.FlavorText = cleanFlavor;
+        }
+        else if (twoNames && file.PhysicalDescription != null && file.GetValue("physicalDescription") != file.FlavorText)
+        {
+            if (file.GetValue("physicalDescription") != null && file.FlavorText != null)
+                fixes.Add(new("physicalDescription", "The description was saved under two names with different texts; both now hold the flavorText one, which the game reads."));
+            file.PhysicalDescription = cleanFlavor;
         }
 
         if (CharacterSize.HasHeight(fork))

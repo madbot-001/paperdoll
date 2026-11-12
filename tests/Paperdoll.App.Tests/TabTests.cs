@@ -34,7 +34,8 @@ public class TabTests
         await editor.LoadForkAsync(TestForks.C, update: false, ct: ct);
         editor.NewCharacter("Human");
 
-        Assert.Equal(Enum.GetValues<EditorTab>(), EditorTabs.Visible(editor));
+        // The character info tabs are Starlight's, which has no Description tab.
+        Assert.Equal(Enum.GetValues<EditorTab>().Except([IcInfo, OocInfo]), EditorTabs.Visible(editor));
     }
 
     [Fact]
@@ -210,7 +211,7 @@ public class TabTests
         Assert.True(Find<ScrollViewer>(window, "PageHost").Bounds.Height >= 200);
 
         var buttons = Find<TabStripPanel>(window, "TabStrip").Children.OfType<RadioButton>().ToList();
-        Assert.Equal(Enum.GetValues<EditorTab>().Length, buttons.Count);
+        Assert.Equal(Enum.GetValues<EditorTab>().Except([IcInfo, OocInfo]).Count(), buttons.Count);
         foreach (var button in buttons)
         {
             var at = button.TranslatePoint(default, window)!.Value;

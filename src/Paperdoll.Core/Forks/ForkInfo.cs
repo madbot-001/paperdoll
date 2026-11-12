@@ -97,6 +97,22 @@ public enum ProfileExtras
 
     /// <summary>A name, description and colour for each chosen loadout item (Floof Station's, in Euphoria).</summary>
     ItemCustomization = 8,
+
+    /// <summary>
+    /// Starlight's IC Info tab: a physical description (saved as both <c>physicalDescription</c>
+    /// and <c>flavorText</c>), <c>personalityDescription</c>, <c>exploitableInfo</c> and
+    /// <c>secrets</c>. The physical description takes the place of the Description tab.
+    /// </summary>
+    IcInfo = 16,
+
+    /// <summary>Starlight's OOC Info tab: <c>personalNotes</c> and <c>oOCNotes</c>.</summary>
+    OocInfo = 32,
+
+    /// <summary>Starlight's voice for silicon roles (<c>siliconVoice</c>), one of its <c>voice</c> prototypes marked <c>silicon</c>.</summary>
+    SiliconVoice = 64,
+
+    /// <summary>Starlight's glowing hair, facial hair and eyes (<c>hairGlowing</c>, <c>facialHairGlowing</c>, <c>eyeGlowing</c> in the appearance).</summary>
+    Glowing = 128,
 }
 
 /// <summary>How a fork sizes characters on screen.</summary>
