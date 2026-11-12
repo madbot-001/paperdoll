@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Paperdoll.Core.Editing;
@@ -7,7 +8,7 @@ namespace Paperdoll.App;
 
 public sealed record ForkChoice(ForkInfo Fork, bool Update);
 
-public sealed record ForkRow(ForkInfo Fork, string Name, string Model, string Editable, string Commit, string Repository);
+public sealed record ForkRow(ForkInfo Fork, string Name, string Model, string Editable, string Commit, string Repository, string LastPlayed);
 
 /// <summary>Lists the known forks; opens, updates or removes them.</summary>
 public partial class ForksWindow : Window
@@ -21,10 +22,14 @@ public partial class ForksWindow : Window
 
     private readonly Func<Window, Task>? _showFiles;
 
-    public ForksWindow(EditorSession session, Func<Window, Task>? showFiles = null) : this()
+    // Where the SS14 launcher may keep the forks it has run; none unless given.
+    private readonly IReadOnlyList<string> _launcherFolders = [];
+
+    public ForksWindow(EditorSession session, Func<Window, Task>? showFiles = null, IReadOnlyList<string>? launcherFolders = null) : this()
     {
         _session = session;
         _showFiles = showFiles;
+        _launcherFolders = launcherFolders ?? [];
         Closing += (_, e) => e.Cancel |= _removing;
         Opened += async (_, _) =>
         {
@@ -43,12 +48,27 @@ public partial class ForksWindow : Window
     {
         if (_session == null)
             return;
-        var rows = (await _session.ForkStatusesAsync())
-            .OrderByDescending(s => s.Editable).ThenBy(s => s.Fork.Name)
+        var statuses = await _session.ForkStatusesAsync();
+        // Read each time, away from the window's thread; it is only ever read, never kept.
+        var launcher = await Task.Run(() => LauncherForks.Read(_launcherFolders));
+        var played = new Dictionary<string, DateTime>();
+        var unknown = new List<string>();
+        foreach (var used in launcher)
+        {
+            if (KnownForks.FindByServerForkId(used.ServerForkId) is not { } fork)
+                unknown.Add(used.ServerForkId);
+            else if (!played.TryGetValue(fork.Id, out var seen) || used.LastUsed > seen)
+                played[fork.Id] = used.LastUsed;
+        }
+        var rows = statuses
+            .OrderByDescending(s => played.GetValueOrDefault(s.Fork.Id)).ThenByDescending(s => s.Editable).ThenBy(s => s.Fork.Name)
             .Select(s => new ForkRow(s.Fork, s.Fork.Name, s.Fork.Model == AppearanceModel.New ? "New" : "Old",
-                s.Editable ? "Yes" : "Not yet", s.Commit?[..8] ?? "", s.Fork.Repository))
+                s.Editable ? "Yes" : "Not yet", s.Commit?[..8] ?? "", s.Fork.Repository,
+                played.TryGetValue(s.Fork.Id, out var last) ? last.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : ""))
             .ToList();
         ForkGrid.ItemsSource = rows;
+        LauncherText.IsVisible = unknown.Count > 0;
+        LauncherText.Text = $"Also in your SS14 launcher, not known to Paperdoll: {string.Join(", ", unknown)}.";
         UpdateButtons();
     }
 

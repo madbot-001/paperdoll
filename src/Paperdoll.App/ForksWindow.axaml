@@ -4,7 +4,7 @@
         x:Class="Paperdoll.App.ForksWindow"
         Icon="/Assets/icon.png"
         Title="Forks"
-        Width="640" Height="420" CanResize="True" WindowStartupLocation="CenterOwner">
+        Width="720" Height="420" CanResize="True" WindowStartupLocation="CenterOwner">
   <DockPanel Margin="8">
     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,6"
                Text="Download only the forks you want; each needs about 10 to 30 MB, and files forks share are kept once. A few forks Paperdoll has not been checked against cannot be edited yet." />
@@ -17,6 +17,7 @@
       <Button Content="Close" Click="OnClose" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
     </StackPanel>
     <TextBlock DockPanel.Dock="Bottom" Name="StatusText" Classes="hint" Margin="0,6,0,0" />
+    <TextBlock DockPanel.Dock="Bottom" Name="LauncherText" Classes="hint" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="False" />
     <Border Classes="pane">
     <DataGrid Name="ForkGrid" IsReadOnly="True" SelectionMode="Single" SelectionChanged="OnSelection" x:DataType="app:ForkRow">
       <DataGrid.Columns>
@@ -24,6 +25,12 @@
         <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="60" />
         <DataGridTextColumn Header="Editable" Binding="{Binding Editable}" Width="64" />
         <DataGridTextColumn Header="Downloaded" Binding="{Binding Commit}" Width="90" />
+        <DataGridTextColumn Binding="{Binding LastPlayed}" Width="80">
+          <DataGridTextColumn.Header>
+            <TextBlock Text="Last played"
+                       ToolTip.Tip="When the SS14 launcher on this computer last ran the fork, read from its files. Nothing is sent anywhere." />
+          </DataGridTextColumn.Header>
+        </DataGridTextColumn>
         <DataGridTextColumn Header="Repository" Binding="{Binding Repository}" Width="*" />
       </DataGrid.Columns>
     </DataGrid>

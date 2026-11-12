@@ -15,6 +15,9 @@ What Paperdoll is meant to do, to compare a problem against:
 - It connects only to GitHub, to download game data, and, for Fork > Match a Server, to the
   Space Station 14 hub for its list of servers and to the server you pick, to read which
   version it runs from its public info page.
+- The Forks window reads, read-only, which forks the SS14 launcher on the computer has run and
+  when, from its `content.db`. It opens no other launcher file and keeps or sends nothing it
+  reads.
 - It never uploads or shares characters, and never sends usage data or crash reports.
 
 Fixes go into the next release; only the latest release is supported.

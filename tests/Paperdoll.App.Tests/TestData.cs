@@ -15,6 +15,8 @@ internal static class TestData
     {
         Directory = System.IO.Directory.CreateTempSubdirectory("paperdoll-data-").FullName;
         Environment.SetEnvironmentVariable("PAPERDOLL_DATA", Directory);
+        // A launcher folder that does not exist, so the Forks window never reads the real one.
+        Environment.SetEnvironmentVariable("PAPERDOLL_LAUNCHER", Path.Combine(Directory, "launcher"));
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             try

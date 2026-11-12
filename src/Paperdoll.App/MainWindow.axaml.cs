@@ -389,7 +389,9 @@ public partial class MainWindow : Window
     {
         if (_session == null)
             return;
-        var choice = await new ForksWindow(_session, ShowFilesAsync).ShowDialog<ForkChoice?>(this);
+        // PAPERDOLL_LAUNCHER names the one launcher folder to read instead, so tests never read the real one.
+        IReadOnlyList<string> launcher = Environment.GetEnvironmentVariable("PAPERDOLL_LAUNCHER") is { } folder ? [folder] : LauncherForks.CandidateFolders();
+        var choice = await new ForksWindow(_session, ShowFilesAsync, launcher).ShowDialog<ForkChoice?>(this);
         try
         {
             await RefreshForkBoxAsync();
