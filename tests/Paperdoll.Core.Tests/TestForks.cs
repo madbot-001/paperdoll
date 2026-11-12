@@ -4,11 +4,11 @@ using Paperdoll.Core.Forks;
 namespace Paperdoll.Core.Tests;
 
 /// <summary>
-/// Four small made-up forks held in memory: "a" has lizards and scars, "b" has neither, "c" has a
+/// Five small made-up forks held in memory: "a" has lizards and scars, "b" has neither, "c" has a
 /// job, an antagonist, a trait, a species that takes no markings, a species with a one-slider skin
 /// tone, one whose skin is held to a range, colour names and both profile extras that add tabs.
 /// "d" is on the old appearance model, with hair, two silicon voices and one other, and the
-/// character info extras.
+/// character info extras. "e" is "d" with Starlight's records.
 /// </summary>
 public static class TestForks
 {
@@ -227,6 +227,13 @@ public static class TestForks
         Extras = ProfileExtras.IcInfo | ProfileExtras.OocInfo | ProfileExtras.SiliconVoice | ProfileExtras.Glowing,
     };
 
+    public static readonly ForkInfo E = D with
+    {
+        Id = "e", Name = "Fork E", ServerForkIds = ["e"],
+        Extras = D.Extras | ProfileExtras.Records,
+        RecordFormat = Profiles.RecordFormat.Starlight,
+    };
+
     public static EditorSession Session() => new(Store());
 
     public static MemoryForkStore Store() => new MemoryForkStore()
@@ -240,5 +247,7 @@ public static class TestForks
         .Add("c", "Resources/Prototypes/toned.yml", Toned)
         .Add("c", "Resources/Locale/en-US/color.ftl", ColorNames)
         .Add("d", "Resources/Prototypes/body.yml", OldBody)
-        .Add("d", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n");
+        .Add("d", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n")
+        .Add("e", "Resources/Prototypes/body.yml", OldBody)
+        .Add("e", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n");
 }

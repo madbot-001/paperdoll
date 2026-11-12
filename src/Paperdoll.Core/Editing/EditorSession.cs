@@ -449,13 +449,13 @@ public sealed class EditorSession : IAsyncDisposable
 
     public IReadOnlyList<RuleFix> SetCustomSpeciesName(string name) => Edit(f => f.SetValue(CustomSpeciesName.Key, name));
 
-    public IReadOnlyList<RuleFix> SetRecordText(string key, string value) => Edit(f => CharacterRecords.SetText(f, key, value));
+    public IReadOnlyList<RuleFix> SetRecordText(string key, string value) => Edit(f => CharacterRecords.SetText(f, key, value, Fork!.RecordFormat));
 
-    public IReadOnlyList<RuleFix> SetRecordNumber(string key, int value) => Edit(f => CharacterRecords.SetNumber(f, key, value));
+    public IReadOnlyList<RuleFix> SetRecordNumber(string key, int value) => Edit(f => CharacterRecords.SetNumber(f, key, value, Fork!.RecordFormat));
 
-    public IReadOnlyList<RuleFix> SetWorkAuthorization(bool value) => Edit(f => CharacterRecords.SetWorkAuthorization(f, value));
+    public IReadOnlyList<RuleFix> SetWorkAuthorization(bool value) => Edit(f => CharacterRecords.SetWorkAuthorization(f, value, Fork!.RecordFormat));
 
-    public IReadOnlyList<RuleFix> SetRecordEntries(string list, IReadOnlyList<RecordEntry> entries) => Edit(f => CharacterRecords.SetEntries(f, list, entries));
+    public IReadOnlyList<RuleFix> SetRecordEntries(string list, IReadOnlyList<RecordEntry> entries) => Edit(f => CharacterRecords.SetEntries(f, list, entries, Fork!.RecordFormat));
 
     public IReadOnlyList<RuleFix> SetAllergies(IEnumerable<(string Reagent, float Amount)> allergies) => Edit(f => Allergies.Write(f, allergies));
 

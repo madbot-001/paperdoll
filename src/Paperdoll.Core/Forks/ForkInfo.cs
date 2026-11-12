@@ -54,6 +54,9 @@ public sealed record ForkInfo(
 
     public ProfileExtras Extras { get; init; } = ProfileExtras.None;
 
+    /// <summary>How the fork keeps character records, where it has them (<see cref="ProfileExtras.Records"/>).</summary>
+    public Profiles.RecordFormat RecordFormat { get; init; } = Profiles.RecordFormat.CosmaticDrift;
+
     /// <summary>The job players fall back to when they pick none (<c>SharedGameTicker.FallbackOverflowJob</c>).</summary>
     public string FallbackJob { get; init; } = "Passenger";
 
@@ -89,7 +92,7 @@ public enum ProfileExtras
     /// <summary>Euphoria's <c>customspeciename</c>, shown instead of the species' name.</summary>
     CustomSpeciesName = 1,
 
-    /// <summary>Character records from Cosmatic Drift (<c>cosmaticDriftCharacterRecords</c>), in Delta-V and Euphoria.</summary>
+    /// <summary>Character records from Cosmatic Drift (<c>cosmaticDriftCharacterRecords</c>), in Delta-V, Euphoria and Starlight.</summary>
     Records = 2,
 
     /// <summary>Allergies to reagents (<c>cosmaticDriftAllergies</c>), in Euphoria.</summary>

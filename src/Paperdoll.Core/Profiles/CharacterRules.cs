@@ -188,7 +188,7 @@ public static partial class CharacterRules
         if (fork.Extras.HasFlag(ProfileExtras.CustomSpeciesName))
             CustomSpeciesName.Check(file, species, fixes);
         if (fork.Extras.HasFlag(ProfileExtras.Records))
-            CharacterRecords.Check(file, fixes);
+            CharacterRecords.Check(file, fork.RecordFormat, fixes);
         if (fork.Extras.HasFlag(ProfileExtras.Allergies))
             Allergies.Check(file);
 

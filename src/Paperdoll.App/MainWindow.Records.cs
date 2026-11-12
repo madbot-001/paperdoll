@@ -7,7 +7,7 @@ using Paperdoll.Core.Profiles;
 
 namespace Paperdoll.App;
 
-/// <summary>The inspector pages for Delta-V's and Euphoria's character records and Euphoria's allergies.</summary>
+/// <summary>The inspector pages for Delta-V's, Euphoria's and Starlight's character records and Euphoria's allergies.</summary>
 public partial class MainWindow
 {
     private static string RecordListName(string list) => list switch
@@ -15,6 +15,7 @@ public partial class MainWindow
         "employmentEntries" => "Employment",
         "securityEntries" => "Security",
         "medicalEntries" => "Medical",
+        "adminEntries" => "Admin",
         _ => list,
     };
 
@@ -22,18 +23,30 @@ public partial class MainWindow
     {
         var session = _session!;
         var file = session.File!;
+        var format = session.Fork!.RecordFormat;
         InspectorTitle.Text = "Records";
 
         AddCategory("Body");
-        AddRow("Height", Number(CharacterRecords.Number(file, "height"), CharacterRecords.MaxHeight, value => Apply(s => s.SetRecordNumber("height", value))),
-            "Centimetres, as written in the records. Separate from how tall the character is drawn.");
-        var weight = CharacterRecords.Number(file, "weight");
-        AddRow("Weight", Number(weight, CharacterRecords.MaxWeight, value => Apply(s => s.SetRecordNumber("weight", value))),
-            $"Kilograms (about {weight * 2.2046226218:0} lb).");
+        var height = CharacterRecords.Number(file, "height", format);
+        var weight = CharacterRecords.Number(file, "weight", format);
+        if (format.HeightFromSize)
+        {
+            // Starlight's lobby shows these without letting them be typed, and sets them from the size.
+            const string FromSize = "The game works this out from the character's size and species, in the lobby and at spawn.";
+            AddRow("Height", Text($"{height} cm"), FromSize);
+            AddRow("Weight", Text($"{weight} kg (about {weight * 2.2046226218:0} lb)"), FromSize);
+        }
+        else
+        {
+            AddRow("Height", Number(height, CharacterRecords.MaxHeight, value => Apply(s => s.SetRecordNumber("height", value))),
+                "Centimetres, as written in the records. Separate from how tall the character is drawn.");
+            AddRow("Weight", Number(weight, CharacterRecords.MaxWeight, value => Apply(s => s.SetRecordNumber("weight", value))),
+                $"Kilograms (about {weight * 2.2046226218:0} lb).");
+        }
 
         AddCategory("Personal");
         AddRow("Emergency contact", RecordText(file, "emergencyContactName", "Who to call"));
-        var work = new CheckBox { Content = "Allowed to work here", IsChecked = CharacterRecords.WorkAuthorization(file), Margin = new Thickness(4, 0) };
+        var work = new CheckBox { Content = "Allowed to work here", IsChecked = CharacterRecords.WorkAuthorization(file, format), Margin = new Thickness(4, 0) };
         work.IsCheckedChanged += (_, _) =>
         {
             if (!_refreshing && work.IsChecked is { } value)
@@ -48,9 +61,9 @@ public partial class MainWindow
         AddRow("After death", RecordText(file, "postmortemInstructions", "Return home"), "Postmortem instructions.");
 
         AddCategory("Entries");
-        foreach (var list in CharacterRecords.EntryLists)
+        foreach (var list in format.EntryLists)
         {
-            var count = CharacterRecords.Entries(file, list).Count;
+            var count = CharacterRecords.Entries(file, list, format).Count;
             var open = new Button { Classes = { "small" }, Content = $"{count} entr{(count == 1 ? "y" : "ies")}...", HorizontalAlignment = HorizontalAlignment.Left };
             open.Click += (_, _) => Select(new Node(NodeKind.RecordList, Group: list));
             AddRow(RecordListName(list), open);
@@ -60,7 +73,8 @@ public partial class MainWindow
     private void InspectRecordList(string list)
     {
         var session = _session!;
-        var entries = CharacterRecords.Entries(session.File!, list).ToList();
+        var format = session.Fork!.RecordFormat;
+        var entries = CharacterRecords.Entries(session.File!, list, format).ToList();
         InspectorTitle.Text = $"Records: {RecordListName(list)}";
 
         void Save(List<RecordEntry> changed) => Apply(s => s.SetRecordEntries(list, changed));
@@ -72,7 +86,7 @@ public partial class MainWindow
             AddCategory(string.IsNullOrWhiteSpace(entry.Title) ? $"Entry {i + 1}" : entry.Title);
             AddRow("Title", EntryText(entry.Title, CharacterRecords.ShortText, false, text => Save(Replace(entries, index, entry with { Title = text }))));
             AddRow("Involved", EntryText(entry.Involved, CharacterRecords.ShortText, false, text => Save(Replace(entries, index, entry with { Involved = text }))));
-            AddRow("Description", EntryText(entry.Description, CharacterRecords.LongText, true, text => Save(Replace(entries, index, entry with { Description = text }))));
+            AddRow("Description", EntryText(entry.Description, format.LongText, true, text => Save(Replace(entries, index, entry with { Description = text }))));
             if (entry.Title.Length == 0 || entry.Involved.Length == 0 || entry.Description.Length == 0)
                 AddWide(new TextBlock { Text = "The game's record editor asks for all three before it saves an entry.", Classes = { "hint", "warning" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 2) });
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(6, 3) };
@@ -182,7 +196,7 @@ public partial class MainWindow
 
     private TextBox RecordText(CharacterFile file, string key, string placeholder)
     {
-        var box = new TextBox { Text = CharacterRecords.Text(file, key), PlaceholderText = placeholder, MaxLength = CharacterRecords.ShortText };
+        var box = new TextBox { Text = CharacterRecords.Text(file, key, _session!.Fork!.RecordFormat), PlaceholderText = placeholder, MaxLength = CharacterRecords.ShortText };
         CommitOnEnterOrLeave(box, text => Apply(s => s.SetRecordText(key, text)));
         return box;
     }

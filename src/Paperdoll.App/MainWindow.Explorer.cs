@@ -76,7 +76,7 @@ public partial class MainWindow
         }
         shows.Append('|').AppendJoin(',', session.SelectedTraits()).Append('|').AppendJoin(',', file.AntagPreferences).Append('|');
         if (session.Fork.Extras.HasFlag(ProfileExtras.Records))
-            shows.AppendJoin(',', CharacterRecords.EntryLists.Select(list => CharacterRecords.Entries(file, list).Count));
+            shows.AppendJoin(',', session.Fork.RecordFormat.EntryLists.Select(list => CharacterRecords.Entries(file, list, session.Fork.RecordFormat).Count));
         if (session.Fork.Extras.HasFlag(ProfileExtras.Allergies))
             shows.Append('|').Append(Allergies.Read(file).Count);
         foreach (var (organ, layers) in look.Markings)
@@ -145,9 +145,10 @@ public partial class MainWindow
         if (_tab == EditorTab.Records && session.Fork!.Extras.HasFlag(ProfileExtras.Records))
         {
             var recordsItem = Item(new Node(NodeKind.Records), HeaderFor("Records", null), true, items);
-            foreach (var list in CharacterRecords.EntryLists)
+            var format = session.Fork.RecordFormat;
+            foreach (var list in format.EntryLists)
             {
-                var count = CharacterRecords.Entries(session.File!, list).Count;
+                var count = CharacterRecords.Entries(session.File!, list, format).Count;
                 recordsItem.Items.Add(Item(new Node(NodeKind.RecordList, Group: list), HeaderFor(RecordListName(list), count.ToString()), false, items));
             }
             Explorer.Items.Add(recordsItem);
@@ -370,7 +371,7 @@ public partial class MainWindow
         var node = parts is ["Antagonists"] ? new Node(NodeKind.Antags)
             : parts is ["Allergies"] ? new Node(NodeKind.Allergies)
             : parts is ["Records", ..] ? parts.Length > 1
-                ? new Node(NodeKind.RecordList, Group: CharacterRecords.EntryLists.FirstOrDefault(list => RecordListName(list) == parts[1]) ?? parts[1])
+                ? new Node(NodeKind.RecordList, Group: _session!.Fork!.RecordFormat.EntryLists.FirstOrDefault(list => RecordListName(list) == parts[1]) ?? parts[1])
                 : new Node(NodeKind.Records)
             : parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
             : parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch

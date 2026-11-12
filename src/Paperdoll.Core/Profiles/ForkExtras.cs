@@ -1,7 +1,8 @@
 // The extra character fields of Delta-V and Euphoria: character records and allergies (from
 // Cosmatic Drift) and Euphoria's custom species name. Written for Paperdoll from how those forks
 // behave; their code is AGPLv3, so none of it is copied. Limits and defaults match theirs.
-// Also the key names of Starlight's character info, read from its profile.
+// Also the key names of Starlight's character info, read from its profile, and Starlight's
+// version of the records.
 
 using System.Globalization;
 using Paperdoll.Core.Characters;
@@ -60,53 +61,78 @@ public static class CharacterInfo
 public sealed record RecordEntry(string Title, string Involved, string Description);
 
 /// <summary>
-/// Character records (<c>cosmaticDriftCharacterRecords</c>), in Delta-V and Euphoria: height and
-/// weight, a few short texts, a work authorisation flag, and employment, security and medical
-/// entries. The game writes a record's fields in the reverse of the order its code declares them,
-/// so new records here are written in that order too.
+/// How a fork keeps its character records. Delta-V and Euphoria keep Cosmatic Drift's; Starlight
+/// adds admin entries, halves the entry description limit, starts records at 164 cm and 74 kg,
+/// and works height and weight out from the character's size.
+/// </summary>
+/// <param name="EntryLists">The entry lists, in the order Paperdoll shows them.</param>
+/// <param name="LongText">Longest entry description.</param>
+/// <param name="DefaultHeight">Height in new records, in centimetres.</param>
+/// <param name="DefaultWeight">Weight in new records, in kilograms.</param>
+/// <param name="SortedByName">
+/// Whether the game writes fields sorted by name, last first (Starlight's engine), rather than in
+/// the reverse of the order its code declares them. Missing fields are then added after the ones
+/// the file has, which keep their place.
+/// </param>
+/// <param name="HeightFromSize">Whether the game sets height and weight from the character's size and species, so the player cannot.</param>
+public sealed record RecordFormat(IReadOnlyList<string> EntryLists, int LongText, int DefaultHeight, int DefaultWeight, bool SortedByName, bool HeightFromSize)
+{
+    public static readonly RecordFormat CosmaticDrift = new(["employmentEntries", "securityEntries", "medicalEntries"], 8192, 170, 70, false, false);
+    public static readonly RecordFormat Starlight = new(["employmentEntries", "securityEntries", "medicalEntries", "adminEntries"], 4096, 164, 74, true, true);
+}
+
+/// <summary>
+/// Character records (<c>cosmaticDriftCharacterRecords</c>), in Delta-V, Euphoria and Starlight:
+/// height and weight, a few short texts, a work authorisation flag, and lists of entries. New
+/// records and fields are written in the order the fork's game writes them (see
+/// <see cref="RecordFormat"/>). Without a format, the methods use Cosmatic Drift's.
 /// </summary>
 public static class CharacterRecords
 {
     public const string Key = "cosmaticDriftCharacterRecords";
 
-    /// <summary>Longest short text (names, features, instructions) and longest entry description.</summary>
+    /// <summary>Longest short text (names, features, instructions); the longest entry description is the format's.</summary>
     public const int ShortText = 64;
-    public const int LongText = 8192;
 
     /// <summary>Height in centimetres and weight in kilograms run from 0 to these.</summary>
     public const int MaxHeight = 800;
     public const int MaxWeight = 300;
 
-    public static readonly string[] EntryLists = ["employmentEntries", "securityEntries", "medicalEntries"];
-
     public static readonly string[] Texts = ["emergencyContactName", "identifyingFeatures", "allergies", "drugAllergies", "postmortemInstructions"];
 
     // Every field in the order the game writes them, with its default.
-    private static readonly (string Key, Func<YamlNode> Default)[] Fields =
-    [
-        ("employmentEntries", () => new YamlSequenceNode()),
-        ("securityEntries", () => new YamlSequenceNode()),
-        ("medicalEntries", () => new YamlSequenceNode()),
-        ("postmortemInstructions", () => CharacterFile.Text("Return home")),
-        ("drugAllergies", () => CharacterFile.Text("None")),
-        ("allergies", () => CharacterFile.Text("None")),
-        ("identifyingFeatures", () => CharacterFile.Text("")),
-        ("hasWorkAuthorization", () => new YamlScalarNode("True")),
-        ("emergencyContactName", () => CharacterFile.Text("")),
-        ("weight", () => new YamlScalarNode("70")),
-        ("height", () => new YamlScalarNode("170")),
-    ];
+    private static IEnumerable<(string Key, Func<YamlNode> Default)> Fields(RecordFormat format)
+    {
+        var fields = format.EntryLists.Select(list => (list, (Func<YamlNode>)(() => new YamlSequenceNode())))
+            .Concat(new (string, Func<YamlNode>)[]
+            {
+                ("postmortemInstructions", () => CharacterFile.Text("Return home")),
+                ("drugAllergies", () => CharacterFile.Text("None")),
+                ("allergies", () => CharacterFile.Text("None")),
+                ("identifyingFeatures", () => CharacterFile.Text("")),
+                ("hasWorkAuthorization", () => new YamlScalarNode("True")),
+                ("emergencyContactName", () => CharacterFile.Text("")),
+                ("weight", () => new YamlScalarNode(format.DefaultWeight.ToString(CultureInfo.InvariantCulture))),
+                ("height", () => new YamlScalarNode(format.DefaultHeight.ToString(CultureInfo.InvariantCulture))),
+            });
+        // Field names differ from the code's only in their first letter, which the sort ignores.
+        return format.SortedByName ? fields.OrderByDescending(f => f.Item1, StringComparer.OrdinalIgnoreCase) : fields;
+    }
+
+    // An entry's fields in the order the game writes them.
+    private static string[] EntryKeys(RecordFormat format) =>
+        format.SortedByName ? ["title", "involved", "description"] : ["description", "involved", "title"];
 
     /// <summary>
     /// As the game checks records: missing ones get the defaults, missing fields their default,
     /// numbers are clamped and texts cut to their limits.
     /// </summary>
-    public static void Check(CharacterFile file, List<RuleFix> fixes)
+    public static void Check(CharacterFile file, RecordFormat format, List<RuleFix> fixes)
     {
-        var records = Node(file);
+        var records = Node(file, format);
         var changed = false;
-        changed |= ClampNumber(records, "height", MaxHeight, 170);
-        changed |= ClampNumber(records, "weight", MaxWeight, 70);
+        changed |= ClampNumber(records, "height", MaxHeight, format.DefaultHeight);
+        changed |= ClampNumber(records, "weight", MaxWeight, format.DefaultWeight);
         foreach (var key in Texts)
             changed |= Cut(records, key, ShortText);
         if (CharacterFile.Scalar(records, "hasWorkAuthorization") is not ("True" or "False" or "true" or "false"))
@@ -114,30 +140,39 @@ public static class CharacterRecords
             records.Children[new YamlScalarNode("hasWorkAuthorization")] = new YamlScalarNode("True");
             changed = true;
         }
-        foreach (var list in EntryLists)
+        foreach (var list in format.EntryLists)
         {
-            var entries = Entries(file, list);
-            var fitted = entries.Select(e => new RecordEntry(Fit(e.Title, ShortText), Fit(e.Involved, ShortText), Fit(e.Description, LongText))).ToList();
+            var entries = Entries(file, list, format);
+            var fitted = entries.Select(e => new RecordEntry(Fit(e.Title, ShortText), Fit(e.Involved, ShortText), Fit(e.Description, format.LongText))).ToList();
             if (!fitted.SequenceEqual(entries) || !EntriesComplete(records, list))
             {
-                SetEntries(file, list, fitted);
+                SetEntries(file, list, fitted, format);
                 changed = true;
             }
         }
         if (changed)
-            fixes.Add(new(Key, $"Character records were fitted to the game's limits: texts up to {ShortText} characters, entry descriptions up to {LongText}, height up to {MaxHeight} cm and weight up to {MaxWeight} kg."));
+            fixes.Add(new(Key, $"Character records were fitted to the game's limits: texts up to {ShortText} characters, entry descriptions up to {format.LongText}, height up to {MaxHeight} cm and weight up to {MaxWeight} kg."));
     }
 
     /// <summary>The records mapping, made with the game's defaults (and missing fields filled in, in the game's order) if needed.</summary>
-    public static YamlMappingNode Node(CharacterFile file)
+    public static YamlMappingNode Node(CharacterFile file, RecordFormat? format = null)
     {
+        format ??= RecordFormat.CosmaticDrift;
+        var fields = Fields(format).ToList();
         var profile = file.Profile;
         var existing = profile.Children.TryGetValue(new YamlScalarNode(Key), out var node) ? node as YamlMappingNode : null;
-        if (existing != null && Fields.All(f => existing.Children.ContainsKey(new YamlScalarNode(f.Key))))
+        if (existing != null && fields.All(f => existing.Children.ContainsKey(new YamlScalarNode(f.Key))))
             return existing;
+        if (existing != null && format.SortedByName)
+        {
+            // The game reads fields by name, so the file's keep their place and missing ones follow.
+            foreach (var (key, make) in fields.Where(f => !existing.Children.ContainsKey(new YamlScalarNode(f.Key))))
+                existing.Add(key, make());
+            return existing;
+        }
 
         var records = new YamlMappingNode();
-        foreach (var (key, make) in Fields)
+        foreach (var (key, make) in fields)
             records.Add(key, existing != null && existing.Children.TryGetValue(new YamlScalarNode(key), out var value) ? value : make());
         if (existing != null)
         {
@@ -149,35 +184,42 @@ public static class CharacterRecords
         return records;
     }
 
-    public static string Text(CharacterFile file, string key) => CharacterFile.Scalar(Node(file), key) ?? "";
+    public static string Text(CharacterFile file, string key, RecordFormat? format = null) => CharacterFile.Scalar(Node(file, format), key) ?? "";
 
-    public static void SetText(CharacterFile file, string key, string value) => Node(file).Children[new YamlScalarNode(key)] = CharacterFile.Text(value);
+    public static void SetText(CharacterFile file, string key, string value, RecordFormat? format = null) =>
+        Node(file, format).Children[new YamlScalarNode(key)] = CharacterFile.Text(value);
 
-    public static int Number(CharacterFile file, string key) =>
-        int.TryParse(CharacterFile.Scalar(Node(file), key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    public static int Number(CharacterFile file, string key, RecordFormat? format = null) =>
+        int.TryParse(CharacterFile.Scalar(Node(file, format), key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
 
-    public static void SetNumber(CharacterFile file, string key, int value) =>
-        Node(file).Children[new YamlScalarNode(key)] = new YamlScalarNode(value.ToString(CultureInfo.InvariantCulture));
+    public static void SetNumber(CharacterFile file, string key, int value, RecordFormat? format = null) =>
+        Node(file, format).Children[new YamlScalarNode(key)] = new YamlScalarNode(value.ToString(CultureInfo.InvariantCulture));
 
-    public static bool WorkAuthorization(CharacterFile file) => CharacterFile.Scalar(Node(file), "hasWorkAuthorization") is not ("False" or "false");
+    public static bool WorkAuthorization(CharacterFile file, RecordFormat? format = null) =>
+        CharacterFile.Scalar(Node(file, format), "hasWorkAuthorization") is not ("False" or "false");
 
-    public static void SetWorkAuthorization(CharacterFile file, bool value) =>
-        Node(file).Children[new YamlScalarNode("hasWorkAuthorization")] = new YamlScalarNode(value ? "True" : "False");
+    public static void SetWorkAuthorization(CharacterFile file, bool value, RecordFormat? format = null) =>
+        Node(file, format).Children[new YamlScalarNode("hasWorkAuthorization")] = new YamlScalarNode(value ? "True" : "False");
 
-    public static IReadOnlyList<RecordEntry> Entries(CharacterFile file, string list) =>
-        Node(file).Children.TryGetValue(new YamlScalarNode(list), out var node) && node is YamlSequenceNode seq
+    public static IReadOnlyList<RecordEntry> Entries(CharacterFile file, string list, RecordFormat? format = null) =>
+        Node(file, format).Children.TryGetValue(new YamlScalarNode(list), out var node) && node is YamlSequenceNode seq
             ? seq.Children.OfType<YamlMappingNode>().Select(e => new RecordEntry(
                 CharacterFile.Scalar(e, "title") ?? "", CharacterFile.Scalar(e, "involved") ?? "", CharacterFile.Scalar(e, "description") ?? "")).ToList()
             : [];
 
-    /// <summary>Entries go out as description, involved, title (the game's order).</summary>
-    public static void SetEntries(CharacterFile file, string list, IEnumerable<RecordEntry> entries) =>
-        Node(file).Children[new YamlScalarNode(list)] = new YamlSequenceNode(entries.Select(e => (YamlNode)new YamlMappingNode
+    /// <summary>Entries go out in the game's order: description, involved, title; on Starlight title, involved, description.</summary>
+    public static void SetEntries(CharacterFile file, string list, IEnumerable<RecordEntry> entries, RecordFormat? format = null)
+    {
+        format ??= RecordFormat.CosmaticDrift;
+        var keys = EntryKeys(format);
+        Node(file, format).Children[new YamlScalarNode(list)] = new YamlSequenceNode(entries.Select(e =>
         {
-            { "description", CharacterFile.Text(e.Description) },
-            { "involved", CharacterFile.Text(e.Involved) },
-            { "title", CharacterFile.Text(e.Title) },
+            var entry = new YamlMappingNode();
+            foreach (var key in keys)
+                entry.Add(key, CharacterFile.Text(key switch { "title" => e.Title, "involved" => e.Involved, _ => e.Description }));
+            return (YamlNode)entry;
         }));
+    }
 
     private static bool EntriesComplete(YamlMappingNode records, string list) =>
         records.Children.TryGetValue(new YamlScalarNode(list), out var node) && node is YamlSequenceNode seq
