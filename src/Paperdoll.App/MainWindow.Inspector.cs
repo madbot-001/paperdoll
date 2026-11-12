@@ -28,7 +28,7 @@ public partial class MainWindow
         var species = _session.Content!.Characters.Species[look.Species];
         var organ = _selected.Organ != null ? species.Organs.FirstOrDefault(o => o.Category == _selected.Organ) : null;
 
-        // Jobs, Description, IC Info and OOC Info have a page of their own whatever part is selected; the utility tabs have none.
+        // Jobs, Description, Cybernetics, IC Info and OOC Info have a page of their own whatever part is selected; the utility tabs have none.
         switch (_tab)
         {
             case EditorTab.Jobs:
@@ -36,6 +36,9 @@ public partial class MainWindow
                 return;
             case EditorTab.Description:
                 InspectDescription();
+                return;
+            case EditorTab.Cybernetics:
+                InspectCybernetics();
                 return;
             case EditorTab.IcInfo:
                 InspectIcInfo();

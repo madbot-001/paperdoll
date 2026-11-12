@@ -7,7 +7,7 @@ using Paperdoll.Core.Profiles;
 
 namespace Paperdoll.App;
 
-/// <summary>The inspector pages for Delta-V's, Euphoria's and Starlight's character records and Euphoria's allergies.</summary>
+/// <summary>The inspector pages for Delta-V's, Euphoria's and Starlight's character records, Euphoria's allergies and Starlight's cybernetics.</summary>
 public partial class MainWindow
 {
     private static string RecordListName(string list) => list switch
@@ -192,6 +192,64 @@ public partial class MainWindow
         panel.Children.Add(list);
         panel.Children.Add(add);
         AddWide(panel);
+    }
+
+    private void InspectCybernetics()
+    {
+        var session = _session!;
+        var catalog = session.Content!.Characters;
+        var species = catalog.Species[session.Look!.Species];
+        var capacity = species.CyberwareCapacity;
+        InspectorTitle.Text = "Cybernetics";
+        if (capacity == 0)
+        {
+            AddWide(new TextBlock { Text = $"{session.DisplayName(species)} cannot have roundstart cybernetics.", Classes = { "hint" }, Margin = new Thickness(6, 4), TextWrapping = TextWrapping.Wrap });
+            return;
+        }
+
+        var installed = session.File!.Cybernetics;
+        var used = Cybernetics.Cost(installed, catalog.Cybernetics);
+        AddCategory("Points");
+        AddRow("Used", Text($"{used} of {capacity} points used"), $"{session.DisplayName(species)} has {capacity}. Parts that come attached to another count too.");
+
+        AddCategory("Installed");
+        if (installed.Count == 0)
+            AddWide(new TextBlock { Text = "None. Install parts below.", Classes = { "hint" }, Margin = new Thickness(6, 4) });
+        foreach (var id in installed)
+        {
+            var why = session.WhyNotRemove(id);
+            AddRow(session.EntityName(id), PartRow(Points(catalog.Cybernetics[id].Cost), ActionButton("Remove", why == null, () => Apply(s => s.RemoveCybernetic(id)), why)));
+        }
+
+        // Organ parts are left out: the game removes them from every character.
+        AddCategory("Available");
+        var available = catalog.Cybernetics.Values
+            .Where(p => p.Type == Core.Characters.CyberneticType.Limb && !installed.Contains(p.Id))
+            .OrderBy(p => session.EntityName(p.Id), StringComparer.CurrentCulture).ToList();
+        if (available.Count == 0)
+            AddWide(new TextBlock { Text = "No other parts.", Classes = { "hint" }, Margin = new Thickness(6, 4) });
+        foreach (var part in available)
+        {
+            var brought = Cybernetics.With(installed, part.Id, catalog.Cybernetics).Skip(installed.Count + 1).ToList();
+            var cost = Points(part.Cost) + (brought.Count > 0 ? $", with the {string.Join(" and the ", brought.Select(session.EntityName))}" : "");
+            var why = session.WhyNotInstall(part.Id);
+            AddRow(session.EntityName(part.Id), PartRow(cost, ActionButton("Install", why == null, () => Apply(s => s.InstallCybernetic(part.Id)), why)));
+        }
+
+        static string Points(int cost) => $"{cost} point{(cost == 1 ? "" : "s")}";
+
+        // The button on the left, so it stays in place, then the cost. A refused button still
+        // shows why when pointed at.
+        static Control PartRow(string cost, Button button)
+        {
+            var row = new DockPanel();
+            ToolTip.SetShowOnDisabled(button, true);
+            button.Margin = new Thickness(0, 0, 6, 0);
+            DockPanel.SetDock(button, Dock.Left);
+            row.Children.Add(button);
+            row.Children.Add(Text(cost));
+            return row;
+        }
     }
 
     private TextBox RecordText(CharacterFile file, string key, string placeholder)

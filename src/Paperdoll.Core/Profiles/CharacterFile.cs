@@ -219,6 +219,20 @@ public sealed class CharacterFile
         Profile.Children[new YamlScalarNode("_traitPreferences")] =
             new YamlSequenceNode(traits.Select(t => (YamlNode)new YamlScalarNode(t)));
 
+    /// <summary>Starlight's roundstart cybernetics, by entity id (<c>cybernetics</c>).</summary>
+    public IReadOnlyList<string> Cybernetics =>
+        Profile.Children.TryGetValue(new YamlScalarNode(Profiles.Cybernetics.Key), out var node) && node is YamlSequenceNode list
+            ? list.Children.OfType<YamlScalarNode>().Select(s => s.Value ?? "").ToList()
+            : [];
+
+    /// <summary>Sets the cybernetics. None leaves a file without the key as it is.</summary>
+    public void SetCybernetics(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0 && !Profile.Children.ContainsKey(new YamlScalarNode(Profiles.Cybernetics.Key)))
+            return;
+        Profile.Children[new YamlScalarNode(Profiles.Cybernetics.Key)] = new YamlSequenceNode(ids.Select(id => (YamlNode)new YamlScalarNode(id)));
+    }
+
     /// <summary>Job preferences, job id to High, Medium or Low (upstream's <c>_jobPriorities</c>).</summary>
     public IReadOnlyDictionary<string, string> JobPriorities =>
         Profile.Children.TryGetValue(new YamlScalarNode("_jobPriorities"), out var node) && node is YamlMappingNode map

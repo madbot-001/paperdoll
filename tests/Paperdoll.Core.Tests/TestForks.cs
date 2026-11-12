@@ -8,7 +8,8 @@ namespace Paperdoll.Core.Tests;
 /// job, an antagonist, a trait, a species that takes no markings, a species with a one-slider skin
 /// tone, one whose skin is held to a range, colour names and both profile extras that add tabs.
 /// "d" is on the old appearance model, with hair, two silicon voices and one other, and the
-/// character info extras. "e" is "d" with Starlight's records.
+/// character info extras. "e" is "d" with Starlight's records and cybernetics: two more species,
+/// with 6 points and none, and a few cyber parts.
 /// </summary>
 public static class TestForks
 {
@@ -222,6 +223,87 @@ public static class TestForks
 
     public static readonly ForkInfo C = A with { Id = "c", Name = "Fork C", Extras = ProfileExtras.Records | ProfileExtras.Allergies, ServerForkIds = ["c"] };
 
+    // Starlight-style cybernetics: species with 6 points and none (humans have the default 3), and
+    // parts: an arm that brings its hand (from a parent that is not PartCyber), the hand, a leg,
+    // an organ, and three the game passes over: abstract, without the component, and a part whose
+    // PartCyber is a grandparent.
+    private const string Cyber = """
+        - type: species
+          id: Synth
+          name: species-name-synth
+          roundStart: true
+          dollPrototype: OldDoll
+          sprites: OldSprites
+          markingLimits: OldLimits
+          roundstartCyberwareCapacity: 6
+        - type: species
+          id: Slime
+          name: species-name-slime
+          roundStart: true
+          dollPrototype: OldDoll
+          sprites: OldSprites
+          markingLimits: OldLimits
+          roundstartCyberwareCapacity: 0
+        - type: entity
+          id: PartCyber
+          name: cyber part
+          abstract: true
+        - type: entity
+          id: OrganCyber
+          name: cyber organ
+          abstract: true
+        - type: entity
+          id: ArmBase
+          abstract: true
+          components:
+          - type: WithAttachedBodyParts
+            parts:
+              left hand: GripHand
+        - type: entity
+          id: GripArm
+          name: grip arm
+          parent: [PartCyber, ArmBase]
+          components:
+          - type: RoundstartImplantable
+            cost: 2
+        - type: entity
+          id: GripHand
+          name: grip hand
+          parent: PartCyber
+          components:
+          - type: RoundstartImplantable
+            cost: 1
+        - type: entity
+          id: SteelLeg
+          name: steel leg
+          parent: PartCyber
+          components:
+          - type: RoundstartImplantable
+            cost: 3
+        - type: entity
+          id: GlowEye
+          name: glow eye
+          parent: OrganCyber
+          components:
+          - type: RoundstartImplantable
+            cost: 1
+        - type: entity
+          id: CyberBase
+          parent: PartCyber
+          abstract: true
+          components:
+          - type: RoundstartImplantable
+            cost: 1
+        - type: entity
+          id: PlainArm
+          name: plain arm
+          parent: PartCyber
+        - type: entity
+          id: DeepLeg
+          name: deep leg
+          parent: CyberBase
+        """;
+
     public static readonly ForkInfo D = new("d", "Fork D", "o/d", "main", AppearanceModel.Old, true, ["d"])
     {
         Extras = ProfileExtras.IcInfo | ProfileExtras.OocInfo | ProfileExtras.SiliconVoice | ProfileExtras.Glowing,
@@ -230,7 +312,7 @@ public static class TestForks
     public static readonly ForkInfo E = D with
     {
         Id = "e", Name = "Fork E", ServerForkIds = ["e"],
-        Extras = D.Extras | ProfileExtras.Records,
+        Extras = D.Extras | ProfileExtras.Records | ProfileExtras.Cybernetics,
         RecordFormat = Profiles.RecordFormat.Starlight,
     };
 
@@ -249,5 +331,6 @@ public static class TestForks
         .Add("d", "Resources/Prototypes/body.yml", OldBody)
         .Add("d", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n")
         .Add("e", "Resources/Prototypes/body.yml", OldBody)
+        .Add("e", "Resources/Prototypes/cyber.yml", Cyber)
         .Add("e", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n");
 }

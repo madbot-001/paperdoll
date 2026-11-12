@@ -116,6 +116,12 @@ public enum ProfileExtras
 
     /// <summary>Starlight's glowing hair, facial hair and eyes (<c>hairGlowing</c>, <c>facialHairGlowing</c>, <c>eyeGlowing</c> in the appearance).</summary>
     Glowing = 128,
+
+    /// <summary>
+    /// Starlight's roundstart cybernetics (<c>cybernetics</c>): limb parts the character starts
+    /// with, paid for from the species' points.
+    /// </summary>
+    Cybernetics = 256,
 }
 
 /// <summary>How a fork sizes characters on screen.</summary>

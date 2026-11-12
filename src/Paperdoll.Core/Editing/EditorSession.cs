@@ -470,6 +470,39 @@ public sealed class EditorSession : IAsyncDisposable
         return cached.List;
     }
 
+    /// <summary>
+    /// Why a cybernetic part cannot be installed: with the parts it brings, it costs more points
+    /// than the species has left. Null if it can.
+    /// </summary>
+    public string? WhyNotInstall(string partId)
+    {
+        var catalog = RequireContent().Characters;
+        var capacity = catalog.Species[Look!.Species].CyberwareCapacity;
+        var installed = RequireFile().Cybernetics;
+        var used = Cybernetics.Cost(installed, catalog.Cybernetics);
+        var needed = Cybernetics.Cost(Cybernetics.With(installed, partId, catalog.Cybernetics), catalog.Cybernetics) - used;
+        return used + needed <= capacity ? null
+            : $"Needs {needed} point{(needed == 1 ? "" : "s")} with the parts it brings; {capacity - used} of {capacity} left.";
+    }
+
+    /// <summary>Why a cybernetic part cannot be removed: another installed part brought it. Null if it can.</summary>
+    public string? WhyNotRemove(string partId) =>
+        Cybernetics.AttachedBy(RequireFile().Cybernetics, partId, RequireContent().Characters.Cybernetics) is { } holder
+            ? $"Comes attached to the {EntityName(holder)}; remove that instead."
+            : null;
+
+    /// <summary>Installs a cybernetic part and the parts attached to it, within the species' points.</summary>
+    public IReadOnlyList<RuleFix> InstallCybernetic(string partId) =>
+        WhyNotInstall(partId) is { } reason
+            ? [new RuleFix(Cybernetics.Key, reason)]
+            : Edit(f => f.SetCybernetics(Cybernetics.With(f.Cybernetics, partId, RequireContent().Characters.Cybernetics)));
+
+    /// <summary>Removes a cybernetic part and the parts attached to it, unless another part brought it.</summary>
+    public IReadOnlyList<RuleFix> RemoveCybernetic(string partId) =>
+        WhyNotRemove(partId) is { } reason
+            ? [new RuleFix(Cybernetics.Key, reason)]
+            : Edit(f => f.SetCybernetics(Cybernetics.Without(f.Cybernetics, partId, RequireContent().Characters.Cybernetics)));
+
     /// <summary>Adds or removes an antagonist the character is willing to be.</summary>
     public IReadOnlyList<RuleFix> ToggleAntag(string antagId) => Edit(f =>
     {

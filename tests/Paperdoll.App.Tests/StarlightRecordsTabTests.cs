@@ -13,7 +13,7 @@ public class StarlightRecordsTabTests
     [Fact]
     public Task Records_come_after_the_info_tabs() => OnWindow(TestForks.E, (window, _) =>
     {
-        Assert.Equal([Appearance, Jobs, Markings, IcInfo, OocInfo, Records, Credits, Messages, Source], window.TabsShown);
+        Assert.Equal([Appearance, Jobs, Markings, EditorTab.Cybernetics, IcInfo, OocInfo, Records, Credits, Messages, Source], window.TabsShown);
         return Task.CompletedTask;
     });
 

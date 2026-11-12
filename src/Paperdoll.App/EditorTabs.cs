@@ -4,7 +4,7 @@ using Paperdoll.Core.Forks;
 namespace Paperdoll.App;
 
 /// <summary>The tabs of the editor, in the order of the lobby's character screen.</summary>
-public enum EditorTab { Appearance, Jobs, Antags, Traits, Markings, Loadout, Allergies, IcInfo, OocInfo, Records, Description, Credits, Messages, Source }
+public enum EditorTab { Appearance, Jobs, Antags, Traits, Markings, Loadout, Allergies, Cybernetics, IcInfo, OocInfo, Records, Description, Credits, Messages, Source }
 
 /// <summary>Which tabs a loaded fork shows, and how each is laid out.</summary>
 public static class EditorTabs
@@ -37,6 +37,7 @@ public static class EditorTabs
         EditorTab.Traits => content.Traits.Traits.Count > 0,
         EditorTab.Loadout => session.DressedJob() != null,
         EditorTab.Allergies => fork.Extras.HasFlag(ProfileExtras.Allergies),
+        EditorTab.Cybernetics => fork.Extras.HasFlag(ProfileExtras.Cybernetics),
         EditorTab.IcInfo => fork.Extras.HasFlag(ProfileExtras.IcInfo),
         EditorTab.OocInfo => fork.Extras.HasFlag(ProfileExtras.OocInfo),
         EditorTab.Records => fork.Extras.HasFlag(ProfileExtras.Records),

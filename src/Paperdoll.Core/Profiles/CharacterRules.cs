@@ -191,6 +191,8 @@ public static partial class CharacterRules
             CharacterRecords.Check(file, fork.RecordFormat, fixes);
         if (fork.Extras.HasFlag(ProfileExtras.Allergies))
             Allergies.Check(file);
+        if (fork.Extras.HasFlag(ProfileExtras.Cybernetics))
+            Cybernetics.Check(file, catalog.Cybernetics, species, fixes);
 
         if (outfits != null)
         {

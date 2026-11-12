@@ -65,6 +65,9 @@ public sealed record SpeciesInfo(
     /// <summary>The old appearance model's body, for forks still on it; null on the new model.</summary>
     public OldBody? Old { get; init; }
 
+    /// <summary>Points of roundstart cybernetics the species may have (Starlight's <c>roundstartCyberwareCapacity</c>, 3 by default); 0 allows none.</summary>
+    public int CyberwareCapacity { get; init; } = 3;
+
     /// <summary>Whether characters of this species may have a custom species name (Euphoria's <c>customName</c>).</summary>
     public bool CustomName { get; init; } = true;
 
@@ -97,6 +100,16 @@ public sealed record SpeciesInfo(
         _ => ClothingDisplacements.GetValueOrDefault(slot),
     };
 }
+
+/// <summary>Whether one of Starlight's cybernetics replaces a limb or an organ.</summary>
+public enum CyberneticType { Limb, Organ }
+
+/// <summary>
+/// A part a Starlight character can start with: an entity with a <c>RoundstartImplantable</c>
+/// component, its cost in points, and the parts that come attached to it, such as an arm's hand
+/// (<c>WithAttachedBodyParts</c>).
+/// </summary>
+public sealed record CyberneticInfo(string Id, string Name, int Cost, CyberneticType Type, IReadOnlyList<string> AttachedParts);
 
 /// <summary>
 /// A body organ from a species' doll, as it is drawn: its own layer and sprite, and the marking
@@ -279,6 +292,9 @@ public sealed class CharacterCatalog
     /// </summary>
     public IReadOnlyList<(string Id, string NameKey)> SiliconVoices { get; init; } = [];
 
+    /// <summary>Starlight's roundstart cybernetics, by entity id; empty in forks without them.</summary>
+    public IReadOnlyDictionary<string, CyberneticInfo> Cybernetics { get; init; } = new Dictionary<string, CyberneticInfo>();
+
     /// <summary>Species a player can pick: round-start and not hidden by the fork.</summary>
     public IEnumerable<SpeciesInfo> Selectable(IEnumerable<string> hidden)
     {
@@ -371,7 +387,33 @@ public sealed class CharacterCatalog
             SkinColorations = colorations,
             VoiceNames = voiceNames,
             SiliconVoices = siliconVoices,
+            Cybernetics = ReadCybernetics(index),
         };
+    }
+
+    // Starlight's roundstart cybernetics, chosen as its CyberneticImplant.GetAllCybernetics does:
+    // entities, not abstract, with a RoundstartImplantable component, that name PartCyber (a limb)
+    // or OrganCyber (an organ) among their own parents, not their parents' parents.
+    private static Dictionary<string, CyberneticInfo> ReadCybernetics(PrototypeIndex index)
+    {
+        var result = new Dictionary<string, CyberneticInfo>(StringComparer.Ordinal);
+        foreach (var proto in index.OfKind("entity").Where(p => !p.Abstract))
+        {
+            CyberneticType? type = proto.Parents.Contains("PartCyber") ? CyberneticType.Limb
+                : proto.Parents.Contains("OrganCyber") ? CyberneticType.Organ
+                : null;
+            if (type == null)
+                continue;
+            var node = index.Resolve("entity", proto.Id);
+            // The game will not load the component without its cost.
+            if (Component(node, "RoundstartImplantable") is not { } implant || Int(implant, "cost") is not { } cost)
+                continue;
+            var attached = Get(Component(node, "WithAttachedBodyParts"), "parts") is YamlMappingNode parts
+                ? parts.Children.Values.OfType<YamlScalarNode>().Select(v => v.Value ?? "").Distinct(StringComparer.Ordinal).ToList()
+                : [];
+            result[proto.Id] = new CyberneticInfo(proto.Id, Str(node, "name") ?? proto.Id, cost, type.Value, attached);
+        }
+        return result;
     }
 
     // The old model has no organs or marking groups. Each species gets a group of its own, with a
@@ -509,6 +551,7 @@ public sealed class CharacterCatalog
             AverageHeight = Float(node, "averageHeight") ?? 176.1f,
             AverageWidth = Float(node, "averageWidth") ?? 40f,
             Mass = Str(node, "prototype") is { } entity ? FixtureMass(Component(index.Resolve("entity", entity), "Fixtures")) : null,
+            CyberwareCapacity = Int(node, "roundstartCyberwareCapacity") ?? 3,
             Old = Str(node, "sprites") is { } baseSprites ? ReadOldBody(index, baseSprites, Str(node, "markingLimits"), doll) : null,
             ClothingSpeciesId = Str(inventory, "speciesId"),
             ClothingDisplacements = Displacements(inventory, "displacements"),
