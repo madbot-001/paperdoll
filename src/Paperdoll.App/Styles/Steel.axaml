@@ -114,6 +114,10 @@
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Padding" Value="7,2" />
   </Style>
+  <Style Selector="Button.tool.on /template/ Border#face">
+    <Setter Property="Background" Value="#2A4A70" />
+    <Setter Property="BorderBrush" Value="#5C86B8" />
+  </Style>
   <Style Selector="Button.small">
     <Setter Property="Padding" Value="5,0" />
     <Setter Property="MinHeight" Value="18" />

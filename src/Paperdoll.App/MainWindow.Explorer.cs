@@ -26,6 +26,7 @@ public partial class MainWindow
         Records,
         RecordList,
         Allergies,
+        WardrobeSlot,
     }
 
     private sealed record Node(NodeKind Kind, string? Organ = null, string? Layer = null, int Index = -1, string? Group = null)
@@ -79,6 +80,7 @@ public partial class MainWindow
             shows.AppendJoin(',', session.Fork.RecordFormat.EntryLists.Select(list => CharacterRecords.Entries(file, list, session.Fork.RecordFormat).Count));
         if (session.Fork.Extras.HasFlag(ProfileExtras.Allergies))
             shows.Append('|').Append(Allergies.Read(file).Count);
+        shows.Append('|').AppendJoin(',', session.DressUp.Select(kv => $"{kv.Key}={kv.Value}"));
         foreach (var (organ, layers) in look.Markings)
         {
             foreach (var (layer, entries) in layers)
@@ -123,6 +125,12 @@ public partial class MainWindow
                 outfitItem.Items.Add(groupItem);
             }
             Explorer.Items.Add(outfitItem);
+        }
+
+        if (_tab == EditorTab.Wardrobe)
+        {
+            foreach (var slot in WardrobeSlots())
+                Explorer.Items.Add(Item(new Node(NodeKind.WardrobeSlot, Group: slot), HeaderFor(WardrobeSlotName(slot), WornIn(slot)), false, items));
         }
 
         var traitCatalog = session.Content.Traits;
@@ -263,7 +271,7 @@ public partial class MainWindow
     {
         var tab = TabFor(node.Kind);
         if (!_tabsShown.Contains(tab))
-            (tab, node) = (EditorTab.Appearance, new Node(NodeKind.Character));
+            (tab, node) = _tabsShown.Contains(EditorTab.Appearance) ? (EditorTab.Appearance, new Node(NodeKind.Character)) : (_tab, _selected);
         Open(tab, node);
     }
 
@@ -322,6 +330,8 @@ public partial class MainWindow
             steps.Add((RecordListName(recordList), _selected));
         if (_selected.Kind is NodeKind.Allergies)
             steps.Add(("Allergies", _selected));
+        if (_selected is { Kind: NodeKind.WardrobeSlot, Group: { } wardrobeSlot })
+            steps.Add(($"Wardrobe: {WardrobeSlotName(wardrobeSlot)}", _selected));
         if (_selected is { Kind: NodeKind.TraitCategory, Group: { } categoryId } && session.Content.Traits.Categories.TryGetValue(categoryId, out var shownCategory))
             steps.Add((session.Content.Strings.Get(shownCategory.NameKey), _selected));
         if (_selected is { Kind: NodeKind.LoadoutGroup, Group: { } groupId } && session.Content.Outfits.Groups.TryGetValue(groupId, out var shownGroup))

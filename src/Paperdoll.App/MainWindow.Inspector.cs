@@ -90,6 +90,9 @@ public partial class MainWindow
             case NodeKind.Allergies when _session.Fork!.Extras.HasFlag(Core.Forks.ProfileExtras.Allergies):
                 InspectAllergies();
                 break;
+            case NodeKind.WardrobeSlot:
+                InspectWardrobeSlot(_selected.Group);
+                break;
             default:
                 InspectAppearance(species);
                 break;

@@ -265,12 +265,15 @@ public partial class MainWindow : Window
                 return;
             }
             _settle.Stop();
+            WardrobeButton.Classes.Set("on", _session.DressUpShown);
+            WardrobeButton.IsEnabled = _session.DressedJob() != null;
             BuildStrip();
-            // The open tab went away (the dressed job did, say): Appearance takes over.
+            // The open tab went away (the dressed job did, say): Appearance takes over, or the
+            // Wardrobe while it is the only tab.
             if (!_tabsShown.Contains(_tab))
             {
-                _tab = EditorTab.Appearance;
-                _selected = new Node(NodeKind.Character);
+                _tab = _tabsShown.Contains(EditorTab.Appearance) ? EditorTab.Appearance : _tabsShown[0];
+                _selected = _lastNode.GetValueOrDefault(_tab) ?? TopNode(_tab);
             }
             BuildExplorer();
             if (!keepInspector)

@@ -9,7 +9,7 @@ namespace Paperdoll.Core.Tests;
 /// tone, one whose skin is held to a range, colour names and both profile extras that add tabs.
 /// "d" is on the old appearance model, with hair, two silicon voices and one other, and the
 /// character info extras. "e" is "d" with Starlight's records and cybernetics: two more species,
-/// with 6 points and none, and a few cyber parts.
+/// with 6 points and none, and a few cyber parts. "w" has a job and clothing to try on.
 /// </summary>
 public static class TestForks
 {
@@ -316,6 +316,134 @@ public static class TestForks
         RecordFormat = Profiles.RecordFormat.Starlight,
     };
 
+    // A body that wears a jumpsuit, a scarf, a backpack and a hat (but not glasses), a Vox whose
+    // clothing has its own states, a job and one with no gear, and clothing: the job's two items, whose pictures come
+    // with the fork, and others only listed until tried on (a scarf that also goes on the head, a
+    // backpack, a jumpsuit with a Vox version, a hat with no picture for the head, glasses), an
+    // abstract item and a wrench, which is not clothing.
+    private const string Wardrobe = """
+        - type: species
+          id: Human
+          name: species-name-human
+          roundStart: true
+          dollPrototype: WearDoll
+        - type: species
+          id: Vox
+          name: species-name-vox
+          roundStart: true
+          dollPrototype: VoxDoll
+        - type: entity
+          id: WearDoll
+          components:
+          - type: Sprite
+            layers:
+            - map: [ "enum.HumanoidVisualLayers.Chest" ]
+            - map: [ "jumpsuit" ]
+            - map: [ "neck" ]
+            - map: [ "back" ]
+            - map: [ "head" ]
+          - type: InitialBody
+            organs:
+              Torso: OrganTorso
+        - type: entity
+          id: VoxDoll
+          parent: WearDoll
+          components:
+          - type: Inventory
+            speciesId: vox
+        - type: entity
+          id: OrganTorso
+          components:
+          - type: Organ
+            category: Torso
+        - type: job
+          id: Clerk
+          name: job-name-clerk
+          startingGear: ClerkGear
+        - type: job
+          id: Porter
+          name: job-name-porter
+        - type: startingGear
+          id: ClerkGear
+          equipment:
+            jumpsuit: ClothingUniformClerk
+            head: ClothingHeadCap
+        - type: entity
+          id: ClothingHeadBase
+          abstract: true
+          components:
+          - type: Clothing
+            slots: [ HEAD ]
+        - type: entity
+          id: ClothingUniformClerk
+          name: clerk uniform
+          components:
+          - type: Sprite
+            sprite: Clothing/Uniforms/clerk.rsi
+          - type: Clothing
+            slots: [innerclothing]
+        - type: entity
+          id: ClothingHeadCap
+          name: cap
+          parent: ClothingHeadBase
+          components:
+          - type: Sprite
+            sprite: Clothing/Head/cap.rsi
+        - type: entity
+          id: ClothingNeckScarf
+          name: long scarf
+          components:
+          - type: Sprite
+            sprite: Clothing/Neck/scarf.rsi
+          - type: Clothing
+            slots:
+            - neck
+            - HEAD
+        - type: entity
+          id: ClothingBackpackTall
+          name: tall backpack
+          components:
+          - type: Sprite
+            sprite: Clothing/Back/tall.rsi
+          - type: Clothing
+            slots: BACK
+        - type: entity
+          id: ClothingUniformGrey
+          name: grey jumpsuit
+          components:
+          - type: Sprite
+            sprite: Clothing/Uniforms/grey.rsi
+          - type: Clothing
+            slots: [innerclothing]
+        - type: entity
+          id: ClothingHeadPaper
+          name: paper hat
+          parent: ClothingHeadBase
+          components:
+          - type: Sprite
+            sprite: Clothing/Head/paper.rsi
+        - type: entity
+          id: ClothingEyesGlasses
+          name: glasses
+          components:
+          - type: Sprite
+            sprite: Clothing/Eyes/glasses.rsi
+          - type: Clothing
+            slots: [eyes]
+        - type: entity
+          id: ToolWrench
+          name: wrench
+          components:
+          - type: Sprite
+            sprite: Objects/wrench.rsi
+          - type: Item
+        """;
+
+    public static readonly ForkInfo W = new("w", "Fork W", "o/w", "main", AppearanceModel.New, false, ["w"]);
+
+    private static string RsiMeta(params string[] states) =>
+        $$"""{"version":1,"license":"CC-BY-SA-3.0","copyright":"made up","size":{"x":32,"y":32},"states":[{{string.Join(",", states.Select(s => $"{{\"name\":\"{s}\"}}"))}}]}""";
+
     public static EditorSession Session() => new(Store());
 
     public static MemoryForkStore Store() => new MemoryForkStore()
@@ -332,5 +460,13 @@ public static class TestForks
         .Add("d", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n")
         .Add("e", "Resources/Prototypes/body.yml", OldBody)
         .Add("e", "Resources/Prototypes/cyber.yml", Cyber)
-        .Add("e", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n");
+        .Add("e", "Resources/Locale/en-US/voices.ftl", "tts-voice-hum = Low Hum\ntts-voice-chirp = Bright Chirp\n")
+        .Add("w", "Resources/Prototypes/wardrobe.yml", Wardrobe)
+        .Add("w", "Resources/Textures/Clothing/Uniforms/clerk.rsi/meta.json", RsiMeta("icon", "equipped-INNERCLOTHING"))
+        .Add("w", "Resources/Textures/Clothing/Head/cap.rsi/meta.json", RsiMeta("icon", "equipped-HELMET"))
+        .AddUnfetched("w", "Resources/Textures/Clothing/Neck/scarf.rsi/meta.json", RsiMeta("icon", "equipped-NECK", "equipped-HELMET"))
+        .AddUnfetched("w", "Resources/Textures/Clothing/Back/tall.rsi/meta.json", RsiMeta("icon", "equipped-BACKPACK"))
+        .AddUnfetched("w", "Resources/Textures/Clothing/Uniforms/grey.rsi/meta.json", RsiMeta("icon", "equipped-INNERCLOTHING", "equipped-INNERCLOTHING-vox"))
+        .AddUnfetched("w", "Resources/Textures/Clothing/Head/paper.rsi/meta.json", RsiMeta("icon"))
+        .AddUnfetched("w", "Resources/Textures/Clothing/Eyes/glasses.rsi/meta.json", RsiMeta("icon", "equipped-EYES"));
 }

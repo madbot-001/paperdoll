@@ -17,10 +17,22 @@ public sealed record ForkStatus(ForkInfo Fork, string? Commit)
     public bool Editable => Fork.Model == AppearanceModel.New || Fork.Supported;
 }
 
+/// <summary>What became of trying an item on.</summary>
+public enum WearResult
+{
+    Worn,
+
+    /// <summary>Not put on: a later pick in the slot, or dress-up was cleared since the pick.</summary>
+    Dropped,
+
+    /// <summary>Not put on: other store work (a fork load, update, removal or clean-up) stopped the download.</summary>
+    Stopped,
+}
+
 /// <summary>A sprite on screen and its licence, for the credits pane.</summary>
 /// <summary>A fork read and a character fitted to it, ready for <see cref="EditorSession.Use"/>.</summary>
 /// <param name="BeforeSwitch">The character as it was, when fitting it to this fork changed it.</param>
-public sealed record ForkLoad(ForkInfo Fork, ForkContent Content, PaperdollRenderer Renderer, CharacterFile File,
+public sealed record ForkLoad(ForkInfo Fork, ForkContent Content, PaperdollRenderer Renderer, MemoryTextures Textures, CharacterFile File,
     IReadOnlyList<RuleFix> Fixes, CharacterLook Look, string? BeforeSwitch);
 
 public sealed record CreditLine(string Rsi, string? License, string? Copyright)
@@ -96,24 +108,49 @@ public sealed class EditorSession : IAsyncDisposable
     /// <param name="source">The character to fit, from <see cref="CharacterSource"/>; null starts a new one.</param>
     public async Task<ForkLoad> PrepareForkAsync(ForkInfo fork, bool update, string? source, IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        var previous = await Store.CommitOfAsync(fork.Id, ct);
-        if (!update && previous != null)
-            return await PrepareAsync(fork, source, progress, ct);
-
-        progress?.Report($"Checking {fork.Name} for its newest version");
+        await TakeStoreTurnAsync(ct);
         try
         {
-            // Inside: a sync stopped part way may already have moved the fork.
-            await Store.SyncAsync(fork, ct);
-            return await PrepareAsync(fork, source, progress, ct);
+            var previous = await Store.CommitOfAsync(fork.Id, ct);
+            if (!update && previous != null)
+                return await PrepareAsync(fork, source, progress, ct);
+
+            progress?.Report($"Checking {fork.Name} for its newest version");
+            try
+            {
+                // Inside: a sync stopped part way may already have moved the fork.
+                await Store.SyncAsync(fork, ct);
+                return await PrepareAsync(fork, source, progress, ct);
+            }
+            catch
+            {
+                // A version that cannot be loaded (offline part way, out of requests) is not kept:
+                // the fork stays on the version it had, which still opens without the network.
+                await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            // A version that cannot be loaded (offline part way, out of requests) is not kept:
-            // the fork stays on the version it had, which still opens without the network.
-            await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
-            throw;
+            _storeTurn.Release();
         }
+    }
+
+    // One piece of store work at a time: a wardrobe download, or a fork load, update, removal or
+    // clean-up. The GitHub API store rewrites a fork's record after downloading, and git runs one
+    // process per command in the same repository, so these must not overlap.
+    private readonly SemaphoreSlim _storeTurn = new(1, 1);
+
+    // Stopped when other store work starts, which waits for the download to end.
+    private CancellationTokenSource _downloads = new();
+
+    // Stops wardrobe downloads under way and waits for the store; release _storeTurn when done.
+    private async Task TakeStoreTurnAsync(CancellationToken ct)
+    {
+        var running = _downloads;
+        _downloads = new CancellationTokenSource();
+        await running.CancelAsync();
+        await _storeTurn.WaitAsync(ct);
     }
 
     /// <summary>
@@ -122,6 +159,7 @@ public sealed class EditorSession : IAsyncDisposable
     /// </summary>
     public async Task<ForkLoad> PrepareSyncedForkAsync(ForkInfo fork, string? previous, string? source, IProgress<string>? progress = null, CancellationToken ct = default)
     {
+        await TakeStoreTurnAsync(ct);
         try
         {
             return await PrepareAsync(fork, source, progress, ct);
@@ -130,6 +168,10 @@ public sealed class EditorSession : IAsyncDisposable
         {
             await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
             throw;
+        }
+        finally
+        {
+            _storeTurn.Release();
         }
     }
 
@@ -159,23 +201,35 @@ public sealed class EditorSession : IAsyncDisposable
                 : content.Characters.Selectable(fork.HiddenSpecies).OrderBy(s => content.Strings.Get(s.NameKey), StringComparer.CurrentCulture).First().Id);
         var (fixes, look) = Checked(file, content, fork);
         progress?.Report($"{fork.Name} ready");
-        return new ForkLoad(fork, content, renderer, file, fixes, look, source != null && fixes.Count > 0 ? source : null);
+        return new ForkLoad(fork, content, renderer, textures, file, fixes, look, source != null && fixes.Count > 0 ? source : null);
     }
 
     /// <summary>Takes a prepared fork into use, all at once.</summary>
     public void Use(ForkLoad load)
     {
-        (Fork, Content, Renderer, File, LastFixes, Look, _beforeSwitch) =
-            (load.Fork, load.Content, load.Renderer, load.File, load.Fixes, load.Look, load.BeforeSwitch);
+        (Fork, Content, Renderer, _textures, File, LastFixes, Look, _beforeSwitch) =
+            (load.Fork, load.Content, load.Renderer, load.Textures, load.File, load.Fixes, load.Look, load.BeforeSwitch);
         _available.Clear();
+        ClearDressUp();
     }
+
+    // The sprite files the renderer reads, which clothing tried on adds to.
+    private MemoryTextures? _textures;
 
     /// <summary>Forgets a fork and frees its space.</summary>
     public async Task RemoveForkAsync(ForkInfo fork, CancellationToken ct = default)
     {
-        // The reader holds the store's files open, which on Windows stops them being deleted.
-        await CloseReaderAsync();
-        await Store.RemoveAsync(fork.Id, ct);
+        await TakeStoreTurnAsync(ct);
+        try
+        {
+            // The reader holds the store's files open, which on Windows stops them being deleted.
+            await CloseReaderAsync();
+            await Store.RemoveAsync(fork.Id, ct);
+        }
+        finally
+        {
+            _storeTurn.Release();
+        }
     }
 
     private async Task CloseReaderAsync()
@@ -213,25 +267,41 @@ public sealed class EditorSession : IAsyncDisposable
             throw new InvalidOperationException($"This server gives its version as {build.Version ?? "nothing"}, not a git commit, so it cannot be matched.");
 
         progress?.Report($"Getting {fork.Name} at the server's version");
-        var previous = await Store.CommitOfAsync(fork.Id, ct);
+        await TakeStoreTurnAsync(ct);
         try
         {
-            return (fork, await Store.SyncToCommitAsync(fork, build.Version!, ct), previous);
+            var previous = await Store.CommitOfAsync(fork.Id, ct);
+            try
+            {
+                return (fork, await Store.SyncToCommitAsync(fork, build.Version!, ct), previous);
+            }
+            catch
+            {
+                // Stopped part way, the fork may already have moved.
+                await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            // Stopped part way, the fork may already have moved.
-            await Store.RevertSyncAsync(fork.Id, previous, CancellationToken.None);
-            throw;
+            _storeTurn.Release();
         }
     }
 
     /// <summary>Frees space old fork versions left behind. Returns the bytes freed.</summary>
     public async Task<long> CleanUpStoreAsync(CancellationToken ct = default)
     {
-        // Close the reader first; it is opened again when next needed.
-        await CloseReaderAsync();
-        return await Store.CleanUpAsync(ct);
+        await TakeStoreTurnAsync(ct);
+        try
+        {
+            // Close the reader first; it is opened again when next needed.
+            await CloseReaderAsync();
+            return await Store.CleanUpAsync(ct);
+        }
+        finally
+        {
+            _storeTurn.Release();
+        }
     }
 
     /// <summary>Species a player can pick on the loaded fork, by display name.</summary>
@@ -249,6 +319,7 @@ public sealed class EditorSession : IAsyncDisposable
         var file = CreateCharacter(RequireContent(), Fork!, speciesId);
         var (fixes, look) = Checked(file);
         (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, null);
+        ClearDressUp();
     }
 
     // A new character of a species, as the lobby starts one.
@@ -297,12 +368,216 @@ public sealed class EditorSession : IAsyncDisposable
     public SpawnGear? GearAtSpawn() =>
         DressedJob() is { } job ? RequireContent().Outfits.GearAtSpawn(job, LoadoutFor(job)) : null;
 
-    /// <summary>What the preview puts on the character, slot to item; null when clothes are off.</summary>
+    /// <summary>
+    /// What the preview puts on the character, slot to item: the job's outfit with dress-up's
+    /// changes; null when clothes are off.
+    /// </summary>
     public IReadOnlyDictionary<string, string>? Outfit()
     {
-        if (!ShowClothes || DressedJob() is not { } job)
+        if (!ShowClothes || DressedJob() == null)
             return null;
-        return RequireContent().Outfits.OutfitFor(job, LoadoutFor(job));
+        var outfit = JobOutfit();
+        if (_dressUp.Count == 0 || !DressUpShown)
+            return outfit;
+        var dressed = new Dictionary<string, string>(outfit, StringComparer.Ordinal);
+        foreach (var (slot, item) in _dressUp)
+        {
+            if (item == null)
+                dressed.Remove(slot);
+            else
+                dressed[slot] = item;
+        }
+        return dressed;
+    }
+
+    /// <summary>The outfit the lobby preview shows for the dressed job, without dress-up; empty without a job.</summary>
+    public IReadOnlyDictionary<string, string> JobOutfit() =>
+        DressedJob() is { } job ? RequireContent().Outfits.OutfitFor(job, LoadoutFor(job)) : new Dictionary<string, string>();
+
+    // Dress-up, by slot: an item, or null for nothing. Slots not here wear the job's.
+    private readonly Dictionary<string, string?> _dressUp = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// What is tried on in the preview in place of the job's outfit, by slot: an item, or null
+    /// for nothing. Not part of the character: it is never saved, and opening a file, a new or
+    /// random character, or another fork clears it.
+    /// </summary>
+    public IReadOnlyDictionary<string, string?> DressUp => _dressUp;
+
+    /// <summary>Whether any slot shows something other than the job's outfit.</summary>
+    public bool HasDressUp => _dressUp.Count > 0;
+
+    /// <summary>Whether the preview wears the dress-up; off, it wears the job's outfit and the dress-up is kept for later.</summary>
+    public bool DressUpShown { get; set; }
+
+    // The last pick in each slot, numbered, so an item that finishes downloading after a later
+    // pick is not put on over it.
+    private readonly Dictionary<string, long> _lastPick = new(StringComparer.Ordinal);
+    private long _picks;
+
+    /// <summary>
+    /// How many times dress-up has been cleared (another fork or character, or Reset). A pick
+    /// belongs to the count at the moment it is made.
+    /// </summary>
+    public int DressUpCleared { get; private set; }
+
+    // Cancelled when dress-up is cleared, so picks still waiting or downloading stop with it.
+    private CancellationTokenSource _dressUpRound = new();
+
+    /// <summary>Cancelled when dress-up is next cleared.</summary>
+    public CancellationToken DressUpToken => _dressUpRound.Token;
+
+    private void ClearDressUp()
+    {
+        _dressUp.Clear();
+        _lastPick.Clear();
+        DressUpCleared++;
+        var ended = _dressUpRound;
+        _dressUpRound = new CancellationTokenSource();
+        ended.Cancel();
+    }
+
+    public void WearNothing(string slot)
+    {
+        _lastPick[slot] = ++_picks;
+        _dressUp[slot] = null;
+    }
+
+    /// <summary>Gives the slot back to the job's outfit.</summary>
+    public void WearFromJob(string slot)
+    {
+        _lastPick[slot] = ++_picks;
+        _dressUp.Remove(slot);
+    }
+
+    /// <summary>Gives every slot back to the job's outfit.</summary>
+    public void ResetDressUp() => ClearDressUp();
+
+    /// <summary>
+    /// Tries an item on in a slot, for a pick made when <see cref="DressUpCleared"/> was
+    /// <paramref name="round"/>. When the fork was loaded without the item's pictures, they are
+    /// downloaded first, in one request; if that fails, the slot stays as it was and the error is
+    /// thrown. Cancelled through <paramref name="ct"/>, it throws <see cref="OperationCanceledException"/>.
+    /// </summary>
+    public async Task<WearResult> WearAsync(string slot, string entityId, int round, CancellationToken ct = default)
+    {
+        if (round != DressUpCleared)
+            return WearResult.Dropped;
+        var (content, renderer, textures) = (RequireContent(), Renderer!, _textures!);
+        var pick = _lastPick[slot] = ++_picks;
+        if (MissingSprites(entityId).Count > 0)
+        {
+            var otherWork = _downloads.Token;
+            using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct, otherWork);
+            try
+            {
+                await _storeTurn.WaitAsync(stop.Token);
+            }
+            catch (OperationCanceledException) when (otherWork.IsCancellationRequested && !ct.IsCancellationRequested)
+            {
+                return WearResult.Stopped;
+            }
+            try
+            {
+                // Another download may have brought the files meanwhile, or the dress-up ended.
+                var missing = round == DressUpCleared ? MissingSprites(entityId) : [];
+                if (missing.Count > 0)
+                {
+                    await Store.FetchAsync(content.Fork.Id, missing, stop.Token);
+                    var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+                    try
+                    {
+                        var reader = _reader ??= Store.OpenReader();
+                        foreach (var entry in missing)
+                        {
+                            if (await reader.ReadAsync(entry.ObjectId, stop.Token) is { } data)
+                                files[entry.Path[(ForkContent.TexturesFolder.Length + 1)..]] = data;
+                        }
+                    }
+                    catch (Exception e) when (e is IOException or GitException && !stop.IsCancellationRequested)
+                    {
+                        // The reader has stopped; the next try starts another.
+                        await CloseReaderAsync();
+                        throw;
+                    }
+                    textures.Add(files);
+                    renderer.Forget(missing.Select(e => FolderOf(e.Path)).ToHashSet(StringComparer.Ordinal));
+                }
+            }
+            catch (OperationCanceledException) when (otherWork.IsCancellationRequested && !ct.IsCancellationRequested)
+            {
+                return WearResult.Stopped;
+            }
+            finally
+            {
+                _storeTurn.Release();
+            }
+            if (otherWork.IsCancellationRequested && !ct.IsCancellationRequested)
+                return WearResult.Stopped;
+        }
+        ct.ThrowIfCancellationRequested();
+        // Only the last pick in the slot, in the dress-up it was made in.
+        if (_lastPick.GetValueOrDefault(slot) != pick || round != DressUpCleared)
+            return WearResult.Dropped;
+        _dressUp[slot] = entityId;
+        return WearResult.Worn;
+    }
+
+    /// <summary>The files of an item's sprite folders that are listed but not read in yet, which trying it on downloads.</summary>
+    public IReadOnlyList<StoreEntry> MissingSprites(string entityId)
+    {
+        var content = RequireContent();
+        var folders = new ClothingResolver(content.Prototypes, _ => null).SpriteFolders(entityId).ToHashSet(StringComparer.Ordinal);
+        return content.WardrobeFiles
+            .Where(f => folders.Contains(FolderOf(f.Value.Path)) && _textures?.Has(f.Key) != true)
+            .Select(f => f.Value)
+            .ToList();
+    }
+
+    // "Resources/Textures/Clothing/Head/cap.rsi/icon.png" -> "Clothing/Head/cap.rsi"
+    private static string FolderOf(string path) => path[(ForkContent.TexturesFolder.Length + 1)..path.LastIndexOf('/')];
+
+    /// <summary>
+    /// Whether an item worn in a slot draws anything on the character: the body has a layer for
+    /// the slot and the item a picture for it.
+    /// </summary>
+    public bool Draws(string entityId, string slot)
+    {
+        var species = RequireContent().Characters.Species[Look!.Species];
+        return Renderer!.HasSlot(species, slot) && Renderer.Clothing(entityId, slot, species) is { } visual
+            && visual.Layers.Any(l => l.Sprite.State != null && Renderer.Meta(l.Sprite.Rsi)?.States.ContainsKey(l.Sprite.State) == true);
+    }
+
+    /// <summary>
+    /// The slots dress-up offers, in the order the game lists them: those the character's body
+    /// draws, with something from the job or the wardrobe to put there.
+    /// </summary>
+    public IReadOnlyList<string> WardrobeSlots()
+    {
+        var content = RequireContent();
+        var species = content.Characters.Species[Look!.Species];
+        var job = JobOutfit();
+        return ClothingResolver.SlotStates.Keys
+            .Where(slot => (job.ContainsKey(slot) || content.Wardrobe.Items(slot).Count > 0) && Renderer!.HasSlot(species, slot))
+            .ToList();
+    }
+
+    private (ForkContent Content, Dictionary<string, IReadOnlyList<(string Id, string Name)>> BySlot)? _wearables;
+
+    /// <summary>The items that fit a slot, by name, as loadouts are named.</summary>
+    public IReadOnlyList<(string Id, string Name)> Wearables(string slot)
+    {
+        var content = RequireContent();
+        if (_wearables is not { } cached || cached.Content != content)
+            _wearables = cached = (content, new Dictionary<string, IReadOnlyList<(string, string)>>(StringComparer.Ordinal));
+        if (!cached.BySlot.TryGetValue(slot, out var items))
+        {
+            cached.BySlot[slot] = items = content.Wardrobe.Items(slot)
+                .Select(id => (id, EntityName(id)))
+                .OrderBy(i => i.Item2, StringComparer.CurrentCulture).ThenBy(i => i.id, StringComparer.Ordinal)
+                .ToList();
+        }
+        return items;
     }
 
     public IReadOnlyList<string> SelectedTraits() => RequireFile().TraitPreferences;
@@ -530,6 +805,7 @@ public sealed class EditorSession : IAsyncDisposable
         var file = CharacterFile.Parse(yaml);
         var (fixes, look) = Checked(file);
         (File, LastFixes, Look, _beforeSwitch) = (file, fixes, look, keepUntilEdited && fixes.Count > 0 ? yaml : null);
+        ClearDressUp();
         return fixes;
     }
 
@@ -856,6 +1132,7 @@ public sealed class EditorSession : IAsyncDisposable
     /// <param name="strength">How busy random markings get, 0 to 1; 1 is upstream's lobby randomiser.</param>
     public IReadOnlyList<RuleFix> Randomize(RandomParts parts, Random? random = null, float strength = 1f) => Edit(file =>
     {
+        ClearDressUp();
         var catalog = RequireContent().Characters;
         var randomizer = new Randomizer(catalog, random ??= Random.Shared) { Strength = strength };
         var current = file.ReadLook(catalog);

@@ -277,6 +277,23 @@ public sealed partial class PaperdollRenderer
         return result.ToBitmap();
     }
 
+    /// <summary>
+    /// Forgets what was read of these sprite folders, such as that they were missing, so files
+    /// fetched since are drawn.
+    /// </summary>
+    public void Forget(IReadOnlySet<string> rsis)
+    {
+        foreach (var rsi in rsis)
+            _metas.Remove(rsi);
+        foreach (var key in _frames.Keys.Where(k => rsis.Contains(k.Rsi)).ToList())
+            _frames.Remove(key);
+        foreach (var key in _displaced.Keys.Where(k => rsis.Contains(k.Sprite.Rsi)).ToList())
+            _displaced.Remove(key);
+    }
+
+    /// <summary>Whether the species' body has a layer for the slot, so clothing worn there is drawn.</summary>
+    public bool HasSlot(SpeciesInfo species, string slot) => BaseSlots(species).Any(s => s.Keys.Contains(slot));
+
     /// <summary>The RSI's meta.json, read once, or null if the fork does not have it.</summary>
     public RsiMeta? Meta(string rsi)
     {

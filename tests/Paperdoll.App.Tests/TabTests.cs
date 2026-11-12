@@ -34,8 +34,9 @@ public class TabTests
         await editor.LoadForkAsync(TestForks.C, update: false, ct: ct);
         editor.NewCharacter("Human");
 
-        // Cybernetics and the character info tabs are Starlight's, which has no Description tab.
-        Assert.Equal(Enum.GetValues<EditorTab>().Except([Cybernetics, IcInfo, OocInfo]), EditorTabs.Visible(editor));
+        // Cybernetics and the character info tabs are Starlight's, which has no Description tab;
+        // the Wardrobe shows only while dress-up is on.
+        Assert.Equal(Enum.GetValues<EditorTab>().Except([Cybernetics, IcInfo, OocInfo, Wardrobe]), EditorTabs.Visible(editor));
     }
 
     [Fact]
@@ -43,7 +44,7 @@ public class TabTests
     {
         var all = Enum.GetValues<EditorTab>();
 
-        Assert.Equal([Traits, Markings, Loadout, Records], all.Where(EditorTabs.HasSideList));
+        Assert.Equal([Traits, Markings, Loadout, Wardrobe, Records], all.Where(EditorTabs.HasSideList));
         Assert.Equal([Credits, Messages, Source], all.Where(EditorTabs.IsUtility));
     }
 
@@ -211,7 +212,7 @@ public class TabTests
         Assert.True(Find<ScrollViewer>(window, "PageHost").Bounds.Height >= 200);
 
         var buttons = Find<TabStripPanel>(window, "TabStrip").Children.OfType<RadioButton>().ToList();
-        Assert.Equal(Enum.GetValues<EditorTab>().Except([Cybernetics, IcInfo, OocInfo]).Count(), buttons.Count);
+        Assert.Equal(Enum.GetValues<EditorTab>().Except([Cybernetics, IcInfo, OocInfo, Wardrobe]).Count(), buttons.Count);
         foreach (var button in buttons)
         {
             var at = button.TranslatePoint(default, window)!.Value;

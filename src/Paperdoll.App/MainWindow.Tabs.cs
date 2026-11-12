@@ -58,6 +58,7 @@ public partial class MainWindow
         NodeKind.Antags => EditorTab.Antags,
         NodeKind.Records or NodeKind.RecordList => EditorTab.Records,
         NodeKind.Allergies => EditorTab.Allergies,
+        NodeKind.WardrobeSlot => EditorTab.Wardrobe,
         _ => EditorTab.Appearance,
     };
 
@@ -70,6 +71,7 @@ public partial class MainWindow
         EditorTab.Records => new Node(NodeKind.Records),
         EditorTab.Antags => new Node(NodeKind.Antags),
         EditorTab.Allergies => new Node(NodeKind.Allergies),
+        EditorTab.Wardrobe => new Node(NodeKind.WardrobeSlot, Group: WardrobeSlots().FirstOrDefault()),
         EditorTab.Markings => Explorer.Items.OfType<TreeViewItem>().Select(i => i.Tag).OfType<Node>().FirstOrDefault(n => n.Kind == NodeKind.Organ)
             ?? new Node(NodeKind.Character),
         _ => new Node(NodeKind.Character),
@@ -125,6 +127,7 @@ public partial class MainWindow
             EditorTab.Traits => TraitsPanel,
             EditorTab.Markings => MarkingsPanel,
             EditorTab.Loadout when _selected.Kind == NodeKind.Outfit => OutfitPanel,
+            EditorTab.Wardrobe when _selected.Group != null => WardrobePanel,
             EditorTab.Credits => CreditsGrid,
             EditorTab.Messages => MessagesList,
             EditorTab.Source => SourceText,

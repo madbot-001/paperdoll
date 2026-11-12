@@ -4,7 +4,7 @@ using Paperdoll.Core.Forks;
 namespace Paperdoll.App;
 
 /// <summary>The tabs of the editor, in the order of the lobby's character screen.</summary>
-public enum EditorTab { Appearance, Jobs, Antags, Traits, Markings, Loadout, Allergies, Cybernetics, IcInfo, OocInfo, Records, Description, Credits, Messages, Source }
+public enum EditorTab { Appearance, Jobs, Antags, Traits, Markings, Loadout, Wardrobe, Allergies, Cybernetics, IcInfo, OocInfo, Records, Description, Credits, Messages, Source }
 
 /// <summary>Which tabs a loaded fork shows, and how each is laid out.</summary>
 public static class EditorTabs
@@ -21,13 +21,17 @@ public static class EditorTabs
 
     /// <summary>Tabs with many items, which get a list on the left.</summary>
     public static bool HasSideList(EditorTab tab) =>
-        tab is EditorTab.Traits or EditorTab.Markings or EditorTab.Loadout or EditorTab.Records;
+        tab is EditorTab.Traits or EditorTab.Markings or EditorTab.Loadout or EditorTab.Wardrobe or EditorTab.Records;
 
     /// <summary>The tabs the session's fork has, in strip order. The session must have a fork loaded.</summary>
     public static IReadOnlyList<EditorTab> Visible(EditorSession session)
     {
         var fork = session.Fork ?? throw new InvalidOperationException("No fork is loaded.");
         var content = session.Content ?? throw new InvalidOperationException("No fork is loaded.");
+        // Dress-up on: the Wardrobe takes the place of the character's tabs. The credits stay in
+        // reach, as they list the sprites of what is tried on.
+        if (session.DressUpShown && session.DressedJob() != null)
+            return [EditorTab.Wardrobe, .. Enum.GetValues<EditorTab>().Where(IsUtility)];
         return Enum.GetValues<EditorTab>().Where(tab => Shows(session, fork, content, tab)).ToList();
     }
 
@@ -36,6 +40,8 @@ public static class EditorTabs
         EditorTab.Antags => content.Outfits.Antags.Values.Any(a => a.SetPreference),
         EditorTab.Traits => content.Traits.Traits.Count > 0,
         EditorTab.Loadout => session.DressedJob() != null,
+        // Dress-up tries clothing on over the job's outfit, so it goes with the Loadout tab.
+        EditorTab.Wardrobe => false,
         EditorTab.Allergies => fork.Extras.HasFlag(ProfileExtras.Allergies),
         EditorTab.Cybernetics => fork.Extras.HasFlag(ProfileExtras.Cybernetics),
         EditorTab.IcInfo => fork.Extras.HasFlag(ProfileExtras.IcInfo),

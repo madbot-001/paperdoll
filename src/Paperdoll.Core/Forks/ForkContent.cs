@@ -25,6 +25,15 @@ public sealed class ForkContent
     /// <summary>Every file under the character sprite folders, by path, once fetched.</summary>
     public required IReadOnlyDictionary<string, string> TextureFiles { get; init; }
 
+    /// <summary>The clothing that can be tried on in the preview, by slot.</summary>
+    public Wardrobe Wardrobe { get; init; } = new() { BySlot = new Dictionary<string, IReadOnlyList<string>>() };
+
+    /// <summary>
+    /// The files of the wardrobe's sprite folders that were listed but not fetched with the fork,
+    /// by path: each item's are fetched when it is first tried on.
+    /// </summary>
+    public IReadOnlyDictionary<string, StoreEntry> WardrobeFiles { get; init; } = new Dictionary<string, StoreEntry>();
+
     /// <summary>
     /// Fetches and reads a synced fork: prototypes and English strings first, then every sprite
     /// folder that species and markings refer to.
@@ -75,8 +84,13 @@ public sealed class ForkContent
                 folders.UnionWith(Rendering.EntitySprite.SpriteFolders(prototypes, picture));
         }
 
+        // The rest of the clothing is only listed: an item's files are fetched when it is tried on.
+        var wardrobe = Wardrobe.Build(prototypes);
+        var wardrobeFolders = new HashSet<string>(wardrobe.Entities().SelectMany(clothing.SpriteFolders), StringComparer.Ordinal);
+        wardrobeFolders.ExceptWith(folders);
+
         progress?.Report("Downloading character and clothing sprites");
-        var textures = await FetchSpritesAsync(store, fork.Id, folders, ct);
+        var (textures, wardrobeFiles) = await FetchSpritesAsync(store, fork.Id, folders, wardrobeFolders, ct);
 
         return new ForkContent
         {
@@ -88,19 +102,23 @@ public sealed class ForkContent
             Outfits = outfits,
             Traits = Paperdoll.Core.Traits.TraitCatalog.Build(prototypes),
             TextureFiles = textures,
+            Wardrobe = wardrobe,
+            WardrobeFiles = wardrobeFiles,
         };
     }
 
-    private static async Task<IReadOnlyDictionary<string, string>> FetchSpritesAsync(
-        IForkStore store, string forkId, IReadOnlySet<string> folders, CancellationToken ct)
+    // One listing for both: the folders to fetch now, and the ones only listed for later.
+    private static async Task<(IReadOnlyDictionary<string, string> Fetched, IReadOnlyDictionary<string, StoreEntry> Listed)> FetchSpritesAsync(
+        IForkStore store, string forkId, IReadOnlySet<string> folders, IReadOnlySet<string> later, CancellationToken ct)
     {
-        var listed = await store.ListAsync(forkId, ListingRoots(folders), ct);
+        var listed = await store.ListAsync(forkId, ListingRoots(folders.Concat(later)), ct);
 
         var wanted = listed
             .Where(e => folders.Contains(FolderOf(e.Path)))
             .ToList();
         await store.FetchAsync(forkId, wanted, ct);
-        return wanted.ToDictionary(e => e.Path[(TexturesFolder.Length + 1)..], e => e.ObjectId, StringComparer.Ordinal);
+        return (wanted.ToDictionary(e => e.Path[(TexturesFolder.Length + 1)..], e => e.ObjectId, StringComparer.Ordinal),
+            listed.Where(e => later.Contains(FolderOf(e.Path))).ToDictionary(e => e.Path[(TexturesFolder.Length + 1)..], StringComparer.Ordinal));
     }
 
     // "Resources/Textures/Mobs/Species/Human/parts.rsi/torso_m.png" -> "Mobs/Species/Human/parts.rsi"

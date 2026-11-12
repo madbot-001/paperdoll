@@ -18,6 +18,9 @@ public partial class MainWindow
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
         JobFilter.TextChanged += (_, _) => FilterJobs();
         TraitFilter.TextChanged += (_, _) => FilterTraits();
+        WardrobeFilter.TextChanged += (_, _) => FilterWardrobe();
+        // The id of each item, on hovering its row.
+        WardrobeGrid.LoadingRow += (_, e) => ToolTip.SetTip(e.Row, (e.Row.DataContext as WardrobeRow)?.Id is { Length: > 0 } id ? id : null);
 
         // Hovering a marking shows the character wearing it, drawn when the tip opens.
         MarkingGrid.LoadingRow += (_, e) =>
@@ -170,16 +173,20 @@ public partial class MainWindow
         var fixes = _session!.LastFixes;
         if (_tabButtons.TryGetValue(EditorTab.Messages, out var messages))
             messages.Content = fixes.Count == 0 ? "Messages" : $"Messages ({fixes.Count})";
+        // Marked like an unsaved file: the preview is not what the game would show.
+        if (_tabButtons.TryGetValue(EditorTab.Wardrobe, out var wardrobe))
+            wardrobe.Content = _session.HasDressUp ? "Wardrobe *" : "Wardrobe";
         // The species table shows the fork's species, which no edit changes.
         foreach (var tab in Enum.GetValues<EditorTab>().Where(t => t != EditorTab.Appearance))
             _staleTabs.Add(tab);
         RefreshShownTab();
     }
 
-    // The marking table also follows the part picked in the side list.
+    // The marking and wardrobe tables also follow the part picked in the side list.
     private void RefreshMarkingTableSoon()
     {
         _staleTabs.Add(EditorTab.Markings);
+        _staleTabs.Add(EditorTab.Wardrobe);
         RefreshShownTab();
     }
 
@@ -211,6 +218,9 @@ public partial class MainWindow
                 break;
             case EditorTab.Traits:
                 BuildTraitTable();
+                break;
+            case EditorTab.Wardrobe:
+                BuildWardrobeTable();
                 break;
             case EditorTab.Credits:
                 CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();

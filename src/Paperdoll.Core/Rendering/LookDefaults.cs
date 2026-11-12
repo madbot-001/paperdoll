@@ -42,7 +42,19 @@ public static class LookDefaults
 /// <summary>Sprite files held in memory by path under <c>Resources/Textures</c>.</summary>
 public sealed class MemoryTextures(IReadOnlyDictionary<string, byte[]> files) : ITextureSource
 {
-    public byte[]? Read(string path) => files.GetValueOrDefault(path);
+    private readonly Dictionary<string, byte[]> _files = new(files, StringComparer.Ordinal);
+
+    public byte[]? Read(string path) => _files.GetValueOrDefault(path);
+
+    /// <summary>Whether a file has been read in.</summary>
+    public bool Has(string path) => _files.ContainsKey(path);
+
+    /// <summary>Takes in files fetched later, such as clothing first tried on.</summary>
+    public void Add(IReadOnlyDictionary<string, byte[]> more)
+    {
+        foreach (var (path, data) in more)
+            _files[path] = data;
+    }
 
     /// <summary>Reads all of a fork's character sprite files out of the store.</summary>
     public static async Task<MemoryTextures> LoadAsync(Forks.ForkContent content, Store.IBlobReader reader, CancellationToken ct = default)

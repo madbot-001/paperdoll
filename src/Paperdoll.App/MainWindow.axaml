@@ -48,6 +48,9 @@
           </Button.Flyout>
         </Button>
         <Rectangle Classes="divider" />
+        <Button Name="WardrobeButton" Classes="tool" Content="Wardrobe" Click="OnWardrobeMode"
+                ToolTip.Tip="Try any of the fork's clothing on in the preview. Off, the preview wears the job's outfit as the game shows it; what was tried on is kept." />
+        <Rectangle Classes="divider" />
         <TextBlock Classes="hint" Text="Fork" Margin="2,0,6,0" />
         <ComboBox Name="ForkBox" Width="210" SelectionChanged="OnForkChosen" />
         <Button Classes="tool" Content="Update" Click="OnUpdateFork" ToolTip.Tip="Download the fork's newest version" />
@@ -207,6 +210,21 @@
                       <DataGridTextColumn Header="Department" Binding="{Binding Department}" Width="160" />
                       <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80" />
                       <DataGridTextColumn Header="Loadout groups" Binding="{Binding Groups}" Width="110" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </DockPanel>
+                <DockPanel Name="WardrobePanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <StackPanel Orientation="Horizontal" Spacing="8" ClipToBounds="True">
+                      <TextBox Name="WardrobeFilter" Width="200" PlaceholderText="Search items" MinHeight="20" />
+                      <TextBlock Name="WardrobeCount" Classes="hint" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <DataGrid Name="WardrobeGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:WardrobeRow" SelectionChanged="OnWardrobePicked">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Worn" Binding="{Binding Worn}" Width="50" />
+                      <DataGridTextColumn Header="Item" Binding="{Binding Name}" Width="260" />
                       <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
                     </DataGrid.Columns>
                   </DataGrid>
