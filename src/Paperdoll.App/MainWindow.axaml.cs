@@ -8,9 +8,9 @@ using Paperdoll.Core.Profiles;
 namespace Paperdoll.App;
 
 /// <summary>
-/// Explorer on the left, preview in the middle, inspector for the selected part on the right,
-/// tables below. Changes go through <see cref="EditorSession"/> so the game's rules apply, then
-/// the window refreshes.
+/// Preview on the left; on the right the tabs of the lobby's character editor, each with its page,
+/// and a list of parts or a table where it has them. Changes go through <see cref="EditorSession"/>
+/// so the game's rules apply, then the window refreshes.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         SetUpTables();
         SetUpFiles();
         SetUpExplorerDrag();
+        ArrangeForTab();
         _settle.Tick += (_, _) =>
         {
             _settle.Stop();
@@ -218,13 +219,16 @@ public partial class MainWindow : Window
             session.PreviewJob = null;
         BuildJobList();
         BuildPortraits();
-        _staleTabs.Add(SpeciesTab);
+        _staleTabs.Add(EditorTab.Appearance);
         ClearLoadoutPictures();
+        _tab = EditorTab.Appearance;
+        _picking = false;
+        _lastNode.Clear();
         _selected = new Node(NodeKind.Character);
         RefreshAll();
         var changes = session.LastFixes.Count;
         SetStatus(changes == 0
-            ? $"{session.Fork!.Name} loaded. Work through {session.File?.Name ?? "the character"} on the left, or pick a species in the Species table."
+            ? $"{session.Fork!.Name} loaded. Work through {session.File?.Name ?? "the character"} in the tabs, or choose a species with Change... on Appearance."
             : session.ChangedBySwitch
                 ? $"{session.Fork!.Name} loaded. {session.File?.Name} was fitted to it ({changes} change{(changes == 1 ? "" : "s")} in Messages); switching back restores it, editing or saving here keeps the changes."
                 : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.");
@@ -261,10 +265,18 @@ public partial class MainWindow : Window
                 return;
             }
             _settle.Stop();
+            BuildStrip();
+            // The open tab went away (the dressed job did, say): Appearance takes over.
+            if (!_tabsShown.Contains(_tab))
+            {
+                _tab = EditorTab.Appearance;
+                _selected = new Node(NodeKind.Character);
+            }
             BuildExplorer();
             if (!keepInspector)
                 BuildInspector();
             BuildBreadcrumbs();
+            ArrangeForTab();
             RefreshPreview();
             RefreshTables();
 
@@ -394,6 +406,9 @@ public partial class MainWindow : Window
     {
         if (_loading || _session?.Look == null || !await MayReplaceCharacterAsync("starting a new one"))
             return;
+        _tab = EditorTab.Appearance;
+        _picking = false;
+        _lastNode.Clear();
         _selected = new Node(NodeKind.Character);
         ForgetWorkingFile();
         KeepPreviousWorkingCopy();
@@ -405,7 +420,7 @@ public partial class MainWindow : Window
         // A new character has nothing to lose until it is edited.
         _dirty = false;
         UpdateTitle();
-        SetStatus("New character. Give it a name in the inspector.");
+        SetStatus("New character. Give it a name on Appearance.");
     }
 
     private void OnRandom(object? sender, RoutedEventArgs e)
@@ -421,7 +436,7 @@ public partial class MainWindow : Window
             SetStatus("Nothing to randomise: choose what Random changes with the arrow next to it.");
             return;
         }
-        _selected = new Node(NodeKind.Character);
+        _selected = TopNode(_tab);
         Apply(s => s.Randomize(parts, strength: Math.Clamp(_settings.RandomStrength, 0, 100) / 100f));
         SetStatus($"Randomised {_session.File.Name}. Jobs, loadouts, traits and records were kept.");
     }
@@ -485,12 +500,6 @@ public partial class MainWindow : Window
         ToolTip.SetTip(row, "How busy random markings get. At 100% every place a layer takes is rolled, as upstream's lobby does; on Euphoria that is dozens of markings. Delta-V's and Euphoria's own lobbies add none. Hair is rolled either way.");
         RandomPartsPanel.Children.Add(row);
         RandomPartsPanel.Children.Add(new TextBlock { Text = "100% is upstream's lobby randomiser.", Classes = { "hint" }, Margin = new Avalonia.Thickness(2, 0, 2, 0) });
-    }
-
-    private void OnShowTab(object? sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem { Tag: string tag } && int.TryParse(tag, out var index))
-            BottomTabs.SelectedIndex = index;
     }
 
     private void OnExit(object? sender, RoutedEventArgs e) => Close();

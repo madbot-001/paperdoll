@@ -75,19 +75,19 @@ public class LoadingTests
             window.Show();
             Dispatcher.UIThread.RunJobs();
             T Find<T>(string name) where T : class => Avalonia.Controls.NameScopeExtensions.Find<T>(window, name)!;
-            var tabs = Find<Avalonia.Controls.TabControl>("BottomTabs");
             var grid = Find<Avalonia.Controls.DataGrid>("SpeciesGrid");
-            tabs.SelectedItem = Find<Avalonia.Controls.TabItem>("SpeciesTab");
+            window.ShowSpeciesPicker();
             Dispatcher.UIThread.RunJobs();
             Assert.Equal("Human", ((SpeciesRow)grid.SelectedItem!).Id);
 
             // Changed from another tab, as the inspector or Random would.
-            tabs.SelectedItem = Find<Avalonia.Controls.TabItem>("MessagesTab");
+            window.ShowTab(EditorTab.Messages);
             Dispatcher.UIThread.RunJobs();
             Func<Core.Editing.EditorSession, IReadOnlyList<Core.Profiles.RuleFix>> edit = s => s.ChangeSpecies("Lizard");
             typeof(MainWindow).GetMethod("Apply", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, [edit, false]);
             Assert.Equal("Lizard", editor.Look!.Species);
-            tabs.SelectedItem = Find<Avalonia.Controls.TabItem>("SpeciesTab");
+            window.ShowTab(EditorTab.Appearance);
+            window.ShowSpeciesPicker();
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal("Lizard", ((SpeciesRow)grid.SelectedItem!).Id);

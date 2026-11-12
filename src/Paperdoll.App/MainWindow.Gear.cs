@@ -7,7 +7,7 @@ using Paperdoll.Core.Outfits;
 
 namespace Paperdoll.App;
 
-/// <summary>What the character spawns with: the Outfit tab and the list on the Outfit page.</summary>
+/// <summary>What the character spawns with: the Outfit page and the loadout groups of the Loadout tab.</summary>
 public partial class MainWindow
 {
     // Slots in the order the inventory shows them, with plain names.
@@ -121,8 +121,5 @@ public partial class MainWindow
                 AddRow(group.Key, new TextBlock { Text = list, Margin = new Thickness(4, 2), TextWrapping = TextWrapping.Wrap });
             }
         }
-        var table = new Button { Classes = { "small" }, Content = "Show in the Outfit tab", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Margin = new Thickness(6, 4) };
-        table.Click += (_, _) => BottomTabs.SelectedItem = OutfitTab;
-        AddWide(table);
     }
 }

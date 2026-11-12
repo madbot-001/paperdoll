@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:app="using:Paperdoll.App"
+        xmlns:ctl="using:Paperdoll.App.Controls"
         x:Class="Paperdoll.App.MainWindow"
         Icon="/Assets/icon.png"
         Title="Paperdoll"
@@ -24,16 +25,8 @@
         <MenuItem Header="_Update This Fork" Click="OnUpdateFork" />
         <MenuItem Header="_Match a Server..." Click="OnMatchServer" />
       </MenuItem>
-      <MenuItem Header="_View">
-        <MenuItem Header="_Species" Click="OnShowTab" Tag="0" InputGesture="Ctrl+D1" HotKey="Ctrl+D1" />
-        <MenuItem Header="_Markings" Click="OnShowTab" Tag="1" InputGesture="Ctrl+D2" HotKey="Ctrl+D2" />
-        <MenuItem Header="_Jobs" Click="OnShowTab" Tag="2" InputGesture="Ctrl+D3" HotKey="Ctrl+D3" />
-        <MenuItem Header="_Outfit" Click="OnShowTab" Tag="3" InputGesture="Ctrl+D4" HotKey="Ctrl+D4" />
-        <MenuItem Header="_Traits" Click="OnShowTab" Tag="4" InputGesture="Ctrl+D5" HotKey="Ctrl+D5" />
-        <MenuItem Header="_Credits" Click="OnShowTab" Tag="5" InputGesture="Ctrl+D6" HotKey="Ctrl+D6" />
-        <MenuItem Header="M_essages" Click="OnShowTab" Tag="6" InputGesture="Ctrl+D7" HotKey="Ctrl+D7" />
-        <MenuItem Header="S_ource" Click="OnShowTab" Tag="7" InputGesture="Ctrl+D8" HotKey="Ctrl+D8" />
-      </MenuItem>
+      <!-- One item per tab in the strip, filled in when the strip is built. -->
+      <MenuItem Header="_View" Name="ViewMenu" />
       <MenuItem Header="_Help">
         <MenuItem Header="_About Paperdoll" Click="OnAbout" />
       </MenuItem>
@@ -74,216 +67,206 @@
       </StackPanel>
     </Border>
 
-    <Grid Name="Workspace" RowDefinitions="*,5,210" Margin="5,5,5,4">
-      <Grid ColumnDefinitions="230,5,*,5,360">
-        <!-- Explorer: the character's parts and layers. -->
-        <Border Classes="pane" Grid.Column="0">
-          <DockPanel>
-            <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Text="Explorer" /></Border>
-            <TreeView Name="Explorer" SelectionChanged="OnExplorerSelection" />
-          </DockPanel>
-        </Border>
-        <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+    <Grid Name="Workspace" ColumnDefinitions="340,5,*" Margin="5,5,5,4">
+      <!-- Preview: character on the station floor, facings below. -->
+      <Border Classes="pane" Grid.Column="0">
+        <DockPanel>
+          <!-- Wraps onto a second row while the pane is too narrow for one. -->
+          <Border Classes="caption" DockPanel.Dock="Top" Height="NaN" MinHeight="22">
+            <WrapPanel ItemSpacing="5" LineSpacing="2">
+              <TextBlock Classes="title" Text="Preview" Margin="0,0,6,0" />
+              <CheckBox Name="ClothesBox" Content="Clothes" IsChecked="True" FontSize="11" MinHeight="18"
+                        IsCheckedChanged="OnClothesToggled" ToolTip.Tip="Dress the character as the lobby does" />
+              <TextBlock Classes="hint" Text="Job" Margin="6,0,0,0" />
+              <ComboBox Name="JobBox" Width="140" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
+                        SelectionChanged="OnJobChosen" ToolTip.Tip="The job whose clothes and loadout to show" />
+              <Button Name="OutfitButton" Classes="small" Content="Outfit..." Click="OnShowOutfit" FontSize="11" MinHeight="18" Height="18"
+                      ToolTip.Tip="The loadout for this job, and everything the character spawns with" />
+              <TextBlock Classes="hint" Text="Zoom" Margin="6,0,0,0" />
+              <ComboBox Name="ZoomBox" Width="62" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
+                        SelectionChanged="OnZoomChosen" />
+            </WrapPanel>
+          </Border>
+          <Border Classes="crumbs" DockPanel.Dock="Top">
+            <StackPanel Name="Breadcrumbs" Orientation="Horizontal" />
+          </Border>
+          <Border DockPanel.Dock="Bottom" Background="#16191D" Padding="6,6,6,5">
+            <StackPanel Name="FacingStrip" Orientation="Horizontal" HorizontalAlignment="Center" />
+          </Border>
+          <Border Name="PreviewHost" Background="#30363D" ClipToBounds="True" SizeChanged="OnPreviewResized">
+            <Image Name="PreviewImage" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
+          </Border>
+        </DockPanel>
+      </Border>
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
-        <!-- Preview: character on the station floor, facings below. -->
-        <Border Classes="pane" Grid.Column="2">
-          <DockPanel>
-            <Border Classes="caption" DockPanel.Dock="Top">
+      <!-- The editor: the tabs as the lobby has them, and the open tab below. -->
+      <DockPanel Grid.Column="2">
+        <ctl:TabStripPanel Name="TabStrip" DockPanel.Dock="Top" />
+        <Grid Name="EditorArea" ColumnDefinitions="220,5,*">
+          <!-- Side list: the open tab's parts, on tabs with many. -->
+          <Border Name="SideList" Classes="pane" Grid.Column="0">
+            <TreeView Name="Explorer" SelectionChanged="OnExplorerSelection" />
+          </Border>
+          <GridSplitter Name="SideSplitter" Grid.Column="1" ResizeDirection="Columns" />
+
+          <Grid Name="PageArea" Grid.Column="2" RowDefinitions="*,5,*">
+            <!-- Page: the selected part. -->
+            <Border Name="PagePane" Classes="pane" Grid.Row="0">
               <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5">
-                  <CheckBox Name="ClothesBox" Content="Clothes" IsChecked="True" FontSize="11" MinHeight="18"
-                            IsCheckedChanged="OnClothesToggled" ToolTip.Tip="Dress the character as the lobby does" />
-                  <TextBlock Classes="hint" Text="Job" Margin="6,0,0,0" />
-                  <ComboBox Name="JobBox" Width="140" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
-                            SelectionChanged="OnJobChosen" ToolTip.Tip="The job whose clothes and loadout to show" />
-                  <Button Classes="small" Content="Outfit..." Click="OnShowOutfit" FontSize="11" MinHeight="18" Height="18"
-                          ToolTip.Tip="The loadout for this job, and everything the character spawns with" />
-                  <TextBlock Classes="hint" Text="Zoom" Margin="6,0,0,0" />
-                  <ComboBox Name="ZoomBox" Width="62" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
-                            SelectionChanged="OnZoomChosen" />
-                </StackPanel>
-                <TextBlock Classes="title" Text="Preview" />
+                <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Name="InspectorTitle" Text="Appearance" /></Border>
+                <ScrollViewer Name="PageHost" HorizontalScrollBarVisibility="Disabled">
+                  <Grid Name="Inspector" ColumnDefinitions="110,*" />
+                </ScrollViewer>
               </DockPanel>
             </Border>
-            <Border Classes="crumbs" DockPanel.Dock="Top">
-              <StackPanel Name="Breadcrumbs" Orientation="Horizontal" />
-            </Border>
-            <Border DockPanel.Dock="Bottom" Background="#16191D" Padding="6,6,6,5">
-              <StackPanel Name="FacingStrip" Orientation="Horizontal" HorizontalAlignment="Center" />
-            </Border>
-            <Border Name="PreviewHost" Background="#30363D" ClipToBounds="True" SizeChanged="OnPreviewResized">
-              <Image Name="PreviewImage" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
-            </Border>
-          </DockPanel>
-        </Border>
-        <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
+            <GridSplitter Name="TableSplitter" Grid.Row="1" ResizeDirection="Rows" />
 
-        <Border Classes="pane" Grid.Column="4">
-          <DockPanel>
-            <Border Classes="caption" DockPanel.Dock="Top"><TextBlock Classes="title" Name="InspectorTitle" Text="Inspector" /></Border>
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-              <Grid Name="Inspector" ColumnDefinitions="110,*" />
-            </ScrollViewer>
-          </DockPanel>
-        </Border>
-      </Grid>
-
-      <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
-
-      <Border Classes="pane" Grid.Row="2">
-        <TabControl Name="BottomTabs" TabStripPlacement="Bottom">
-          <TabItem Header="Species" Name="SpeciesTab">
-            <DockPanel>
-              <Border Classes="filterbar" DockPanel.Dock="Top">
-                <DockPanel>
-                  <Button DockPanel.Dock="Right" Classes="small" Name="UseSpeciesButton" Content="Use this species" Click="OnUseSpecies" />
-                  <TextBox Name="SpeciesFilter" Width="200" HorizontalAlignment="Left" PlaceholderText="Filter species" MinHeight="20" />
+            <!-- The open tab's table, where it has one. -->
+            <Border Name="TablePane" Classes="pane" Grid.Row="2">
+              <Panel Name="TableHost">
+                <DockPanel Name="SpeciesPanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <DockPanel>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="3">
+                        <Button Classes="small" Name="UseSpeciesButton" Content="Use this species" Click="OnUseSpecies" />
+                        <Button Classes="small" Name="SpeciesBackButton" Content="Back" Click="OnSpeciesBack" />
+                      </StackPanel>
+                      <TextBox Name="SpeciesFilter" Width="200" HorizontalAlignment="Left" PlaceholderText="Filter species" MinHeight="20" />
+                    </DockPanel>
+                  </Border>
+                  <DataGrid Name="SpeciesGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:SpeciesRow"
+                            DoubleTapped="OnSpeciesDoubleTapped" RowHeight="38">
+                    <DataGrid.Columns>
+                      <DataGridTemplateColumn Header="" Width="44" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                          <DataTemplate x:DataType="app:SpeciesRow">
+                            <Image Source="{Binding Portrait}" Width="36" Height="36" RenderOptions.BitmapInterpolationMode="None" />
+                          </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                      </DataGridTemplateColumn>
+                      <DataGridTextColumn Header="Species" Binding="{Binding Name}" Width="130" />
+                      <DataGridTextColumn Header="Sexes" Binding="{Binding Sexes}" Width="130" />
+                      <DataGridTextColumn Header="Ages" Binding="{Binding Ages}" Width="70" />
+                      <DataGridTextColumn Header="Skin rule" Binding="{Binding SkinRule}" Width="140" />
+                      <DataGridTextColumn Header="Marking layers" Binding="{Binding Layers}" Width="100" />
+                      <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="84" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="110" FontFamily="{StaticResource MonoFont}" />
+                      <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
                 </DockPanel>
-              </Border>
-              <DataGrid Name="SpeciesGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:SpeciesRow"
-                        DoubleTapped="OnSpeciesDoubleTapped" RowHeight="38">
-                <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="" Width="44" CanUserSort="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                      <DataTemplate x:DataType="app:SpeciesRow">
-                        <Image Source="{Binding Portrait}" Width="36" Height="36" RenderOptions.BitmapInterpolationMode="None" />
-                      </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                  </DataGridTemplateColumn>
-                  <DataGridTextColumn Header="Species" Binding="{Binding Name}" Width="130" />
-                  <DataGridTextColumn Header="Sexes" Binding="{Binding Sexes}" Width="130" />
-                  <DataGridTextColumn Header="Ages" Binding="{Binding Ages}" Width="70" />
-                  <DataGridTextColumn Header="Skin rule" Binding="{Binding SkinRule}" Width="140" />
-                  <DataGridTextColumn Header="Marking layers" Binding="{Binding Layers}" Width="100" />
-                  <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="84" />
-                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="110" FontFamily="{StaticResource MonoFont}" />
-                  <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
-                </DataGrid.Columns>
-              </DataGrid>
-            </DockPanel>
-          </TabItem>
-          <TabItem Header="Markings" Name="MarkingsTab">
-            <DockPanel>
-              <Border Classes="filterbar" DockPanel.Dock="Top">
-                <DockPanel>
-                  <Button DockPanel.Dock="Right" Classes="small" Name="AddMarkingButton" Content="Add to layer" Click="OnAddMarking" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBox Name="MarkingFilter" Width="200" PlaceholderText="Filter markings" MinHeight="20" />
-                    <TextBlock Name="MarkingScope" Classes="hint" />
-                  </StackPanel>
+                <DockPanel Name="MarkingsPanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <DockPanel>
+                      <Button DockPanel.Dock="Right" Classes="small" Name="AddMarkingButton" Content="Add to layer" Click="OnAddMarking" />
+                      <StackPanel Orientation="Horizontal" Spacing="8" ClipToBounds="True">
+                        <TextBox Name="MarkingFilter" Width="200" PlaceholderText="Filter markings" MinHeight="20" />
+                        <TextBlock Name="MarkingScope" Classes="hint" />
+                      </StackPanel>
+                    </DockPanel>
+                  </Border>
+                  <DataGrid Name="MarkingGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:MarkingRow"
+                            DoubleTapped="OnMarkingDoubleTapped" RowHeight="36">
+                    <DataGrid.Columns>
+                      <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                          <DataTemplate x:DataType="app:MarkingRow">
+                            <Image Source="{Binding Picture}" Width="32" Height="32" RenderOptions.BitmapInterpolationMode="None" />
+                          </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                      </DataGridTemplateColumn>
+                      <DataGridTextColumn Header="Marking" Binding="{Binding Name}" Width="170" />
+                      <DataGridTextColumn Header="Layer" Binding="{Binding Layer}" Width="100" />
+                      <DataGridTextColumn Header="Sprites" Binding="{Binding Sprites}" Width="56" />
+                      <DataGridTextColumn Header="Colour" Binding="{Binding Coloring}" Width="110" />
+                      <DataGridTextColumn Header="Only for" Binding="{Binding Restriction}" Width="110" />
+                      <DataGridTextColumn Header="Licence" Binding="{Binding License}" Width="130" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="170" FontFamily="{StaticResource MonoFont}" />
+                      <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
                 </DockPanel>
-              </Border>
-              <DataGrid Name="MarkingGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:MarkingRow"
-                        DoubleTapped="OnMarkingDoubleTapped" RowHeight="36">
-                <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                      <DataTemplate x:DataType="app:MarkingRow">
-                        <Image Source="{Binding Picture}" Width="32" Height="32" RenderOptions.BitmapInterpolationMode="None" />
-                      </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                  </DataGridTemplateColumn>
-                  <DataGridTextColumn Header="Marking" Binding="{Binding Name}" Width="170" />
-                  <DataGridTextColumn Header="Layer" Binding="{Binding Layer}" Width="100" />
-                  <DataGridTextColumn Header="Sprites" Binding="{Binding Sprites}" Width="56" />
-                  <DataGridTextColumn Header="Colour" Binding="{Binding Coloring}" Width="110" />
-                  <DataGridTextColumn Header="Only for" Binding="{Binding Restriction}" Width="110" />
-                  <DataGridTextColumn Header="Licence" Binding="{Binding License}" Width="130" />
-                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="170" FontFamily="{StaticResource MonoFont}" />
-                  <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
-                </DataGrid.Columns>
-              </DataGrid>
-            </DockPanel>
-          </TabItem>
-          <TabItem Header="Jobs" Name="JobsTab">
-            <DockPanel>
-              <Border Classes="filterbar" DockPanel.Dock="Top">
-                <DockPanel>
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="3">
-                    <TextBlock Classes="hint" Text="Priority" Margin="0,0,3,0" />
-                    <Button Classes="small" Content="High" Click="OnSetPriority" Tag="High" />
-                    <Button Classes="small" Content="Medium" Click="OnSetPriority" Tag="Medium" />
-                    <Button Classes="small" Content="Low" Click="OnSetPriority" Tag="Low" />
-                    <Button Classes="small" Content="Never" Click="OnSetPriority" Tag="Never" />
-                    <Button Classes="small" Content="Show in preview" Click="OnPreviewJob" Margin="8,0,0,0" />
-                  </StackPanel>
-                  <TextBox Name="JobFilter" Width="200" HorizontalAlignment="Left" PlaceholderText="Filter jobs" MinHeight="20" />
+                <DockPanel Name="JobsPanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <DockPanel>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="3">
+                        <TextBlock Classes="hint" Text="Priority" Margin="0,0,3,0" />
+                        <Button Classes="small" Content="High" Click="OnSetPriority" Tag="High" />
+                        <Button Classes="small" Content="Medium" Click="OnSetPriority" Tag="Medium" />
+                        <Button Classes="small" Content="Low" Click="OnSetPriority" Tag="Low" />
+                        <Button Classes="small" Content="Never" Click="OnSetPriority" Tag="Never" />
+                        <Button Classes="small" Content="Show in preview" Click="OnPreviewJob" Margin="8,0,0,0" />
+                      </StackPanel>
+                      <TextBox Name="JobFilter" Width="200" HorizontalAlignment="Left" PlaceholderText="Filter jobs" MinHeight="20" />
+                    </DockPanel>
+                  </Border>
+                  <DataGrid Name="JobGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:JobRow" DoubleTapped="OnJobDoubleTapped">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Job" Binding="{Binding Name}" Width="190" />
+                      <DataGridTextColumn Header="Department" Binding="{Binding Department}" Width="160" />
+                      <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80" />
+                      <DataGridTextColumn Header="Loadout groups" Binding="{Binding Groups}" Width="110" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
                 </DockPanel>
-              </Border>
-              <DataGrid Name="JobGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:JobRow" DoubleTapped="OnJobDoubleTapped">
-                <DataGrid.Columns>
-                  <DataGridTextColumn Header="Job" Binding="{Binding Name}" Width="190" />
-                  <DataGridTextColumn Header="Department" Binding="{Binding Department}" Width="160" />
-                  <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80" />
-                  <DataGridTextColumn Header="Loadout groups" Binding="{Binding Groups}" Width="110" />
-                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
-                </DataGrid.Columns>
-              </DataGrid>
-            </DockPanel>
-          </TabItem>
-          <TabItem Header="Outfit" Name="OutfitTab">
-            <DockPanel>
-              <Border Classes="filterbar" DockPanel.Dock="Top">
-                <TextBlock Name="OutfitSummary" Classes="hint" VerticalAlignment="Center" />
-              </Border>
-              <DataGrid Name="GearGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:GearRow" DoubleTapped="OnGearDoubleTapped">
-                <DataGrid.Columns>
-                  <DataGridTextColumn Header="Where" Binding="{Binding Where}" Width="170" />
-                  <DataGridTextColumn Header="Item" Binding="{Binding Item}" Width="220" />
-                  <DataGridTextColumn Header="From" Binding="{Binding From}" Width="200" />
-                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
-                </DataGrid.Columns>
-              </DataGrid>
-            </DockPanel>
-          </TabItem>
-          <TabItem Header="Traits" Name="TraitsTab">
-            <DockPanel>
-              <Border Classes="filterbar" DockPanel.Dock="Top">
-                <DockPanel>
-                  <Button DockPanel.Dock="Right" Classes="small" Content="Pick / remove" Click="OnToggleTrait" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBox Name="TraitFilter" Width="200" PlaceholderText="Filter traits" MinHeight="20" />
-                    <TextBlock Name="TraitTotals" Classes="hint" />
-                  </StackPanel>
+                <DockPanel Name="OutfitPanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <TextBlock Name="OutfitSummary" Classes="hint" VerticalAlignment="Center" />
+                  </Border>
+                  <DataGrid Name="GearGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:GearRow" DoubleTapped="OnGearDoubleTapped">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Where" Binding="{Binding Where}" Width="170" />
+                      <DataGridTextColumn Header="Item" Binding="{Binding Item}" Width="220" />
+                      <DataGridTextColumn Header="From" Binding="{Binding From}" Width="200" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
                 </DockPanel>
-              </Border>
-              <DataGrid Name="TraitGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:TraitRow" DoubleTapped="OnTraitDoubleTapped">
-                <DataGrid.Columns>
-                  <DataGridTextColumn Header="Picked" Binding="{Binding Picked}" Width="56" />
-                  <DataGridTextColumn Header="Trait" Binding="{Binding Name}" Width="180" />
-                  <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="120" />
-                  <DataGridTextColumn Header="Cost" Binding="{Binding Cost}" Width="50" />
-                  <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="300" />
-                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="160" FontFamily="{StaticResource MonoFont}" />
-                  <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
-                </DataGrid.Columns>
-              </DataGrid>
-            </DockPanel>
-          </TabItem>
-          <TabItem Header="Credits" Name="CreditsTab">
-            <DataGrid Name="CreditsGrid" IsReadOnly="True" CanUserResizeColumns="True" x:DataType="app:CreditRow">
-              <DataGrid.Columns>
-                <DataGridTextColumn Header="Sprite" Binding="{Binding Rsi}" Width="320" FontFamily="{StaticResource MonoFont}" />
-                <DataGridTextColumn Header="Licence" Binding="{Binding LicenseText}" Width="180" />
-                <DataGridTextColumn Header="Credit" Binding="{Binding Copyright}" Width="*" />
-              </DataGrid.Columns>
-            </DataGrid>
-          </TabItem>
-          <TabItem Header="Messages" Name="MessagesTab">
-            <ListBox Name="MessagesList" FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="x:String">
-                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </TabItem>
-          <TabItem Header="Source" Name="SourceTab">
-            <TextBox Name="SourceText" Classes="mono" IsReadOnly="True" AcceptsReturn="True" BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" />
-          </TabItem>
-        </TabControl>
-      </Border>
+                <DockPanel Name="TraitsPanel">
+                  <Border Classes="filterbar" DockPanel.Dock="Top">
+                    <DockPanel>
+                      <Button DockPanel.Dock="Right" Classes="small" Content="Pick / remove" Click="OnToggleTrait" />
+                      <StackPanel Orientation="Horizontal" Spacing="8" ClipToBounds="True">
+                        <TextBox Name="TraitFilter" Width="200" PlaceholderText="Filter traits" MinHeight="20" />
+                        <TextBlock Name="TraitTotals" Classes="hint" />
+                      </StackPanel>
+                    </DockPanel>
+                  </Border>
+                  <DataGrid Name="TraitGrid" IsReadOnly="True" SelectionMode="Single" x:DataType="app:TraitRow" DoubleTapped="OnTraitDoubleTapped">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Picked" Binding="{Binding Picked}" Width="56" />
+                      <DataGridTextColumn Header="Trait" Binding="{Binding Name}" Width="180" />
+                      <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="120" />
+                      <DataGridTextColumn Header="Cost" Binding="{Binding Cost}" Width="50" />
+                      <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="300" />
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="160" FontFamily="{StaticResource MonoFont}" />
+                      <DataGridTextColumn Header="Defined in" Binding="{Binding Source}" Width="*" FontFamily="{StaticResource MonoFont}" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </DockPanel>
+                <DataGrid Name="CreditsGrid" IsReadOnly="True" CanUserResizeColumns="True" x:DataType="app:CreditRow">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Sprite" Binding="{Binding Rsi}" Width="320" FontFamily="{StaticResource MonoFont}" />
+                    <DataGridTextColumn Header="Licence" Binding="{Binding LicenseText}" Width="180" />
+                    <DataGridTextColumn Header="Credit" Binding="{Binding Copyright}" Width="*" />
+                  </DataGrid.Columns>
+                </DataGrid>
+                <ListBox Name="MessagesList" FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                      <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBox Name="SourceText" Classes="mono" IsReadOnly="True" AcceptsReturn="True" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+              </Panel>
+            </Border>
+          </Grid>
+        </Grid>
+      </DockPanel>
     </Grid>
   </DockPanel>
 </Window>

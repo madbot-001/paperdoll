@@ -56,9 +56,11 @@ public class ScreenshotTests
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
             window.Show();
             Dispatcher.UIThread.RunJobs();
-            // PAPERDOLL_SCREENSHOT_PART selects a part ("Head/Hair/0"); PAPERDOLL_SCREENSHOT_TAB a table tab.
-            if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_PART") is { } part)
-                window.ShowPart(part, int.TryParse(Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_TAB"), out var tab) ? tab : 0);
+            // PAPERDOLL_SCREENSHOT_PART selects a part ("Head/Hair/0"); PAPERDOLL_SCREENSHOT_TAB opens a tab by name ("Markings").
+            var part = Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_PART");
+            var tab = Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_TAB");
+            if (part != null || tab != null)
+                window.ShowPart(part ?? "", tab);
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();

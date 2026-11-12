@@ -55,7 +55,7 @@ public class SessionTests
     {
         await using var session = await LizardInA();
         // A fork with nothing in it: no species at all, so no character can be fitted to it.
-        var empty = new ForkInfo("c", "Fork C", "o/c", "main", AppearanceModel.New, false, ["c"]);
+        var empty = new ForkInfo("empty", "Empty fork", "o/empty", "main", AppearanceModel.New, false, ["empty"]);
 
         await Assert.ThrowsAnyAsync<Exception>(() => session.LoadForkAsync(empty, update: false, ct: TestContext.Current.CancellationToken));
 
@@ -63,7 +63,7 @@ public class SessionTests
         Assert.Equal("Lizard", session.Look!.Species);
         Assert.Equal("Scar", Assert.Single(session.Look.Markings["Torso"]["Chest"]).Id);
         // Never loaded, so it is not left looking downloaded.
-        Assert.Null(await session.Store.CommitOfAsync("c", TestContext.Current.CancellationToken));
+        Assert.Null(await session.Store.CommitOfAsync("empty", TestContext.Current.CancellationToken));
     }
 
     [Fact]

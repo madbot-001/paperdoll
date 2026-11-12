@@ -34,6 +34,8 @@ public class InteractionTests
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
             window.Show();
             Dispatcher.UIThread.RunJobs();
+            window.ShowTab(EditorTab.Markings);
+            Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
             Point Where(string id) => window.GetVisualDescendants().OfType<TreeViewItem>()
@@ -74,7 +76,7 @@ public class InteractionTests
         {
             var window = new MainWindow(editor) { Width = 1100, Height = 720 };
             window.Show();
-            window.ShowPart($"Outfit/{group.Id}", 0);
+            window.ShowPart($"Outfit/{group.Id}");
             Dispatcher.UIThread.RunJobs();
             var nothing = window.GetVisualDescendants().OfType<RadioButton>().First(r => r.Content as string == "Nothing");
             nothing.IsChecked = true;

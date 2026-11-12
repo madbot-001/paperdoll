@@ -14,11 +14,6 @@ public partial class MainWindow
 
     private void SetUpTables()
     {
-        BottomTabs.SelectionChanged += (_, e) =>
-        {
-            if (e.Source == BottomTabs)
-                RefreshShownTab();
-        };
         SpeciesFilter.TextChanged += (_, _) => FilterSpecies();
         MarkingFilter.TextChanged += (_, _) => FilterMarkings();
         JobFilter.TextChanged += (_, _) => FilterJobs();
@@ -85,7 +80,6 @@ public partial class MainWindow
         var used = picked.Where(catalog.Traits.ContainsKey).Select(id => catalog.Traits[id]).ToList();
         TraitTotals.Text = $"{used.Count} picked" + (rules.MaxCount is { } maxCount ? $" of {maxCount}" : "")
             + (rules.MaxPoints is { } maxPoints ? $", {used.Sum(t => t.Cost)} of {maxPoints} points" : "");
-        TraitsTab.Header = used.Count == 0 ? "Traits" : $"Traits ({used.Count})";
         FilterTraits();
     }
 
@@ -162,63 +156,75 @@ public partial class MainWindow
         _refreshing = true;
         SelectDressedJob();
         _refreshing = false;
-        _selected = new Node(NodeKind.Outfit);
+        // The user stays on Jobs; Loadout opens on this job's outfit.
+        _lastNode[EditorTab.Loadout] = new Node(NodeKind.Outfit);
         RefreshAll();
     }
 
     // Tabs whose table is out of date. Only the tab on show is filled after an edit; the others
     // when they are next shown, as laying out a big table takes long.
-    private readonly HashSet<TabItem> _staleTabs = [];
+    private readonly HashSet<EditorTab> _staleTabs = [];
 
     private void RefreshTables()
     {
         var fixes = _session!.LastFixes;
-        MessagesTab.Header = fixes.Count == 0 ? "Messages" : $"Messages ({fixes.Count})";
+        if (_tabButtons.TryGetValue(EditorTab.Messages, out var messages))
+            messages.Content = fixes.Count == 0 ? "Messages" : $"Messages ({fixes.Count})";
         // The species table shows the fork's species, which no edit changes.
-        foreach (var tab in BottomTabs.Items.OfType<TabItem>().Where(t => t != SpeciesTab))
+        foreach (var tab in Enum.GetValues<EditorTab>().Where(t => t != EditorTab.Appearance))
             _staleTabs.Add(tab);
         RefreshShownTab();
     }
 
-    // The marking table also follows the part picked in the explorer.
+    // The marking table also follows the part picked in the side list.
     private void RefreshMarkingTableSoon()
     {
-        _staleTabs.Add(MarkingsTab);
+        _staleTabs.Add(EditorTab.Markings);
         RefreshShownTab();
     }
 
     private void RefreshShownTab()
     {
-        if (_session?.Look == null || BottomTabs.SelectedItem is not TabItem tab)
+        if (_session?.Look == null)
             return;
+        var tab = _tab;
         // Only the species row highlighted follows the character, when its species changed: a
         // row the user picked stays picked through other edits.
-        if (tab == SpeciesTab && !_staleTabs.Contains(tab) && _session.Look.Species != _highlightedSpecies)
+        if (tab == EditorTab.Appearance && !_staleTabs.Contains(tab) && _session.Look.Species != _highlightedSpecies)
             SelectCurrentSpecies();
         if (!_staleTabs.Remove(tab))
             return;
         var session = _session;
-        if (tab == SpeciesTab)
-            BuildSpeciesTable();
-        else if (tab == MarkingsTab)
-            RefreshMarkingTable();
-        else if (tab == JobsTab)
-            BuildJobTable();
-        else if (tab == OutfitTab)
-            BuildGearTable();
-        else if (tab == TraitsTab)
-            BuildTraitTable();
-        else if (tab == CreditsTab)
-            CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
-        else if (tab == MessagesTab)
+        switch (tab)
         {
-            var fixes = session.LastFixes;
-            MessagesList.ItemsSource = fixes.Count == 0
-                ? ["The character passes the game's checks as it is."]
-                : fixes.Select(f => $"{f.Field}: {f.Message}").ToList();
+            case EditorTab.Appearance:
+                BuildSpeciesTable();
+                break;
+            case EditorTab.Markings:
+                RefreshMarkingTable();
+                break;
+            case EditorTab.Jobs:
+                BuildJobTable();
+                break;
+            case EditorTab.Loadout:
+                BuildGearTable();
+                break;
+            case EditorTab.Traits:
+                BuildTraitTable();
+                break;
+            case EditorTab.Credits:
+                CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
+                break;
+            case EditorTab.Messages:
+                var fixes = session.LastFixes;
+                MessagesList.ItemsSource = fixes.Count == 0
+                    ? ["The character passes the game's checks as it is."]
+                    : fixes.Select(f => $"{f.Field}: {f.Message}").ToList();
+                break;
+            case EditorTab.Source:
+                SourceText.Text = session.File!.ToYaml();
+                break;
         }
-        else if (tab == SourceTab)
-            SourceText.Text = session.File!.ToYaml();
     }
 
     private void BuildSpeciesTable()
@@ -272,11 +278,16 @@ public partial class MainWindow
 
     private void OnUseSpecies(object? sender, RoutedEventArgs e) => UseSelectedSpecies();
 
+    private void OnSpeciesBack(object? sender, RoutedEventArgs e) => EndSpeciesPicker();
+
     private void OnSpeciesDoubleTapped(object? sender, TappedEventArgs e) => UseSelectedSpecies();
 
     private void UseSelectedSpecies()
     {
-        if (SpeciesGrid.SelectedItem is not SpeciesRow row || row.Id == _session?.Look?.Species)
+        if (SpeciesGrid.SelectedItem is not SpeciesRow row)
+            return;
+        EndSpeciesPicker();
+        if (row.Id == _session?.Look?.Species)
             return;
         _selected = new Node(NodeKind.Character);
         Apply(s => s.ChangeSpecies(row.Id));

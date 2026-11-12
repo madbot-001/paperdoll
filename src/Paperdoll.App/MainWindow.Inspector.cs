@@ -21,9 +21,28 @@ public partial class MainWindow
     {
         Inspector.Children.Clear();
         Inspector.RowDefinitions.Clear();
+        PageHost.VerticalScrollBarVisibility = _tab == EditorTab.Description ? Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled : Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
         var look = _session!.Look!;
         var species = _session.Content!.Characters.Species[look.Species];
         var organ = _selected.Organ != null ? species.Organs.FirstOrDefault(o => o.Category == _selected.Organ) : null;
+
+        // Jobs and Description have a page of their own whatever part is selected; the utility tabs have none.
+        switch (_tab)
+        {
+            case EditorTab.Jobs:
+                InspectJobs();
+                return;
+            case EditorTab.Description:
+                InspectDescription();
+                return;
+            case var tab when EditorTabs.IsUtility(tab):
+                return;
+            // The side list had no organ to offer: a note, not the Appearance page.
+            case EditorTab.Markings when _selected.Kind == NodeKind.Character:
+                InspectorTitle.Text = "Markings";
+                AddWide(Text("This species takes no markings."));
+                return;
+        }
 
         switch (_selected.Kind)
         {
@@ -61,17 +80,17 @@ public partial class MainWindow
                 InspectAllergies();
                 break;
             default:
-                InspectCharacter(species);
+                InspectAppearance(species);
                 break;
         }
     }
 
-    private void InspectCharacter(SpeciesInfo species)
+    private void InspectAppearance(SpeciesInfo species)
     {
         var session = _session!;
         var file = session.File!;
         var look = session.Look!;
-        InspectorTitle.Text = "Character";
+        InspectorTitle.Text = "Appearance";
 
         AddCategory("Identity");
         var name = new TextBox { Text = file.Name ?? "", PlaceholderText = "Name (required in the game)" };
@@ -87,7 +106,7 @@ public partial class MainWindow
 
         var speciesRow = new DockPanel();
         var change = new Button { Classes = { "small" }, Content = "Change...", Margin = new Thickness(4, 0, 2, 0) };
-        change.Click += (_, _) => BottomTabs.SelectedIndex = 0;
+        change.Click += (_, _) => ShowSpeciesPicker();
         DockPanel.SetDock(change, Dock.Right);
         speciesRow.Children.Add(change);
         speciesRow.Children.Add(Text(session.DisplayName(species)));
@@ -229,6 +248,17 @@ public partial class MainWindow
         };
         AddRow("Spawn priority", spawn, "Where you arrive when joining mid-round.");
 
+        AddCategory("File");
+        AddRow("Fork label", Mono(file.ForkId ?? ""));
+        AddRow("Format", Text("Version 2, new appearance model"));
+    }
+
+    private void InspectJobs()
+    {
+        var session = _session!;
+        var file = session.File!;
+        InspectorTitle.Text = "Jobs";
+
         var fallback = session.Fork!.FallbackJob;
         var overflow = session.Content!.Outfits.Jobs.TryGetValue(fallback, out var overflowJob)
             ? session.Content.Strings[overflowJob.NameKey] ?? overflowJob.Id
@@ -246,11 +276,15 @@ public partial class MainWindow
                 Apply(s => s.Edit(f => f.PreferenceUnavailable = unavailableValues[unavailable.SelectedIndex]));
         };
         AddRow("No job free", unavailable, "When none of your chosen jobs has room at round start.");
+    }
 
-        AddCategory("Description");
+    private void InspectDescription()
+    {
+        InspectorTitle.Text = "Description";
+
         var description = new TextBox
         {
-            Text = file.FlavorText ?? "",
+            Text = _session!.File!.FlavorText ?? "",
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 70,
@@ -259,10 +293,8 @@ public partial class MainWindow
         };
         CommitOnEnterOrLeave(description, text => Apply(s => s.Edit(f => f.FlavorText = text)));
         AddWide(description);
-
-        AddCategory("File");
-        AddRow("Fork label", Mono(file.ForkId ?? ""));
-        AddRow("Format", Text("Version 2, new appearance model"));
+        // The box fills the page; the page does not scroll, the box does.
+        Inspector.RowDefinitions[^1].Height = GridLength.Star;
     }
 
     private void InspectOrgan(OrganInfo organ)
@@ -325,7 +357,7 @@ public partial class MainWindow
         add.IsEnabled = limit == null || limit.Limit == 1 || counted < limit.Limit;
         if (limit is { Limit: 1 } && counted == 1)
             add.Content = "Swap for another...";
-        add.Click += (_, _) => BottomTabs.SelectedIndex = 1;
+        add.Click += (_, _) => MarkingFilter.Focus();
         AddWide(add);
     }
 

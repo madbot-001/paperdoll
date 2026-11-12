@@ -480,6 +480,9 @@ public partial class MainWindow
             KeepPreviousWorkingCopy();
             _session.Open(text);
             _session.PreviewJob = null;
+            _tab = EditorTab.Appearance;
+            _picking = false;
+            _lastNode.Clear();
             // Paperdoll's own copies (the working copy, the previous one) are opened as new
             // characters, so Save never writes over them.
             var local = files[0].TryGetLocalPath();

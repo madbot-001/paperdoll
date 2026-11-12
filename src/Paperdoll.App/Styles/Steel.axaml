@@ -298,36 +298,32 @@
     <Setter Property="Margin" Value="4,0" />
   </Style>
 
-  <!-- Bottom tabs -->
-  <Style Selector="TabControl">
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
-  </Style>
-  <Style Selector="TabItem">
+  <!-- Editor tab strip: tabs open towards the page below -->
+  <Style Selector="RadioButton.tab">
     <Setter Property="FontSize" Value="11" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="10,3" />
-    <Setter Property="Margin" Value="0,0,2,0" />
+    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="Margin" Value="0,0,1,0" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="tab" Background="Transparent" BorderBrush="Transparent" BorderThickness="1,0,1,1"
+        <Border Name="tab" Background="Transparent" BorderBrush="Transparent" BorderThickness="1,1,1,0"
                 Padding="{TemplateBinding Padding}">
-          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" />
         </Border>
       </ControlTemplate>
     </Setter>
   </Style>
-  <Style Selector="TabItem /template/ ContentPresenter">
+  <Style Selector="RadioButton.tab /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
   </Style>
-  <Style Selector="TabItem:pointerover /template/ Border#tab">
+  <Style Selector="RadioButton.tab:pointerover /template/ Border#tab">
     <Setter Property="Background" Value="{StaticResource HoverBrush}" />
   </Style>
-  <Style Selector="TabItem:selected /template/ Border#tab">
+  <Style Selector="RadioButton.tab:checked /template/ Border#tab">
     <Setter Property="Background" Value="{StaticResource FieldBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
   </Style>
-  <Style Selector="TabItem:selected /template/ ContentPresenter">
+  <Style Selector="RadioButton.tab:checked /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
   </Style>
 

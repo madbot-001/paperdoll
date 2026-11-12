@@ -49,8 +49,9 @@ public partial class MainWindow
     private Dictionary<string, TreeViewItem> _items = [];
 
     /// <summary>
-    /// The character as a tree: organs that take markings, their layers with how many markings
-    /// they hold, and the markings on each. Layers that can take nothing are left out.
+    /// The open tab's parts as a tree, the side list. On Markings: organs that take markings,
+    /// their layers with how many markings they hold, and the markings on each; layers that can
+    /// take nothing are left out. Tabs without a side list leave it empty.
     /// </summary>
     // What the tree showed when last built. An edit that changes nothing in it (age, the
     // description) leaves the tree as it is: rebuilding and laying it out takes long.
@@ -63,6 +64,7 @@ public partial class MainWindow
         var look = session.Look!;
         var file = session.File!;
         var shows = new System.Text.StringBuilder()
+            .Append(_tab).Append('|')
             .Append(session.Fork!.Id).Append(session.Content!.Commit).Append('|')
             .Append(file.Name).Append('|').Append(look.Species).Append('|').Append(look.Sex).Append('|')
             .Append(session.ShowClothes).Append('|');
@@ -97,21 +99,19 @@ public partial class MainWindow
         var shows = ExplorerShows();
         if (shows == _explorerShows && Explorer.Items.Count > 0)
         {
-            KeepSelection(Explorer.Items.OfType<TreeViewItem>().First());
+            KeepSelection();
             return;
         }
         _explorerShows = shows;
         var items = _items = new Dictionary<string, TreeViewItem>();
+        Explorer.ItemsSource = null;
+        Explorer.Items.Clear();
 
-        var root = Item(new Node(NodeKind.Character), HeaderFor(
-            string.IsNullOrWhiteSpace(session.File!.Name) ? "Unnamed character" : session.File.Name!,
-            session.DisplayName(species)), expandedByDefault: true, items);
-
-        if (session.DressedJob() is { } job)
+        if (_tab == EditorTab.Loadout && session.DressedJob() is { } job)
         {
             var outfits = session.Content.Outfits;
             var jobName = outfits.Jobs.TryGetValue(job, out var info) ? session.Content.Strings.Get(info.NameKey) : job;
-            var outfitItem = Item(new Node(NodeKind.Outfit), HeaderFor("Outfit", jobName + (session.ShowClothes ? "" : ", hidden")), false, items);
+            var outfitItem = Item(new Node(NodeKind.Outfit), HeaderFor("Outfit", jobName + (session.ShowClothes ? "" : ", hidden")), true, items);
             foreach (var (groupId, chosen) in session.LoadoutFor(job).Groups)
             {
                 if (!outfits.Groups.TryGetValue(groupId, out var group) || group.Hidden)
@@ -122,14 +122,14 @@ public partial class MainWindow
                     groupItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = session.LoadoutName(loadout) }, Tag = new Node(NodeKind.LoadoutGroup, Group: groupId), Focusable = false });
                 outfitItem.Items.Add(groupItem);
             }
-            root.Items.Add(outfitItem);
+            Explorer.Items.Add(outfitItem);
         }
 
         var traitCatalog = session.Content.Traits;
-        if (traitCatalog.Traits.Count > 0)
+        if (_tab == EditorTab.Traits && traitCatalog.Traits.Count > 0)
         {
             var picked = session.SelectedTraits();
-            var traitsItem = Item(new Node(NodeKind.Traits), HeaderFor("Traits", $"{picked.Count} picked"), false, items);
+            var traitsItem = Item(new Node(NodeKind.Traits), HeaderFor("Traits", $"{picked.Count} picked"), true, items);
             foreach (var category in traitCatalog.Categories.Values.OrderBy(c => c.Priority).ThenBy(c => session.Content.Strings.Get(c.NameKey), StringComparer.CurrentCulture))
             {
                 var inCategory = picked.Where(id => traitCatalog.Traits.TryGetValue(id, out var t) && t.Category == category.Id).ToList();
@@ -139,86 +139,71 @@ public partial class MainWindow
                     categoryItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = session.Content.Strings.Get(traitCatalog.Traits[id].NameKey) }, Tag = new Node(NodeKind.TraitCategory, Group: category.Id), Focusable = false });
                 traitsItem.Items.Add(categoryItem);
             }
-            root.Items.Add(traitsItem);
+            Explorer.Items.Add(traitsItem);
         }
 
-        var antags = session.Content.Outfits.Antags.Values.Where(a => a.SetPreference).ToList();
-        if (antags.Count > 0)
+        if (_tab == EditorTab.Records && session.Fork!.Extras.HasFlag(ProfileExtras.Records))
         {
-            var wanted = session.File!.AntagPreferences;
-            var antagsItem = Item(new Node(NodeKind.Antags), HeaderFor("Antagonists", $"{wanted.Count} wanted"), false, items);
-            foreach (var id in wanted)
-            {
-                var name = session.Content.Outfits.Antags.TryGetValue(id, out var antag) ? session.Content.Strings.Get(antag.NameKey) : id;
-                antagsItem.Items.Add(new TreeViewItem { Header = new TextBlock { Text = name }, Tag = new Node(NodeKind.Antags), Focusable = false });
-            }
-            root.Items.Add(antagsItem);
-        }
-
-        var extras = session.Fork!.Extras;
-        if (extras.HasFlag(ProfileExtras.Records))
-        {
-            var recordsItem = Item(new Node(NodeKind.Records), HeaderFor("Records", null), false, items);
+            var recordsItem = Item(new Node(NodeKind.Records), HeaderFor("Records", null), true, items);
             foreach (var list in CharacterRecords.EntryLists)
             {
                 var count = CharacterRecords.Entries(session.File!, list).Count;
                 recordsItem.Items.Add(Item(new Node(NodeKind.RecordList, Group: list), HeaderFor(RecordListName(list), count.ToString()), false, items));
             }
-            root.Items.Add(recordsItem);
+            Explorer.Items.Add(recordsItem);
         }
-        if (extras.HasFlag(ProfileExtras.Allergies))
-            root.Items.Add(Item(new Node(NodeKind.Allergies), HeaderFor("Allergies", Allergies.Read(session.File!).Count.ToString()), false, items));
 
-        foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
+        if (_tab == EditorTab.Markings)
         {
-            var layers = organ.MarkingLayers
-                .Select(layer => (layer, applied: Applied(look, organ.Category, layer), limit: session.LayerLimit(organ, layer)))
-                .Where(l => l.applied.Count > 0 || (l.limit != 0 && session.AvailableMarkings(organ, l.layer).Count > 0))
-                .ToList();
-            if (layers.Count == 0)
-                continue;
-
-            // Old-model categories spanning several layers share one limit, shown on the category.
-            var shared = session.SharesLimit(organ);
-            var sharedLimit = shared ? session.LayerLimit(organ, organ.MarkingLayers[0]) : null;
-            var organCount = sharedLimit is { } total ? $"{session.LimitCount(organ, organ.MarkingLayers[0])}/{total}" : null;
-            var organItem = Item(new Node(NodeKind.Organ, organ.Category), HeaderFor(Words(organ.Category), organCount), true, items);
-            foreach (var (layer, applied, limit) in layers)
+            foreach (var organ in species.Organs.Where(o => o.MarkingGroup != null))
             {
-                var count = limit is { } l && !shared ? $"{applied.Count}/{l}" : applied.Count.ToString();
-                var layerItem = Item(new Node(NodeKind.Layer, organ.Category, layer), HeaderFor(Words(layer), count), applied.Count > 0, items);
-                for (var i = 0; i < applied.Count; i++)
+                var layers = organ.MarkingLayers
+                    .Select(layer => (layer, applied: Applied(look, organ.Category, layer), limit: session.LayerLimit(organ, layer)))
+                    .Where(l => l.applied.Count > 0 || (l.limit != 0 && session.AvailableMarkings(organ, l.layer).Count > 0))
+                    .ToList();
+                if (layers.Count == 0)
+                    continue;
+
+                // Old-model categories spanning several layers share one limit, shown on the category.
+                var shared = session.SharesLimit(organ);
+                var sharedLimit = shared ? session.LayerLimit(organ, organ.MarkingLayers[0]) : null;
+                var organCount = sharedLimit is { } total ? $"{session.LimitCount(organ, organ.MarkingLayers[0])}/{total}" : null;
+                var organItem = Item(new Node(NodeKind.Organ, organ.Category), HeaderFor(Words(organ.Category), organCount), true, items);
+                foreach (var (layer, applied, limit) in layers)
                 {
-                    var markingItem = Item(new Node(NodeKind.Marking, organ.Category, layer, i),
-                        MarkingHeader(session.MarkingName(applied[i].Id), OwnColors(session, applied[i])), false, items);
-                    layerItem.Items.Add(markingItem);
+                    var count = limit is { } l && !shared ? $"{applied.Count}/{l}" : applied.Count.ToString();
+                    var layerItem = Item(new Node(NodeKind.Layer, organ.Category, layer), HeaderFor(Words(layer), count), applied.Count > 0, items);
+                    for (var i = 0; i < applied.Count; i++)
+                    {
+                        var markingItem = Item(new Node(NodeKind.Marking, organ.Category, layer, i),
+                            MarkingHeader(session.MarkingName(applied[i].Id), OwnColors(session, applied[i])), false, items);
+                        layerItem.Items.Add(markingItem);
+                    }
+                    organItem.Items.Add(layerItem);
                 }
-                organItem.Items.Add(layerItem);
+                Explorer.Items.Add(organItem);
             }
-            root.Items.Add(organItem);
         }
 
-        Explorer.ItemsSource = null;
-        Explorer.Items.Clear();
-        Explorer.Items.Add(root);
-        KeepSelection(root);
+        KeepSelection();
     }
 
-    // Keeps the selection on the same part, or the nearest part that still exists.
-    private void KeepSelection(TreeViewItem root)
+    // Keeps the selection on the same part, or the nearest part that still exists, or else the
+    // open tab's top row; the tab then shows that part when next opened.
+    private void KeepSelection()
     {
         for (Node? node = _selected; node != null; node = node.Parent)
         {
             if (_items.TryGetValue(node.Key, out var item))
             {
-                _selected = node;
+                _selected = _lastNode[_tab] = node;
                 if (!ReferenceEquals(Explorer.SelectedItem, item))
                     Explorer.SelectedItem = item;
                 return;
             }
         }
-        _selected = new Node(NodeKind.Character);
-        Explorer.SelectedItem = root;
+        _selected = _lastNode[_tab] = TopNode(_tab);
+        Explorer.SelectedItem = _items.GetValueOrDefault(_selected.Key);
     }
 
     private TreeViewItem Item(Node node, Control header, bool expandedByDefault, Dictionary<string, TreeViewItem> items)
@@ -269,21 +254,41 @@ public partial class MainWindow
         Select(node);
     }
 
-    /// <summary>Shows a part of the character in the inspector and scopes the markings table to it.</summary>
+    /// <summary>
+    /// Shows a part of the character: opens the tab that holds it, shows the part on the page and
+    /// scopes the markings table to it. A part on a tab the fork does not have opens Appearance.
+    /// </summary>
     private void Select(Node node)
     {
+        var tab = TabFor(node.Kind);
+        if (!_tabsShown.Contains(tab))
+            (tab, node) = (EditorTab.Appearance, new Node(NodeKind.Character));
+        Open(tab, node);
+    }
+
+    // Opens a tab on a part of it.
+    private void Open(EditorTab tab, Node node)
+    {
+        var tabChanged = tab != _tab;
+        _tab = tab;
+        _picking = false;
         _selected = node;
         _refreshing = true;
         try
         {
-            if (_items.TryGetValue(node.Key, out var item) && !ReferenceEquals(Explorer.SelectedItem, item))
+            // The side list shows the open tab only; its selection may settle on another part.
+            if (tabChanged)
+                BuildExplorer();
+            if (_items.TryGetValue(_selected.Key, out var item) && !ReferenceEquals(Explorer.SelectedItem, item))
             {
                 for (var parent = item.Parent as TreeViewItem; parent != null; parent = parent.Parent as TreeViewItem)
                     parent.IsExpanded = true;
                 Explorer.SelectedItem = item;
             }
+            _lastNode[_tab] = _selected;
             BuildInspector();
             BuildBreadcrumbs();
+            ArrangeForTab();
             RefreshMarkingTableSoon();
         }
         finally
@@ -355,13 +360,18 @@ public partial class MainWindow
         return words.Length == 0 ? words : words[0] + words[1..].ToLowerInvariant();
     }
 
-    /// <summary>Selects a part by "Organ/Layer/Index" (any prefix) and shows a table tab; for screenshots.</summary>
-    public void ShowPart(string path, int tab)
+    /// <summary>
+    /// Selects a part by "Organ/Layer/Index" (any prefix), then opens the tab named, if any; for
+    /// screenshots. A record list is named as the side list names it ("Records/Medical").
+    /// </summary>
+    public void ShowPart(string path, string? tab = null)
     {
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var node = parts is ["Antagonists"] ? new Node(NodeKind.Antags)
             : parts is ["Allergies"] ? new Node(NodeKind.Allergies)
-            : parts is ["Records", ..] ? parts.Length > 1 ? new Node(NodeKind.RecordList, Group: parts[1]) : new Node(NodeKind.Records)
+            : parts is ["Records", ..] ? parts.Length > 1
+                ? new Node(NodeKind.RecordList, Group: CharacterRecords.EntryLists.FirstOrDefault(list => RecordListName(list) == parts[1]) ?? parts[1])
+                : new Node(NodeKind.Records)
             : parts is ["Traits", ..] ? parts.Length > 1 ? new Node(NodeKind.TraitCategory, Group: parts[1]) : new Node(NodeKind.Traits)
             : parts is ["Outfit", ..] ? parts.Length > 1 ? new Node(NodeKind.LoadoutGroup, Group: parts[1]) : new Node(NodeKind.Outfit) : parts.Length switch
         {
@@ -371,7 +381,8 @@ public partial class MainWindow
             _ => new Node(NodeKind.Marking, parts[0], parts[1], int.Parse(parts[2])),
         };
         Select(node);
-        BottomTabs.SelectedIndex = tab;
+        if (Enum.TryParse<EditorTab>(tab, out var shown))
+            ShowTab(shown);
     }
 
     private static IBrush Brush(Rgba color) =>
