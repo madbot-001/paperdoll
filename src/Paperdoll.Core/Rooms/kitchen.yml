@@ -1,0 +1,73 @@
+# The demo room for the chef: a small kitchen. See bar.yml for how a room file is written.
+id: kitchen
+name: Kitchen
+departments: []
+jobs: [ Chef ]
+stand: "4,3"
+legend:
+  p: Plating
+  k: FloorKitchen
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "pkkkkkkkp"
+- "pkkkkkkkp"
+- "pkkkkkkkp"
+- "pkkkkkkkp"
+- "pkkkkkkkp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Walls all round, windows either side of the door to the corridor south.
+- { proto: WallSolid, pos: "0.5,7.5" }
+- { proto: WallSolid, pos: "1.5,7.5" }
+- { proto: WallSolid, pos: "2.5,7.5" }
+- { proto: WallSolid, pos: "3.5,7.5" }
+- { proto: WallSolid, pos: "4.5,7.5" }
+- { proto: WallSolid, pos: "5.5,7.5" }
+- { proto: WallSolid, pos: "6.5,7.5" }
+- { proto: WallSolid, pos: "7.5,7.5" }
+- { proto: WallSolid, pos: "8.5,7.5" }
+- { proto: WallSolid, pos: "0.5,6.5" }
+- { proto: WallSolid, pos: "8.5,6.5" }
+- { proto: WallSolid, pos: "0.5,5.5" }
+- { proto: WallSolid, pos: "8.5,5.5" }
+- { proto: WallSolid, pos: "0.5,4.5" }
+- { proto: WallSolid, pos: "8.5,4.5" }
+- { proto: WallSolid, pos: "0.5,3.5" }
+- { proto: WallSolid, pos: "8.5,3.5" }
+- { proto: WallSolid, pos: "0.5,2.5" }
+- { proto: WallSolid, pos: "8.5,2.5" }
+- { proto: WallSolid, pos: "0.5,1.5" }
+- { proto: WallSolid, pos: "8.5,1.5" }
+- { proto: WallSolid, pos: "1.5,1.5" }
+- { proto: WallSolid, pos: "3.5,1.5" }
+- { proto: WallSolid, pos: "5.5,1.5" }
+- { proto: WallSolid, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: Window, pos: "2.5,1.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: Window, pos: "6.5,1.5" }
+- { proto: AirlockGlass, pos: "4.5,1.5" }
+# Along the north wall: the vendors, a counter with the microwave and grinder, the grill and the fridge.
+- { proto: VendingMachineChefvend, pos: "1.5,6.5" }
+- { proto: VendingMachineDinnerware, pos: "2.5,6.5" }
+- { proto: TableCounterMetal, pos: "3.5,6.5" }
+- { proto: TableCounterMetal, pos: "4.5,6.5" }
+- { proto: KitchenMicrowave, pos: "3.5,6.5" }
+- { proto: KitchenReagentGrinder, pos: "4.5,6.5" }
+- { proto: KitchenElectricGrill, pos: "5.5,6.5" }
+- { proto: SmartFridge, pos: "7.5,6.5" }
+# A counter to work at, the meat spike to the west.
+- { proto: TableCounterMetal, pos: "6.5,3.5" }
+- { proto: TableCounterMetal, pos: "6.5,2.5" }
+- { proto: FoodPlate, pos: "6.5,3.55" }
+- { proto: KitchenKnife, pos: "6.5,2.6" }
+- { proto: RollingPin, pos: "6.55,2.35" }
+- { proto: KitchenSpike, pos: "1.5,3.5" }
+- { proto: Sink, pos: "1.5,5.5", rot: 90 }
+# Lights: tubes on the north wall, small bulbs on the west and east walls.
+- { proto: Poweredlight, pos: "3.5,6.5" }
+- { proto: Poweredlight, pos: "6.5,6.5" }
+- { proto: PoweredSmallLight, pos: "1.5,2.5", rot: 90 }
+- { proto: PoweredSmallLight, pos: "7.5,4.5", rot: -90 }

@@ -8,8 +8,8 @@ using YamlDotNet.RepresentationModel;
 
 namespace Paperdoll.Core.Outfits;
 
-/// <summary>One sprite layer an item adds to the character.</summary>
-public sealed record ClothingLayer(SpriteRef Sprite, Rgba Color, bool SpeciesSpecific);
+/// <summary>One sprite layer an item adds to the character; <paramref name="Unshaded"/> when it has <c>shader: unshaded</c>.</summary>
+public sealed record ClothingLayer(SpriteRef Sprite, Rgba Color, bool SpeciesSpecific, bool Unshaded = false);
 
 /// <summary>What an item looks like worn in a slot, and which body layers it hides.</summary>
 public sealed record ClothingVisual(string Entity, IReadOnlyList<ClothingLayer> Layers, IReadOnlySet<string> HiddenLayers);
@@ -76,7 +76,8 @@ public sealed class ClothingResolver(PrototypeIndex prototypes, Func<string, Rsi
                     state = $"{state}-{speciesId}";
                     species = true;
                 }
-                layers.Add(new ClothingLayer(new SpriteRef(rsi, state), Color(Str(data, "color")), species || (speciesId != null && state.EndsWith(speciesId, StringComparison.Ordinal))));
+                layers.Add(new ClothingLayer(new SpriteRef(rsi, state), Color(Str(data, "color")), species || (speciesId != null && state.EndsWith(speciesId, StringComparison.Ordinal)),
+                    Str(data, "shader") == "unshaded"));
             }
         }
         else if (baseRsi != null)

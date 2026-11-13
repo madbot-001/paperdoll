@@ -464,6 +464,19 @@ public class OldModelTests
     }
 
     [Fact]
+    public void Starlight_s_glowing_eyes_and_hair_draw_unshaded_and_nothing_else_does()
+    {
+        var plain = Renderer().Layers(CharacterFile.Parse(File).ReadLook(Catalog));
+        Assert.DoesNotContain(plain, l => l.Unshaded);
+
+        // The flags sit in the appearance, beside the hair.
+        var hair = File.Split('\n').First(l => l.TrimStart() == "hair: HairShort");
+        var indent = hair[..^hair.TrimStart().Length];
+        var look = CharacterFile.Parse(File.Replace(hair, $"{hair}\n{indent}eyeGlowing: true\n{indent}hairGlowing: true", StringComparison.Ordinal)).ReadLook(Catalog);
+        Assert.Equal(["eyes", "short"], Renderer().Layers(look).Where(l => l.Unshaded).Select(l => l.Sprite.State!));
+    }
+
+    [Fact]
     public void Base_layers_take_the_skin_colour_and_eyes_the_eye_colour()
     {
         var look = CharacterFile.Parse(File).ReadLook(Catalog);

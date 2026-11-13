@@ -23,6 +23,8 @@
       <RadioButton Name="FloorButton" GroupName="background" Content="Station floor" IsCheckedChanged="OnOptionChanged" />
       <RadioButton Name="PlainButton" GroupName="background" Content="Plain" IsCheckedChanged="OnOptionChanged" />
       <RadioButton Name="TransparentButton" GroupName="background" Content="Transparent" IsCheckedChanged="OnOptionChanged" />
+      <RadioButton Name="RoomButton" GroupName="background" Content="Demo room" IsCheckedChanged="OnOptionChanged" IsVisible="False"
+                   ToolTip.Tip="The demo room, as the preview shows it" />
       <TextBlock Classes="hint" Text="Words" Margin="0,8,0,0" />
       <CheckBox Name="CaptionBox" Content="Name and species" IsCheckedChanged="OnOptionChanged" />
       <CheckBox Name="CreditBox" Content="Sprite credit" IsCheckedChanged="OnOptionChanged" />

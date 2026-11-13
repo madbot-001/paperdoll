@@ -31,9 +31,10 @@ public sealed class MemoryForkStore : IForkStore
     private readonly Dictionary<string, byte[]> _remote = new(StringComparer.Ordinal);
 
     /// <summary>Puts a file in a fork that is listed but only held once fetched, as the clothing a fork is loaded without.</summary>
-    public MemoryForkStore AddUnfetched(string forkId, string path, string text)
+    public MemoryForkStore AddUnfetched(string forkId, string path, string text) => AddUnfetched(forkId, path, Encoding.UTF8.GetBytes(text));
+
+    public MemoryForkStore AddUnfetched(string forkId, string path, byte[] data)
     {
-        var data = Encoding.UTF8.GetBytes(text);
         var id = Convert.ToHexStringLower(SHA1.HashData(data));
         _remote[id] = data;
         if (!_files.TryGetValue(forkId, out var files))

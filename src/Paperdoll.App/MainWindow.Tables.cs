@@ -170,16 +170,22 @@ public partial class MainWindow
 
     private void RefreshTables()
     {
-        var fixes = _session!.LastFixes;
-        if (_tabButtons.TryGetValue(EditorTab.Messages, out var messages))
-            messages.Content = fixes.Count == 0 ? "Messages" : $"Messages ({fixes.Count})";
+        ShowMessageCount();
         // Marked like an unsaved file: the preview is not what the game would show.
         if (_tabButtons.TryGetValue(EditorTab.Wardrobe, out var wardrobe))
-            wardrobe.Content = _session.HasDressUp ? "Wardrobe *" : "Wardrobe";
+            wardrobe.Content = _session!.HasDressUp ? "Wardrobe *" : "Wardrobe";
         // The species table shows the fork's species, which no edit changes.
         foreach (var tab in Enum.GetValues<EditorTab>().Where(t => t != EditorTab.Appearance))
             _staleTabs.Add(tab);
         RefreshShownTab();
+    }
+
+    // The character's messages, and why the floor could not be shown.
+    private void ShowMessageCount()
+    {
+        var count = _session!.LastFixes.Count + RoomProblems().Count;
+        if (_tabButtons.TryGetValue(EditorTab.Messages, out var messages))
+            messages.Content = count == 0 ? "Messages" : $"Messages ({count})";
     }
 
     // The marking and wardrobe tables also follow the part picked in the side list.
@@ -223,13 +229,15 @@ public partial class MainWindow
                 BuildWardrobeTable();
                 break;
             case EditorTab.Credits:
-                CreditsGrid.ItemsSource = session.Credits().Select(c => new CreditRow(c)).ToList();
+                CreditsGrid.ItemsSource = session.Credits().Concat(RoomCredits()).Select(c => new CreditRow(c)).ToList();
                 break;
             case EditorTab.Messages:
                 var fixes = session.LastFixes;
-                MessagesList.ItemsSource = fixes.Count == 0
+                List<string> lines = fixes.Count == 0
                     ? ["The character passes the game's checks as it is."]
                     : fixes.Select(f => $"{f.Field}: {f.Message}").ToList();
+                lines.AddRange(RoomProblems());
+                MessagesList.ItemsSource = lines;
                 break;
             case EditorTab.Source:
                 SourceText.Text = session.File!.ToYaml();

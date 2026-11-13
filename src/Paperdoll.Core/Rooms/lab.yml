@@ -1,0 +1,79 @@
+# The demo room for Science, and for Delta-V's Epistemics: a research lab.
+# See bar.yml for how a room file is written.
+id: lab
+name: Research lab
+departments: [ Science, Epistemics ]
+jobs: []
+stand: "4,3"
+legend:
+  p: Plating
+  w: FloorWhite
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Walls all round, windows either side of the door to the corridor south.
+- { proto: WallSolid, pos: "0.5,7.5" }
+- { proto: WallSolid, pos: "1.5,7.5" }
+- { proto: WallSolid, pos: "2.5,7.5" }
+- { proto: WallSolid, pos: "3.5,7.5" }
+- { proto: WallSolid, pos: "4.5,7.5" }
+- { proto: WallSolid, pos: "5.5,7.5" }
+- { proto: WallSolid, pos: "6.5,7.5" }
+- { proto: WallSolid, pos: "7.5,7.5" }
+- { proto: WallSolid, pos: "8.5,7.5" }
+- { proto: WallSolid, pos: "0.5,6.5" }
+- { proto: WallSolid, pos: "8.5,6.5" }
+- { proto: WallSolid, pos: "0.5,5.5" }
+- { proto: WallSolid, pos: "8.5,5.5" }
+- { proto: WallSolid, pos: "0.5,4.5" }
+- { proto: WallSolid, pos: "8.5,4.5" }
+- { proto: WallSolid, pos: "0.5,3.5" }
+- { proto: WallSolid, pos: "8.5,3.5" }
+- { proto: WallSolid, pos: "0.5,2.5" }
+- { proto: WallSolid, pos: "8.5,2.5" }
+- { proto: WallSolid, pos: "0.5,1.5" }
+- { proto: WallSolid, pos: "8.5,1.5" }
+- { proto: WallSolid, pos: "1.5,1.5" }
+- { proto: WallSolid, pos: "3.5,1.5" }
+- { proto: WallSolid, pos: "5.5,1.5" }
+- { proto: WallSolid, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: Window, pos: "2.5,1.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: Window, pos: "6.5,1.5" }
+- { proto: AirlockScienceGlass, pos: "4.5,1.5" }
+# Along the north wall: the lathes, the R&D console, a locker and the SciDrobe.
+- { proto: Protolathe, pos: "1.5,6.5" }
+- { proto: CircuitImprinter, pos: "2.5,6.5" }
+- { proto: ComputerResearchAndDevelopment, pos: "4.5,6.5" }
+- { proto: LockerScienceFilled, pos: "6.5,6.5" }
+- { proto: VendingMachineSciDrobe, pos: "7.5,6.5" }
+# A workbench to the west, the server to the east.
+- { proto: Table, pos: "1.5,3.5" }
+- { proto: Table, pos: "1.5,2.5" }
+- { proto: PowerCellRecharger, pos: "1.5,3.5" }
+- { proto: Multitool, pos: "1.55,2.6" }
+- { proto: ChairOfficeLight, pos: "2.5,3.5", rot: -90 }
+- { proto: ResearchAndDevelopmentServer, pos: "7.5,3.5" }
+- { proto: PottedPlant1, pos: "7.5,2.5" }
+# Lights: tubes on the north wall, small bulbs on the west and east walls.
+- { proto: Poweredlight, pos: "3.5,6.5" }
+- { proto: Poweredlight, pos: "5.5,6.5" }
+- { proto: PoweredSmallLight, pos: "1.5,4.5", rot: 90 }
+- { proto: PoweredSmallLight, pos: "7.5,4.5", rot: -90 }
+decals:
+- { id: HalfTileOverlayGreyscale, pos: "1,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "2,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "3,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "4,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "5,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "6,5", color: "#D381C996" }
+- { id: HalfTileOverlayGreyscale, pos: "7,5", color: "#D381C996" }

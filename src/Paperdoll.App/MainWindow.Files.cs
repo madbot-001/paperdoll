@@ -42,6 +42,12 @@ public sealed record AppSettings
 
     /// <summary>Whether the Forks window lists forks whose servers are 18+.</summary>
     public bool ShowAdultForks { get; init; }
+
+    /// <summary>What the preview stands the character on: plain plates or a demo room.</summary>
+    public Preview.FloorMode Floor { get; init; }
+
+    /// <summary>Whether the demo room is lit by its own lamps, as in the game, rather than flat.</summary>
+    public bool Lighting { get; init; } = true;
 }
 
 public sealed record MatchedServer(string Name, string Commit);
@@ -141,6 +147,11 @@ public partial class MainWindow
         AutosaveItem.IsChecked = _settings.Autosave;
         Controls.ColorSliders.Mode = _settings.ColorMode == Controls.ColorMode.Rgb ? Controls.ColorMode.Rgb : Controls.ColorMode.Hsv;
         BuildRandomParts();
+        if (_session?.Content != null)
+        {
+            ShowFloorSettings();
+            RefreshPreview();
+        }
     }
 
     private void OnColorModeChanged(Controls.ColorMode mode)

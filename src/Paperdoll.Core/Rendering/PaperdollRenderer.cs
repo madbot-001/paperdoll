@@ -23,6 +23,9 @@ public sealed class CharacterLook
 
     /// <summary>Markings by organ category (such as <c>Head</c>) or old-model marking category, then by layer (such as <c>Hair</c>).</summary>
     public Dictionary<string, Dictionary<string, List<MarkingEntry>>> Markings { get; init; } = [];
+
+    /// <summary>Starlight's appearance flags that are on: <c>hairGlowing</c>, <c>facialHairGlowing</c>, <c>eyeGlowing</c>.</summary>
+    public IReadOnlySet<string> Glowing { get; init; } = new HashSet<string>();
 }
 
 /// <summary>Reads files under <c>Resources/Textures</c> by path.</summary>
@@ -33,7 +36,28 @@ public interface ITextureSource
 
 /// <summary>One drawn layer, bottom to top: what the preview shows and the credits list.</summary>
 /// <param name="Greyscale">Drawn in grey before the colour, as Euphoria's colour tint for loadout items does.</param>
-public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null, bool Greyscale = false);
+/// <param name="Unshaded">Drawn with <c>shader: unshaded</c>: in the game, as bright whatever the light.</param>
+public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, DisplacementRef? Displacement = null, bool Greyscale = false, bool Unshaded = false);
+
+/// <summary>
+/// A character as drawn, and what of each pixel its unshaded layers drew, so that a light can dim
+/// the rest and leave those as they are.
+/// </summary>
+public sealed class CharacterBitmap(SKImageInfo info) : SKBitmap(info)
+{
+    /// <summary>
+    /// The colour the unshaded layers leave in each pixel after the layers over them, premultiplied
+    /// RGBA with the picture's alpha; null when no layer is unshaded.
+    /// </summary>
+    public SKBitmap? Unshaded { get; init; }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            Unshaded?.Dispose();
+        base.Dispose(disposing);
+    }
+}
 
 /// <summary>
 /// Draws a character the way the lobby preview does, facing one way:
@@ -48,8 +72,9 @@ public sealed record DrawnLayer(string Key, SpriteRef Sprite, Rgba Color, Displa
 /// Vox), unless the marking opts out.</item>
 /// <item>Colours multiply the sprite's pixels. Frames are centred on each other.</item>
 /// </list>
-/// Not drawn yet: marking shaders and the nudity-censoring defaults. Species on the old
-/// appearance model are drawn by the old rules (see <c>PaperdollRenderer.Old.cs</c>).
+/// Layers with the <c>unshaded</c> shader (items, markings) are kept apart in <see cref="CharacterBitmap.Unshaded"/>
+/// for lighting; other marking shaders and the nudity-censoring defaults are not drawn yet. Species
+/// on the old appearance model are drawn by the old rules (see <c>PaperdollRenderer.Old.cs</c>).
 /// </summary>
 public sealed partial class PaperdollRenderer
 {
@@ -74,9 +99,12 @@ public sealed partial class PaperdollRenderer
             return new Pixels(bitmap.Width, bitmap.Height, data);
         }
 
-        public SKBitmap ToBitmap()
+        public SKBitmap ToBitmap() => CopyTo(new SKBitmap(Info));
+
+        public SKImageInfo Info => new(Width, Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+
+        public T CopyTo<T>(T bitmap) where T : SKBitmap
         {
-            var bitmap = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
             for (var y = 0; y < Height; y++)
             {
                 for (var x = 0; x < Width; x++)
@@ -105,6 +133,7 @@ public sealed partial class PaperdollRenderer
         public Rgba Color { get; set; } = Rgba.White;
         public DisplacementRef? Displacement { get; set; }
         public bool Greyscale { get; set; }
+        public bool Unshaded { get; set; }
 
         /// <summary>The body layer this slot draws for, so clothing can hide it.</summary>
         public string? BodyLayer { get; set; }
@@ -125,7 +154,7 @@ public sealed partial class PaperdollRenderer
 
         return slots
             .Where(s => s.Sprite is { State: not null })
-            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement, s.Greyscale))
+            .Select(s => new DrawnLayer(s.Keys.FirstOrDefault() ?? "", s.Sprite!.Value, s.Color, s.Displacement, s.Greyscale, s.Unshaded))
             .ToList();
     }
 
@@ -181,6 +210,7 @@ public sealed partial class PaperdollRenderer
                     Color = tint ?? layer.Color,
                     Greyscale = tint != null,
                     Displacement = layer.SpeciesSpecific ? null : displacement,
+                    Unshaded = layer.Unshaded,
                 });
             }
         }
@@ -242,9 +272,14 @@ public sealed partial class PaperdollRenderer
     public bool IsEntityAnimated(string entityId, Direction direction) =>
         EntitySprite.Layers(prototypes, entityId).Any(layer => State(layer.Sprite)?.IsAnimated(direction) == true);
 
-    private SKBitmap Compose(IReadOnlyList<DrawnLayer> layers, Direction direction, double seconds)
+    // A marking's shaders (MarkingPrototype.Shaders, by sprite state) as VisualBodySystem.ApplyMarkings
+    // sets them on its layers (Content.Client/Body/VisualBodySystem.cs).
+    private static bool Unshaded(MarkingInfo marking, SpriteRef sprite) =>
+        PrototypeYaml.Scalar(PrototypeYaml.Mapping(marking.Node, "shaders"), sprite.State ?? "") == "unshaded";
+
+    private CharacterBitmap Compose(IReadOnlyList<DrawnLayer> layers, Direction direction, double seconds)
     {
-        var frames = new List<(Pixels Frame, Rgba Color, bool Greyscale)>();
+        var frames = new List<(Pixels Frame, Rgba Color, bool Greyscale, bool Unshaded)>();
         foreach (var layer in layers)
         {
             var index = FrameIndex(layer.Sprite, direction, seconds);
@@ -252,15 +287,18 @@ public sealed partial class PaperdollRenderer
                 continue;
             if (layer.Displacement?.For(frame.Width) is { } map)
                 frame = Displaced(layer.Sprite, frame, map, direction, index) ?? frame;
-            frames.Add((frame, layer.Color, layer.Greyscale));
+            frames.Add((frame, layer.Color, layer.Greyscale, layer.Unshaded));
         }
 
         var width = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Width);
         var height = frames.Count == 0 ? 32 : frames.Max(f => f.Frame.Height);
         var result = new Pixels(width, height, new SKColor[width * height]);
         Array.Fill(result.Data, SKColors.Transparent);
+        // What the unshaded layers leave of each pixel, premultiplied, kept only when there are any:
+        // each layer adds its own when unshaded and covers what is under it by its alpha.
+        var unshaded = frames.Any(f => f.Unshaded) ? new float[width * height * 3] : null;
 
-        foreach (var (frame, color, greyscale) in frames)
+        foreach (var (frame, color, greyscale, isUnshaded) in frames)
         {
             var offsetX = (width - frame.Width) / 2;
             var offsetY = (height - frame.Height) / 2;
@@ -269,12 +307,35 @@ public sealed partial class PaperdollRenderer
                 for (var x = 0; x < frame.Width; x++)
                 {
                     var i = (y + offsetY) * width + x + offsetX;
-                    var pixel = frame.Data[y * frame.Width + x];
-                    result.Data[i] = Over(Tint(greyscale ? Grey(pixel) : pixel, color), result.Data[i]);
+                    var pixel = Tint(greyscale ? Grey(frame.Data[y * frame.Width + x]) : frame.Data[y * frame.Width + x], color);
+                    result.Data[i] = Over(pixel, result.Data[i]);
+                    if (unshaded == null || pixel.Alpha == 0)
+                        continue;
+                    var alpha = pixel.Alpha / 255f;
+                    unshaded[i * 3] = (isUnshaded ? pixel.Red * alpha : 0) + unshaded[i * 3] * (1 - alpha);
+                    unshaded[i * 3 + 1] = (isUnshaded ? pixel.Green * alpha : 0) + unshaded[i * 3 + 1] * (1 - alpha);
+                    unshaded[i * 3 + 2] = (isUnshaded ? pixel.Blue * alpha : 0) + unshaded[i * 3 + 2] * (1 - alpha);
                 }
             }
         }
-        return result.ToBitmap();
+        return result.CopyTo(new CharacterBitmap(result.Info) { Unshaded = unshaded == null ? null : UnshadedBitmap(result, unshaded) });
+    }
+
+    // The unshaded share as premultiplied RGBA, with the picture's alpha.
+    private static SKBitmap UnshadedBitmap(Pixels picture, float[] unshaded)
+    {
+        var bitmap = new SKBitmap(picture.Width, picture.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var bytes = new byte[picture.Width * picture.Height * 4];
+        for (var i = 0; i < picture.Data.Length; i++)
+        {
+            var alpha = picture.Data[i].Alpha;
+            for (var c = 0; c < 3; c++)
+                bytes[i * 4 + c] = (byte)Math.Min(alpha, Math.Round(unshaded[i * 3 + c]));
+            bytes[i * 4 + 3] = alpha;
+        }
+        bytes.CopyTo(bitmap.GetPixelSpan());
+        bitmap.NotifyPixelsChanged();
+        return bitmap;
     }
 
     /// <summary>
@@ -364,6 +425,7 @@ public sealed partial class PaperdollRenderer
                         Displacement = displacement,
                         // Clothing hides the whole marking by its own layer, wherever a sprite is drawn.
                         BodyLayer = marking.Layer,
+                        Unshaded = Unshaded(marking, marking.Sprites[i]),
                     });
                 }
             }

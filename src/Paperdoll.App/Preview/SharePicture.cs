@@ -1,3 +1,4 @@
+using Paperdoll.Core.Rooms;
 using SkiaSharp;
 
 namespace Paperdoll.App.Preview;
@@ -5,9 +6,14 @@ namespace Paperdoll.App.Preview;
 /// <summary>What is behind the character in a picture to share.</summary>
 public enum ShareBackground
 {
-    Floor,
-    Plain,
-    Transparent,
+    Floor = 0,
+    Plain = 1,
+    Transparent = 2,
+
+    // 3 was a background no longer offered; the share window takes it for Floor.
+
+    /// <summary>The demo room, as the preview shows it.</summary>
+    Room = 4,
 }
 
 /// <summary>How a picture to share is laid out; remembered between runs.</summary>
@@ -35,13 +41,13 @@ public static class SharePicture
 
     /// <param name="sides">The character facing each way, in the order to show them.</param>
     /// <param name="scale">The character's species and height scale, as in the preview.</param>
-    public static SKBitmap Compose(IReadOnlyList<SKBitmap> sides, (float X, float Y) scale, ShareOptions options, ShareText text)
+    /// <param name="room">The demo room for <see cref="ShareBackground.Room"/>; without it, the plates.</param>
+    public static SKBitmap Compose(IReadOnlyList<SKBitmap> sides, (float X, float Y) scale, ShareOptions options, ShareText text, RoomPicture? room = null)
     {
         var zoom = Math.Clamp(options.Zoom, 1, 16);
         var pad = 6 * zoom;
         var gap = zoom;
-        var cellWidth = (int)Math.Ceiling(sides.Max(s => s.Width * zoom * scale.X)) + 2 * pad;
-        var cellHeight = (int)Math.Ceiling(sides.Max(s => s.Height * zoom * scale.Y)) + 2 * pad;
+        var (cellWidth, cellHeight) = CellSize(sides, scale, zoom);
         var cellsWidth = sides.Count * cellWidth + (sides.Count + 1) * gap;
 
         var lines = new List<(string Text, float Size, SKColor Color)>();
@@ -67,7 +73,9 @@ public static class SharePicture
         var left = (width - cellsWidth) / 2 + gap;
         foreach (var side in sides)
         {
-            using var cell = FloorCanvas.Compose(cellWidth, cellHeight, zoom, side, scale, floor: options.Background == ShareBackground.Floor);
+            using var cell = FloorCanvas.Compose(cellWidth, cellHeight, zoom, side, scale,
+                floor: options.Background is ShareBackground.Floor or ShareBackground.Room,
+                room: options.Background == ShareBackground.Room ? room : null);
             if (options.Background == ShareBackground.Plain)
             {
                 using var fill = new SKPaint { Color = Plain };
@@ -95,6 +103,18 @@ public static class SharePicture
         foreach (var font in fonts)
             font.Dispose();
         return picture;
+    }
+
+    // A panel: the biggest side and 6 game pixels around it.
+    private static (int Width, int Height) CellSize(IReadOnlyList<SKBitmap> sides, (float X, float Y) scale, int zoom) =>
+        ((int)Math.Ceiling(sides.Max(s => s.Width * zoom * scale.X)) + 12 * zoom, (int)Math.Ceiling(sides.Max(s => s.Height * zoom * scale.Y)) + 12 * zoom);
+
+    /// <summary>The credits of the demo room's pictures a picture with these sides and options draws in its panels.</summary>
+    public static IReadOnlyList<Core.Editing.CreditLine> RoomCredits(IReadOnlyList<SKBitmap> sides, (float X, float Y) scale, ShareOptions options, RoomScene room)
+    {
+        var zoom = Math.Clamp(options.Zoom, 1, 16);
+        var (width, height) = CellSize(sides, scale, zoom);
+        return FloorCanvas.CreditsShown(room, width, height, zoom);
     }
 
     public static byte[] Png(SKBitmap picture)

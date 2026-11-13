@@ -9,11 +9,12 @@ namespace Paperdoll.Core.Tests;
 /// tone, one whose skin is held to a range, colour names and both profile extras that add tabs.
 /// "d" is on the old appearance model, with hair, two silicon voices and one other, and the
 /// character info extras. "e" is "d" with Starlight's records and cybernetics: two more species,
-/// with 6 points and none, and a few cyber parts. "w" has a job and clothing to try on.
+/// with 6 points and none, and a few cyber parts. "w" has a job and clothing to try on. "r" has
+/// the things a demo room draws (<see cref="TestRooms"/>).
 /// </summary>
 public static class TestForks
 {
-    private const string Body = """
+    internal const string Body = """
         - type: species
           id: Human
           name: species-name-human
@@ -468,5 +469,6 @@ public static class TestForks
         .AddUnfetched("w", "Resources/Textures/Clothing/Back/tall.rsi/meta.json", RsiMeta("icon", "equipped-BACKPACK"))
         .AddUnfetched("w", "Resources/Textures/Clothing/Uniforms/grey.rsi/meta.json", RsiMeta("icon", "equipped-INNERCLOTHING", "equipped-INNERCLOTHING-vox"))
         .AddUnfetched("w", "Resources/Textures/Clothing/Head/paper.rsi/meta.json", RsiMeta("icon"))
-        .AddUnfetched("w", "Resources/Textures/Clothing/Eyes/glasses.rsi/meta.json", RsiMeta("icon", "equipped-EYES"));
+        .AddUnfetched("w", "Resources/Textures/Clothing/Eyes/glasses.rsi/meta.json", RsiMeta("icon", "equipped-EYES"))
+        .AddRoomFork();
 }

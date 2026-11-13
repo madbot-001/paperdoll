@@ -132,8 +132,18 @@ public partial class MainWindow
             (width, height) = (640, 420);
 
         var scale = _session.SpriteScale();
+        var room = RoomFor();
+        var roomBefore = _roomShown;
+        _roomShown = room is { } r ? (r.Scene, r.Picture, width, height, _zoom) : null;
+        // Another floor, or the same one at another zoom or size: the credits follow its tiles.
+        if (!ReferenceEquals(roomBefore?.Scene, room?.Scene) || (room != null && FloorCanvas.Span(roomBefore!.Value.Width, roomBefore.Value.Height, roomBefore.Value.Zoom) != FloorCanvas.Span(width, height, _zoom)))
+        {
+            _staleTabs.Add(EditorTab.Credits);
+            if (_tab == EditorTab.Credits)
+                RefreshShownTab();
+        }
         using (var sprite = _session.Render(_direction, seconds))
-        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale))
+        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale, room: room?.Picture))
             Replace(PreviewImage, FloorCanvas.ToAvalonia(canvas));
 
         for (var i = 0; i < 4; i++)

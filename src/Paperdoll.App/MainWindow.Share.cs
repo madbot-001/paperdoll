@@ -16,7 +16,11 @@ public partial class MainWindow
             var session = _session;
             var name = string.IsNullOrWhiteSpace(session.File.Name) ? "Unnamed" : session.File.Name.Trim();
             var sides = new[] { Direction.South, Direction.North, Direction.East, Direction.West }.Select(d => session.Render(d)).ToList();
-            var request = new ShareRequest(sides, session.SpriteScale(), new Preview.ShareText(name, ShareSubtitle(), ShareCredit()), FullCredits(name), name + ".png");
+            // The demo room as the preview shows it; the picture credits what of it it draws.
+            var room = _roomShown is { } shown
+                ? new ShareRoom(shown.Scene, shown.Picture, ShareCredit, pictures => FullCredits(name, pictures, $"The {shown.Scene.Room.Name} demo room around the character:"))
+                : null;
+            var request = new ShareRequest(sides, session.SpriteScale(), new Preview.ShareText(name, ShareSubtitle(), ShareCredit([])), FullCredits(name, [], null), name + ".png", room);
             await new ShareWindow(request, _settings.Share ?? new(), options =>
             {
                 _settings = _settings with { Share = options };
@@ -43,15 +47,16 @@ public partial class MainWindow
         return job == null ? speciesName : $"{speciesName} · {job}";
     }
 
-    // One line for the picture: where the sprites come from and their licences.
-    private string ShareCredit()
+    // One line for the picture: where the sprites (and floor tiles, if any) come from and their licences.
+    private string ShareCredit(IReadOnlyList<Core.Editing.CreditLine> tiles)
     {
-        var licences = _session!.Credits().Select(c => c.License ?? "licence not stated").Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
-        return $"Sprites from {_session.Fork!.Name} for Space Station 14, {string.Join(", ", licences)}";
+        var licences = _session!.Credits().Concat(tiles).Select(c => c.License ?? "licence not stated").Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        return $"{(tiles.Count > 0 ? "Sprites and floor" : "Sprites")} from {_session.Fork!.Name} for Space Station 14, {string.Join(", ", licences)}";
     }
 
-    // Every sprite in the picture with its licence and authors, to post along with it.
-    private string FullCredits(string name)
+    // Every sprite in the picture with its licence and authors, to post along with it; then the
+    // pictures of the demo room, if any, under a heading.
+    private string FullCredits(string name, IReadOnlyList<Core.Editing.CreditLine> tiles, string? heading)
     {
         var session = _session!;
         var lines = new List<string>
@@ -59,6 +64,11 @@ public partial class MainWindow
             $"Sprites in this picture of {name}, from {session.Fork!.Name} (github.com/{session.Fork.Repository}, {session.Content!.Commit[..8]}):",
         };
         lines.AddRange(session.Credits().Select(c => $"- {c.Rsi}: {c.License ?? "licence not stated"}; {c.Copyright ?? "authors not stated"}"));
+        if (tiles.Count > 0 && heading != null)
+        {
+            lines.Add(heading);
+            lines.AddRange(tiles.Select(c => $"- {c.Rsi}: {c.License ?? "licence not stated"}; {c.Copyright ?? "authors not stated"}"));
+        }
         return string.Join(Environment.NewLine, lines);
     }
 }

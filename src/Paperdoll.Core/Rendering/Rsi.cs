@@ -4,13 +4,20 @@ using SkiaSharp;
 
 namespace Paperdoll.Core.Rendering;
 
-/// <summary>Facing directions, numbered as RSI files order them.</summary>
+/// <summary>
+/// Facing directions, numbered as RSI files order them: a four-direction state holds the first
+/// four, an eight-direction state all of them (<c>RobustToolbox/Robust.Shared/Graphics/RSI/RsiDirection.cs</c>).
+/// </summary>
 public enum Direction
 {
     South = 0,
     North = 1,
     East = 2,
     West = 3,
+    SouthEast = 4,
+    SouthWest = 5,
+    NorthEast = 6,
+    NorthWest = 7,
 }
 
 /// <summary>One state of an RSI: its name, how many directions it has and frames per direction.</summary>
@@ -150,15 +157,8 @@ public sealed class RsiMeta
         if (image == null)
             return null;
 
-        var dir = (int)direction < state.Directions ? (int)direction : 0;
-        var index = 0;
-        for (var i = 0; i < dir; i++)
-            index += state.FramesPerDirection[i];
-        index += Math.Min(frame, state.FramesPerDirection[dir] - 1);
-
-        var columns = Math.Max(1, image.Width / FrameWidth);
-        var x = index % columns * FrameWidth;
-        var y = index / columns * FrameHeight;
+        var rect = FrameRect(state, image.Width, direction, frame);
+        var (x, y) = (rect.Left, rect.Top);
 
         var result = new SKBitmap(new SKImageInfo(FrameWidth, FrameHeight, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         using var converted = image.Copy(SKColorType.Rgba8888);
@@ -172,5 +172,23 @@ public sealed class RsiMeta
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// Where one frame sits in its state's PNG, which holds the frames left to right and top to
+    /// bottom, every frame of one direction before the next (<c>RsiLoading.GenerateAtlas</c>,
+    /// <c>RobustToolbox/Robust.Shared/Resources/RsiLoading.cs</c>). A direction the state does not
+    /// have gives its first; a frame past the last gives the last.
+    /// </summary>
+    public SKRectI FrameRect(RsiState state, int imageWidth, Direction direction = Direction.South, int frame = 0)
+    {
+        var dir = (int)direction < state.Directions ? (int)direction : 0;
+        var index = 0;
+        for (var i = 0; i < dir; i++)
+            index += state.FramesPerDirection[i];
+        index += Math.Clamp(frame, 0, state.FramesPerDirection[dir] - 1);
+
+        var columns = Math.Max(1, imageWidth / FrameWidth);
+        return SKRectI.Create(index % columns * FrameWidth, index / columns * FrameHeight, FrameWidth, FrameHeight);
     }
 }

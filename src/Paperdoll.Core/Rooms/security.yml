@@ -1,0 +1,86 @@
+# The demo room for Security, and for Delta-V's Justice and the lawyer: a security office.
+# See bar.yml for how a room file is written.
+id: security
+name: Security office
+departments: [ Security, Justice ]
+jobs: [ Lawyer ]
+stand: "4,3"
+legend:
+  p: Plating
+  d: FloorDark
+  c: FloorSteel
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "pdddddddp"
+- "pdddddddp"
+- "pdddddddp"
+- "pccdddddp"
+- "pccdddddp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Reinforced walls all round, windows either side of the door to the corridor south.
+- { proto: WallReinforced, pos: "0.5,7.5" }
+- { proto: WallReinforced, pos: "1.5,7.5" }
+- { proto: WallReinforced, pos: "2.5,7.5" }
+- { proto: WallReinforced, pos: "3.5,7.5" }
+- { proto: WallReinforced, pos: "4.5,7.5" }
+- { proto: WallReinforced, pos: "5.5,7.5" }
+- { proto: WallReinforced, pos: "6.5,7.5" }
+- { proto: WallReinforced, pos: "7.5,7.5" }
+- { proto: WallReinforced, pos: "8.5,7.5" }
+- { proto: WallReinforced, pos: "0.5,6.5" }
+- { proto: WallReinforced, pos: "8.5,6.5" }
+- { proto: WallReinforced, pos: "0.5,5.5" }
+- { proto: WallReinforced, pos: "8.5,5.5" }
+- { proto: WallReinforced, pos: "0.5,4.5" }
+- { proto: WallReinforced, pos: "8.5,4.5" }
+- { proto: WallReinforced, pos: "0.5,3.5" }
+- { proto: WallReinforced, pos: "8.5,3.5" }
+- { proto: WallReinforced, pos: "0.5,2.5" }
+- { proto: WallReinforced, pos: "8.5,2.5" }
+- { proto: WallReinforced, pos: "0.5,1.5" }
+- { proto: WallReinforced, pos: "8.5,1.5" }
+- { proto: WallReinforced, pos: "1.5,1.5" }
+- { proto: WallReinforced, pos: "3.5,1.5" }
+- { proto: WallReinforced, pos: "5.5,1.5" }
+- { proto: WallReinforced, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: ReinforcedWindow, pos: "2.5,1.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: ReinforcedWindow, pos: "6.5,1.5" }
+- { proto: AirlockSecurityGlass, pos: "4.5,1.5" }
+# Along the north wall: the SecTech, lockers, the records and camera consoles, and the gun safe.
+- { proto: VendingMachineSec, pos: "1.5,6.5" }
+- { proto: LockerSecurityFilled, pos: "2.5,6.5" }
+- { proto: LockerSecurityFilled, pos: "3.5,6.5" }
+- { proto: ComputerCriminalRecords, pos: "5.5,6.5" }
+- { proto: ComputerSurveillanceCameraMonitor, pos: "6.5,6.5" }
+- { proto: GunSafe, pos: "7.5,6.5" }
+- { proto: ChairOfficeDark, pos: "5.5,5.5", rot: 180 }
+- { proto: ChairOfficeDark, pos: "6.5,5.5", rot: 180 }
+- { proto: WardrobeSecurityFilled, pos: "7.5,5.5" }
+# A holding cell in the south-west corner, behind windows and a windoor.
+- { proto: WindowReinforcedDirectional, pos: "1.5,3.5", rot: 180 }
+- { proto: WindowReinforcedDirectional, pos: "2.5,3.5", rot: 180 }
+- { proto: WindowReinforcedDirectional, pos: "2.5,2.5", rot: -90 }
+- { proto: WindoorSecurityLocked, pos: "2.5,3.5", rot: -90 }
+- { proto: Bed, pos: "1.5,2.5" }
+- { proto: BedsheetOrange, pos: "1.5,2.5" }
+# A briefing table by the east wall.
+- { proto: TableReinforced, pos: "7.5,3.5" }
+- { proto: TableReinforced, pos: "7.5,2.5" }
+- { proto: WeaponCapacitorRecharger, pos: "7.5,3.5" }
+- { proto: BoxFolderRed, pos: "7.45,2.6" }
+- { proto: Flash, pos: "7.6,2.35" }
+- { proto: ChairOfficeDark, pos: "6.5,3.5", rot: 90 }
+- { proto: ChairOfficeDark, pos: "6.5,2.5", rot: 90 }
+# Lights: a tube on the north wall, tubes on the west and east walls.
+- { proto: Poweredlight, pos: "4.5,6.5" }
+- { proto: Poweredlight, pos: "1.5,4.5", rot: 90 }
+- { proto: Poweredlight, pos: "7.5,4.5", rot: -90 }
+decals:
+- { id: BrickTileWhiteLineN, pos: "1,5", color: "#DE3A3A96" }
+- { id: BrickTileWhiteLineN, pos: "2,5", color: "#DE3A3A96" }
+- { id: BrickTileWhiteLineN, pos: "3,5", color: "#DE3A3A96" }

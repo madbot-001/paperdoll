@@ -1,0 +1,101 @@
+# The demo room for the bartender and the service jobs no other room suits: a small bar. To change
+# it, copy this file into a "rooms" folder in Paperdoll's own folder and edit the copy; if the copy
+# cannot be read, Messages says why and this one is used. The other rooms are written the same way.
+#
+# stand is the tile the character stands on, "x,y" with 0,0 the south-west tile. Tiles are rows
+# from north to south, each character a tile prototype from the legend (a space or "." for none).
+# Entities name entity prototypes, with pos in tiles (a tile's centre at .5) and rot in degrees,
+# counter-clockwise. Decals name decal prototypes, with pos their bottom-left corner, a colour,
+# an angle in degrees and z to order them. Anything the fork lacks is left out. A room is at most
+# 32 by 32 tiles, with at most 1024 entities and 1024 decals, none more than 2 tiles outside it.
+id: bar
+name: Bar
+departments: [ Service ]
+jobs: [ Bartender ]
+stand: "4,3"
+legend:
+  p: Plating
+  b: FloorBar
+  w: FloorWood
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "pbbbbbbbp"
+- "pbbbbbbbp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "pwwwwwwwp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Walls all round, a window either side of the door to the corridor south.
+- { proto: WallSolid, pos: "0.5,7.5" }
+- { proto: WallSolid, pos: "1.5,7.5" }
+- { proto: WallSolid, pos: "2.5,7.5" }
+- { proto: WallSolid, pos: "3.5,7.5" }
+- { proto: WallSolid, pos: "4.5,7.5" }
+- { proto: WallSolid, pos: "5.5,7.5" }
+- { proto: WallSolid, pos: "6.5,7.5" }
+- { proto: WallSolid, pos: "7.5,7.5" }
+- { proto: WallSolid, pos: "8.5,7.5" }
+- { proto: WallSolid, pos: "0.5,6.5" }
+- { proto: WallSolid, pos: "0.5,5.5" }
+- { proto: WallSolid, pos: "0.5,4.5" }
+- { proto: WallSolid, pos: "0.5,3.5" }
+- { proto: WallSolid, pos: "0.5,2.5" }
+- { proto: WallSolid, pos: "0.5,1.5" }
+- { proto: WallSolid, pos: "8.5,6.5" }
+- { proto: WallSolid, pos: "8.5,5.5" }
+- { proto: WallSolid, pos: "8.5,4.5" }
+- { proto: WallSolid, pos: "8.5,3.5" }
+- { proto: WallSolid, pos: "8.5,2.5" }
+- { proto: WallSolid, pos: "8.5,1.5" }
+- { proto: WallSolid, pos: "1.5,1.5" }
+- { proto: WallSolid, pos: "3.5,1.5" }
+- { proto: WallSolid, pos: "5.5,1.5" }
+- { proto: WallSolid, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: Window, pos: "2.5,1.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: Window, pos: "6.5,1.5" }
+- { proto: AirlockGlass, pos: "4.5,1.5" }
+# The bar counter, open at the east end, with the dispensers on it.
+- { proto: TableCounterWood, pos: "1.5,5.5" }
+- { proto: TableCounterWood, pos: "2.5,5.5" }
+- { proto: TableCounterWood, pos: "3.5,5.5" }
+- { proto: TableCounterWood, pos: "4.5,5.5" }
+- { proto: TableCounterWood, pos: "5.5,5.5" }
+- { proto: TableCounterWood, pos: "6.5,5.5" }
+- { proto: BoozeDispenser, pos: "2.5,5.5" }
+- { proto: SodaDispenser, pos: "5.5,5.5" }
+- { proto: DrinkGlass, pos: "3.35,5.6" }
+- { proto: DrinkGlass, pos: "3.7,5.55" }
+- { proto: DrinkVodkaBottleFull, pos: "4.6,5.7" }
+- { proto: StoolBar, pos: "2.5,4.5" }
+- { proto: StoolBar, pos: "4.5,4.5" }
+- { proto: StoolBar, pos: "6.5,4.5" }
+# Behind the bar: the Booze-O-Mat and a shelf on the wall.
+- { proto: VendingMachineBooze, pos: "1.5,6.5" }
+- { proto: ShelfBar, pos: "4.5,7.5" }
+# A table for two, a plant, and the jukebox in the corner.
+- { proto: TableWood, pos: "6.5,2.5" }
+- { proto: ChairWood, pos: "5.5,2.5", rot: 90 }
+- { proto: ChairWood, pos: "7.5,2.5", rot: -90 }
+- { proto: Ashtray, pos: "6.5,2.6" }
+- { proto: PottedPlant10, pos: "1.5,4.5" }
+- { proto: Jukebox, pos: "1.5,2.5" }
+# Lights: tubes on the north wall, small bulbs on the west and east walls.
+- { proto: Poweredlight, pos: "2.5,6.5" }
+- { proto: Poweredlight, pos: "6.5,6.5" }
+- { proto: PoweredSmallLight, pos: "1.5,3.5", rot: 90 }
+- { proto: PoweredSmallLight, pos: "7.5,4.5", rot: -90 }
+decals:
+- { id: WoodTrimThinLineN, pos: "1,4" }
+- { id: WoodTrimThinLineN, pos: "2,4" }
+- { id: WoodTrimThinLineN, pos: "3,4" }
+- { id: WoodTrimThinLineN, pos: "4,4" }
+- { id: WoodTrimThinLineN, pos: "5,4" }
+- { id: WoodTrimThinLineN, pos: "6,4" }
+- { id: WoodTrimThinLineN, pos: "7,4" }
+- { id: DirtLight, pos: "3,2", color: "#FFFFFF80" }
+- { id: DirtMedium, pos: "7,3", color: "#FFFFFF60", angle: 90 }

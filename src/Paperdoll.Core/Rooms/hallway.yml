@@ -1,0 +1,80 @@
+# The demo room for the janitor and for every job no other room suits: a hallway.
+# See bar.yml for how a room file is written.
+id: hallway
+name: Hallway
+departments: []
+jobs: [ Janitor ]
+stand: "4,3"
+legend:
+  p: Plating
+  s: FloorSteel
+tiles:
+- "sssssssss"
+- "ppppppppp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "ppppppppp"
+entities:
+# Walls all round, doors north to the bar and maintenance off the corridor beyond, windows on space to the south.
+- { proto: WallSolid, pos: "0.5,6.5" }
+- { proto: WallSolid, pos: "1.5,6.5" }
+- { proto: WallSolid, pos: "3.5,6.5" }
+- { proto: WallSolid, pos: "4.5,6.5" }
+- { proto: WallSolid, pos: "5.5,6.5" }
+- { proto: WallSolid, pos: "7.5,6.5" }
+- { proto: WallSolid, pos: "8.5,6.5" }
+- { proto: WallSolid, pos: "0.5,5.5" }
+- { proto: WallSolid, pos: "8.5,5.5" }
+- { proto: WallSolid, pos: "0.5,4.5" }
+- { proto: WallSolid, pos: "8.5,4.5" }
+- { proto: WallSolid, pos: "0.5,3.5" }
+- { proto: WallSolid, pos: "8.5,3.5" }
+- { proto: WallSolid, pos: "0.5,2.5" }
+- { proto: WallSolid, pos: "8.5,2.5" }
+- { proto: WallSolid, pos: "0.5,1.5" }
+- { proto: WallSolid, pos: "8.5,1.5" }
+- { proto: WallSolid, pos: "0.5,0.5" }
+- { proto: WallSolid, pos: "8.5,0.5" }
+- { proto: WallSolid, pos: "4.5,0.5" }
+- { proto: Grille, pos: "1.5,0.5" }
+- { proto: ReinforcedWindow, pos: "1.5,0.5" }
+- { proto: Grille, pos: "2.5,0.5" }
+- { proto: ReinforcedWindow, pos: "2.5,0.5" }
+- { proto: Grille, pos: "3.5,0.5" }
+- { proto: ReinforcedWindow, pos: "3.5,0.5" }
+- { proto: Grille, pos: "5.5,0.5" }
+- { proto: ReinforcedWindow, pos: "5.5,0.5" }
+- { proto: Grille, pos: "6.5,0.5" }
+- { proto: ReinforcedWindow, pos: "6.5,0.5" }
+- { proto: Grille, pos: "7.5,0.5" }
+- { proto: ReinforcedWindow, pos: "7.5,0.5" }
+- { proto: AirlockGlass, pos: "2.5,6.5" }
+- { proto: AirlockMaintLocked, pos: "6.5,6.5" }
+# On the north wall: signs, the fire alarm, an extinguisher and the air alarm; the APC on the east wall.
+- { proto: SignBar, pos: "1.5,6.5" }
+- { proto: FireAlarm, pos: "3.5,6.5" }
+- { proto: SignDirectionalBridge, pos: "4.5,6.5", rot: -90 }
+- { proto: SignDirectionalMed, pos: "4.5,6.75", rot: 90 }
+- { proto: ExtinguisherCabinetFilled, pos: "5.5,6.5" }
+- { proto: AirAlarm, pos: "7.5,6.5" }
+- { proto: APCBasic, pos: "8.5,2.5", rot: -90 }
+# Vending machines and a chair along the north wall, closets by the east wall.
+- { proto: VendingMachineCola, pos: "3.5,5.5" }
+- { proto: VendingMachineSnack, pos: "5.5,5.5" }
+- { proto: Chair, pos: "1.5,5.5" }
+- { proto: ClosetEmergency, pos: "7.5,5.5" }
+- { proto: ClosetFireFilled, pos: "7.5,4.5" }
+- { proto: PottedPlant10, pos: "1.5,1.5" }
+- { proto: PottedPlant1, pos: "7.5,1.5" }
+# Lights: tubes on the north wall, by the south windows and in the corridor beyond the doors.
+- { proto: Poweredlight, pos: "4.5,5.5" }
+- { proto: Poweredlight, pos: "4.5,1.5", rot: 180 }
+- { proto: Poweredlight, pos: "4.5,7.5", rot: 180 }
+- { proto: PoweredSmallLight, pos: "1.5,3.5", rot: 90 }
+- { proto: PoweredSmallLight, pos: "7.5,3.5", rot: -90 }
+decals:
+- { id: DirtLight, pos: "2,2", color: "#FFFFFF80" }
+- { id: DirtMedium, pos: "6,3", color: "#FFFFFF60" }

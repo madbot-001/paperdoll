@@ -88,6 +88,15 @@
               <TextBlock Classes="hint" Text="Zoom" Margin="6,0,0,0" />
               <ComboBox Name="ZoomBox" Width="62" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
                         SelectionChanged="OnZoomChosen" />
+              <TextBlock Classes="hint" Text="Floor" Margin="6,0,0,0" />
+              <ComboBox Name="FloorBox" Width="96" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
+                        SelectionChanged="OnFloorChosen" ToolTip.Tip="Plain plates, or a small room drawn from the fork's sprites">
+                <ComboBoxItem Content="Plain" />
+                <ComboBoxItem Content="Demo room" />
+              </ComboBox>
+              <CheckBox Name="LightingBox" Content="Lighting" IsChecked="True" FontSize="11" MinHeight="18" IsEnabled="False"
+                        IsCheckedChanged="OnLightingToggled" ToolTip.Tip="Light the demo room by its own lamps, as in the game, with shadows; off draws it evenly lit" />
+              <TextBlock Name="FloorNote" Classes="hint" FontSize="11" MaxWidth="320" TextWrapping="Wrap" IsVisible="False" />
             </WrapPanel>
           </Border>
           <Border Classes="crumbs" DockPanel.Dock="Top">

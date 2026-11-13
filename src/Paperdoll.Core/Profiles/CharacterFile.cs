@@ -435,6 +435,7 @@ public sealed class CharacterFile
             Sex = Sex ?? "Male",
             SkinColor = Rgba.TryParse(Scalar(Appearance, "skinColor"), out var skin) ? skin : Rgba.White,
             EyeColor = Rgba.TryParse(Scalar(Appearance, "eyeColor"), out var eyes) ? eyes : Rgba.White,
+            Glowing = new[] { CharacterInfo.HairGlowing, CharacterInfo.FacialHairGlowing, CharacterInfo.EyeGlowing }.Where(IsGlowing).ToHashSet(StringComparer.Ordinal),
         };
 
         if (IsOldModel)

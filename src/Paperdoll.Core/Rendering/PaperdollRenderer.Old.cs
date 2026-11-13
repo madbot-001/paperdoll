@@ -37,6 +37,9 @@ public sealed partial class PaperdollRenderer
                 slot.Sprite = sprite;
         }
         slots[ReserveSlot(slots, "Eyes")].Color = look.EyeColor;
+        // Starlight's glowing eyes, hair and facial hair draw unshaded
+        // (Content.Client/_Starlight/Humanoid/HumanoidAppearanceSystem.cs, UpdateSprite and ApplyMarking).
+        slots[ReserveSlot(slots, "Eyes")].Unshaded = look.Glowing.Contains(Profiles.CharacterInfo.EyeGlowing);
 
         var drawn = new Dictionary<string, Slot>(StringComparer.Ordinal);
         foreach (var (marking, entry) in OldMarkings(species, look))
@@ -61,6 +64,9 @@ public sealed partial class PaperdollRenderer
                     Color = color,
                     Displacement = displacement,
                     BodyLayer = marking.Layer,
+                    Unshaded = Unshaded(marking, marking.Sprites[i])
+                        || (marking.Category == "Hair" && look.Glowing.Contains(Profiles.CharacterInfo.HairGlowing))
+                        || (marking.Category == "FacialHair" && look.Glowing.Contains(Profiles.CharacterInfo.FacialHairGlowing)),
                 };
                 slots.Insert(index + i + 1, slot);
                 drawn[key] = slot;

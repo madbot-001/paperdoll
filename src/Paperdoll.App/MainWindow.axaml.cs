@@ -218,6 +218,7 @@ public partial class MainWindow : Window
         if (session.PreviewJob != null && !session.Content!.Outfits.Jobs.ContainsKey(session.PreviewJob))
             session.PreviewJob = null;
         BuildJobList();
+        ShowFloorSettings();
         BuildPortraits();
         _staleTabs.Add(EditorTab.Appearance);
         ClearLoadoutPictures();

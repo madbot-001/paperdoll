@@ -1,0 +1,87 @@
+# The demo room for Cargo, and for Delta-V's Logistics: a cargo bay.
+# See bar.yml for how a room file is written.
+id: cargo
+name: Cargo bay
+departments: [ Cargo, Logistics ]
+jobs: []
+stand: "4,3"
+legend:
+  p: Plating
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "psssssssp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Walls all round, windows either side of the door to the corridor south.
+- { proto: WallSolid, pos: "0.5,7.5" }
+- { proto: WallSolid, pos: "1.5,7.5" }
+- { proto: WallSolid, pos: "2.5,7.5" }
+- { proto: WallSolid, pos: "3.5,7.5" }
+- { proto: WallSolid, pos: "4.5,7.5" }
+- { proto: WallSolid, pos: "5.5,7.5" }
+- { proto: WallSolid, pos: "6.5,7.5" }
+- { proto: WallSolid, pos: "7.5,7.5" }
+- { proto: WallSolid, pos: "8.5,7.5" }
+- { proto: WallSolid, pos: "0.5,6.5" }
+- { proto: WallSolid, pos: "8.5,6.5" }
+- { proto: WallSolid, pos: "0.5,5.5" }
+- { proto: WallSolid, pos: "8.5,5.5" }
+- { proto: WallSolid, pos: "0.5,4.5" }
+- { proto: WallSolid, pos: "8.5,4.5" }
+- { proto: WallSolid, pos: "0.5,3.5" }
+- { proto: WallSolid, pos: "8.5,3.5" }
+- { proto: WallSolid, pos: "0.5,2.5" }
+- { proto: WallSolid, pos: "8.5,2.5" }
+- { proto: WallSolid, pos: "0.5,1.5" }
+- { proto: WallSolid, pos: "8.5,1.5" }
+- { proto: WallSolid, pos: "1.5,1.5" }
+- { proto: WallSolid, pos: "3.5,1.5" }
+- { proto: WallSolid, pos: "5.5,1.5" }
+- { proto: WallSolid, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: Window, pos: "2.5,1.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: Window, pos: "6.5,1.5" }
+- { proto: AirlockCargoGlass, pos: "4.5,1.5" }
+# The orders console and a desk by the north wall.
+- { proto: ComputerCargoOrders, pos: "1.5,6.5" }
+- { proto: Table, pos: "2.5,6.5" }
+- { proto: HandLabeler, pos: "2.45,6.6" }
+- { proto: Paper, pos: "2.6,6.45" }
+- { proto: ChairOfficeDark, pos: "2.5,5.5", rot: 180 }
+# Pallets of crates to the east.
+- { proto: CargoPallet, pos: "5.5,6.5" }
+- { proto: CargoPallet, pos: "6.5,6.5" }
+- { proto: CargoPallet, pos: "7.5,6.5" }
+- { proto: CargoPallet, pos: "5.5,5.5" }
+- { proto: CargoPallet, pos: "6.5,5.5" }
+- { proto: CargoPallet, pos: "7.5,5.5" }
+- { proto: CrateGenericSteel, pos: "5.5,6.5" }
+- { proto: CrateEngineering, pos: "6.5,6.5" }
+- { proto: CrateMedical, pos: "7.5,6.5" }
+- { proto: CratePlastic, pos: "6.5,5.5" }
+- { proto: CrateGenericSteel, pos: "7.5,5.5" }
+# The CargoDrobe and a rack to the west, a crate by the door.
+- { proto: VendingMachineCargoDrobe, pos: "1.5,3.5" }
+- { proto: Rack, pos: "1.5,2.5" }
+- { proto: CrateGenericSteel, pos: "7.5,2.5" }
+# Lights: tubes on the north wall, small bulbs on the west and east walls.
+- { proto: Poweredlight, pos: "3.5,6.5" }
+- { proto: Poweredlight, pos: "5.5,6.5" }
+- { proto: PoweredSmallLight, pos: "1.5,4.5", rot: 90 }
+- { proto: PoweredSmallLight, pos: "7.5,3.5", rot: -90 }
+decals:
+- { id: Bot, pos: "5,5" }
+- { id: Bot, pos: "5,6" }
+- { id: Bot, pos: "6,5" }
+- { id: Bot, pos: "6,6" }
+- { id: Bot, pos: "7,5" }
+- { id: Bot, pos: "7,6" }
+- { id: LoadingArea, pos: "7,2" }
+- { id: Delivery, pos: "3,2" }

@@ -8,7 +8,15 @@ using SkiaSharp;
 namespace Paperdoll.App;
 
 /// <summary>What the share window pictures: the character facing each way (front first), and the words to go with it.</summary>
-public sealed record ShareRequest(IReadOnlyList<SKBitmap> Sides, (float X, float Y) Scale, ShareText Text, string FullCredits, string FileName);
+/// <param name="Room">The demo room the preview shows, when it shows one.</param>
+public sealed record ShareRequest(IReadOnlyList<SKBitmap> Sides, (float X, float Y) Scale, ShareText Text, string FullCredits, string FileName, ShareRoom? Room = null);
+
+/// <summary>
+/// The demo room to put behind the character, as drawn, and the credit line and full credits that
+/// then name the room's pictures drawn, given those pictures.
+/// </summary>
+public sealed record ShareRoom(Core.Rooms.RoomScene Scene, Core.Rooms.RoomPicture Picture, Func<IReadOnlyList<Core.Editing.CreditLine>, string> Credit,
+    Func<IReadOnlyList<Core.Editing.CreditLine>, string> FullCredits);
 
 /// <summary>
 /// Makes a picture of the character to share: saved as a PNG or copied, never sent anywhere by
@@ -24,6 +32,8 @@ public partial class ShareWindow : Window
     private ShareOptions _options = new();
     private SKBitmap? _picture;
     private Avalonia.Media.Imaging.Bitmap? _shown;
+    // The full credits of the picture as drawn, which name the floor tiles in it.
+    private string _fullCredits = "";
     private bool _reading;
 
     public ShareWindow() => InitializeComponent();
@@ -31,6 +41,9 @@ public partial class ShareWindow : Window
     public ShareWindow(ShareRequest request, ShareOptions options, Action<ShareOptions> remember) : this()
     {
         _request = request;
+        // A background no longer offered, from older settings, is the plates.
+        if (!Enum.IsDefined(options.Background))
+            options = options with { Background = ShareBackground.Floor };
         _options = options;
         _remember = remember;
 
@@ -39,9 +52,12 @@ public partial class ShareWindow : Window
         FrontOnlyButton.IsChecked = !options.AllSides;
         SizeBox.ItemsSource = Zooms.Select(z => $"{z}× ({32 * z} pixels a tile)").ToList();
         SizeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Zooms, options.Zoom));
-        FloorButton.IsChecked = options.Background == ShareBackground.Floor;
+        // The demo room is offered only while the preview shows the room; otherwise the plates stand in.
+        FloorButton.IsChecked = options.Background == ShareBackground.Floor || (options.Background == ShareBackground.Room && request.Room == null);
         PlainButton.IsChecked = options.Background == ShareBackground.Plain;
         TransparentButton.IsChecked = options.Background == ShareBackground.Transparent;
+        RoomButton.IsVisible = request.Room != null;
+        RoomButton.IsChecked = options.Background == ShareBackground.Room && request.Room != null;
         CaptionBox.IsChecked = options.Caption;
         CreditBox.IsChecked = options.Credit;
         _reading = false;
@@ -67,7 +83,8 @@ public partial class ShareWindow : Window
         _options = new ShareOptions(
             AllSidesButton.IsChecked == true,
             Zooms[Math.Max(0, SizeBox.SelectedIndex)],
-            TransparentButton.IsChecked == true ? ShareBackground.Transparent : PlainButton.IsChecked == true ? ShareBackground.Plain : ShareBackground.Floor,
+            TransparentButton.IsChecked == true ? ShareBackground.Transparent : PlainButton.IsChecked == true ? ShareBackground.Plain
+                : RoomButton.IsChecked == true ? ShareBackground.Room : ShareBackground.Floor,
             CaptionBox.IsChecked == true,
             CreditBox.IsChecked == true);
         _remember?.Invoke(_options);
@@ -78,7 +95,11 @@ public partial class ShareWindow : Window
     {
         var sides = _options.AllSides ? _request!.Sides : [_request!.Sides[0]];
         _picture?.Dispose();
-        _picture = SharePicture.Compose(sides, _request.Scale, _options, _request.Text);
+        var room = _options.Background == ShareBackground.Room ? _request.Room : null;
+        var tiles = room != null ? SharePicture.RoomCredits(sides, _request.Scale, _options, room.Scene) : [];
+        _fullCredits = room?.FullCredits(tiles) ?? _request.FullCredits;
+        var credit = room?.Credit(tiles);
+        _picture = SharePicture.Compose(sides, _request.Scale, _options, credit == null ? _request.Text : _request.Text with { Credit = credit }, room?.Picture);
         var shown = FloorCanvas.ToAvalonia(_picture);
         PictureImage.Source = shown;
         _shown?.Dispose();
@@ -129,7 +150,7 @@ public partial class ShareWindow : Window
         {
             if (Clipboard == null)
                 throw new InvalidOperationException("there is no clipboard to copy to");
-            await Clipboard.SetTextAsync(_request!.FullCredits);
+            await Clipboard.SetTextAsync(_fullCredits);
             StatusText.Text = "Copied the full sprite credits, to post along with the picture.";
         }
         catch (Exception ex)

@@ -1,0 +1,86 @@
+# The demo room for Command: a small bridge. See bar.yml for how a room file is written.
+id: bridge
+name: Bridge
+departments: [ Command ]
+jobs: []
+stand: "4,3"
+legend:
+  p: Plating
+  d: FloorDark
+  s: FloorSteel
+tiles:
+- "ppppppppp"
+- "pdddddddp"
+- "pdddddddp"
+- "pdddddddp"
+- "pdddddddp"
+- "pdddddddp"
+- "ppppppppp"
+- "sssssssss"
+entities:
+# Reinforced walls all round, windows on space to the north and either side of the door to the corridor south.
+- { proto: WallReinforced, pos: "0.5,7.5" }
+- { proto: WallReinforced, pos: "1.5,7.5" }
+- { proto: WallReinforced, pos: "7.5,7.5" }
+- { proto: WallReinforced, pos: "8.5,7.5" }
+- { proto: WallReinforced, pos: "0.5,6.5" }
+- { proto: WallReinforced, pos: "8.5,6.5" }
+- { proto: WallReinforced, pos: "0.5,5.5" }
+- { proto: WallReinforced, pos: "8.5,5.5" }
+- { proto: WallReinforced, pos: "0.5,4.5" }
+- { proto: WallReinforced, pos: "8.5,4.5" }
+- { proto: WallReinforced, pos: "0.5,3.5" }
+- { proto: WallReinforced, pos: "8.5,3.5" }
+- { proto: WallReinforced, pos: "0.5,2.5" }
+- { proto: WallReinforced, pos: "8.5,2.5" }
+- { proto: WallReinforced, pos: "0.5,1.5" }
+- { proto: WallReinforced, pos: "8.5,1.5" }
+- { proto: WallReinforced, pos: "1.5,1.5" }
+- { proto: WallReinforced, pos: "3.5,1.5" }
+- { proto: WallReinforced, pos: "5.5,1.5" }
+- { proto: WallReinforced, pos: "7.5,1.5" }
+- { proto: Grille, pos: "2.5,1.5" }
+- { proto: ReinforcedWindow, pos: "2.5,1.5" }
+- { proto: Grille, pos: "2.5,7.5" }
+- { proto: ReinforcedWindow, pos: "2.5,7.5" }
+- { proto: Grille, pos: "3.5,7.5" }
+- { proto: ReinforcedWindow, pos: "3.5,7.5" }
+- { proto: Grille, pos: "4.5,7.5" }
+- { proto: ReinforcedWindow, pos: "4.5,7.5" }
+- { proto: Grille, pos: "5.5,7.5" }
+- { proto: ReinforcedWindow, pos: "5.5,7.5" }
+- { proto: Grille, pos: "6.5,1.5" }
+- { proto: ReinforcedWindow, pos: "6.5,1.5" }
+- { proto: Grille, pos: "6.5,7.5" }
+- { proto: ReinforcedWindow, pos: "6.5,7.5" }
+- { proto: AirlockCommandGlass, pos: "4.5,1.5" }
+# The consoles along the windows, a chair at each, the captain's in the middle.
+- { proto: ComputerAlert, pos: "2.5,6.5" }
+- { proto: ComputerCrewMonitoring, pos: "3.5,6.5" }
+- { proto: ComputerComms, pos: "4.5,6.5" }
+- { proto: ComputerId, pos: "5.5,6.5" }
+- { proto: ComputerSurveillanceCameraMonitor, pos: "6.5,6.5" }
+- { proto: ChairOfficeDark, pos: "2.5,5.5", rot: 180 }
+- { proto: ChairOfficeDark, pos: "3.5,5.5", rot: 180 }
+- { proto: ComfyChair, pos: "4.5,5.5", rot: 180 }
+- { proto: ChairOfficeDark, pos: "5.5,5.5", rot: 180 }
+- { proto: ChairOfficeDark, pos: "6.5,5.5", rot: 180 }
+# A blue carpet up to the captain's chair.
+- { proto: CarpetBlue, pos: "4.5,2.5" }
+- { proto: CarpetBlue, pos: "4.5,3.5" }
+- { proto: CarpetBlue, pos: "4.5,4.5" }
+- { proto: CarpetBlue, pos: "3.5,4.5" }
+- { proto: CarpetBlue, pos: "5.5,4.5" }
+# A table of folders by the west wall, plants in the corners.
+- { proto: TableReinforced, pos: "1.5,3.5" }
+- { proto: TableReinforced, pos: "1.5,2.5" }
+- { proto: BoxFolderBlue, pos: "1.45,3.6" }
+- { proto: Paper, pos: "1.55,2.55" }
+- { proto: PottedPlant10, pos: "1.5,6.5" }
+- { proto: PottedPlant10, pos: "7.5,6.5" }
+- { proto: PottedPlant1, pos: "7.5,2.5" }
+# Lights: tubes on the west and east walls, a small bulb by the door.
+- { proto: Poweredlight, pos: "1.5,4.5", rot: 90 }
+- { proto: Poweredlight, pos: "7.5,4.5", rot: -90 }
+- { proto: PoweredSmallLight, pos: "3.5,2.5", rot: 180 }
+- { proto: PoweredSmallLight, pos: "5.5,2.5", rot: 180 }

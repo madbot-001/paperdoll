@@ -44,7 +44,7 @@ public sealed record CreditLine(string Rsi, string? License, string? Copyright)
 /// Everything the editor window works on, without the window. Every edit runs through the game's
 /// rules, so the character stays one the game would accept.
 /// </summary>
-public sealed class EditorSession : IAsyncDisposable
+public sealed partial class EditorSession : IAsyncDisposable
 {
     private IBlobReader? _reader;
 
@@ -1099,14 +1099,17 @@ public sealed class EditorSession : IAsyncDisposable
     public IReadOnlyList<RuleFix> SetCustomization(string jobId, string groupId, LoadoutEntry entry) =>
         Edit(f => f.SetLoadoutCustomization(OutfitCatalog.RoleFor(jobId), groupId, entry));
 
-    /// <summary>Whether anything on the character moves, facing any way (animated markings or clothes).</summary>
+    /// <summary>Whether anything on the character moves, facing any of the four ways the preview draws (animated markings or clothes).</summary>
     public bool IsAnimated()
     {
         if (PreviewEntity() is { } entity)
-            return Enum.GetValues<Direction>().Any(d => Renderer!.IsEntityAnimated(entity, d));
+            return Facings.Any(d => Renderer!.IsEntityAnimated(entity, d));
         var outfit = Outfit();
-        return Enum.GetValues<Direction>().Any(d => Renderer!.IsAnimated(Look!, d, outfit));
+        return Facings.Any(d => Renderer!.IsAnimated(Look!, d, outfit));
     }
+
+    // The character is drawn facing these; diagonals are for things placed in a room.
+    private static readonly Direction[] Facings = [Direction.South, Direction.North, Direction.East, Direction.West];
 
     /// <summary>Each sprite folder on screen with its licence and credit, in drawing order.</summary>
     public IReadOnlyList<CreditLine> Credits()
