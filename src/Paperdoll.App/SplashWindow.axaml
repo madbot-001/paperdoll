@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Paperdoll.App.SplashWindow"
+        Icon="/Assets/icon.png"
+        Title="Paperdoll"
+        Width="380" SizeToContent="Height" CanResize="False" WindowDecorations="None"
+        WindowStartupLocation="CenterScreen">
+  <Border BorderBrush="{StaticResource ThemeBorderLowBrush}" BorderThickness="1">
+    <DockPanel>
+      <Border DockPanel.Dock="Top" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+              BorderThickness="0,0,0,1" Padding="12,10">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Image Source="/Assets/icon.png" Width="48" Height="48" />
+          <StackPanel VerticalAlignment="Center" Spacing="2">
+            <TextBlock Text="Paperdoll" FontWeight="Bold" FontSize="14" />
+            <TextBlock Name="VersionText" Classes="muted" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <StackPanel Margin="12,10,12,12" Spacing="8">
+        <TextBlock Name="StatusText" Text="Starting" TextTrimming="CharacterEllipsis" />
+        <DockPanel>
+          <Button Name="CancelButton" DockPanel.Dock="Right" Content="Cancel" Width="80" Margin="10,0,0,0" IsVisible="False"
+                  Click="OnCancel" ToolTip.Tip="Stop the download; the fork stays as it was" />
+          <ProgressBar IsIndeterminate="True" Height="10" MinHeight="10" VerticalAlignment="Center" CornerRadius="0"
+                       Background="{StaticResource FieldBrush}" Foreground="{StaticResource SelectBrush}"
+                       BorderBrush="{StaticResource LineBrush}" BorderThickness="1" />
+        </DockPanel>
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</Window>

@@ -95,7 +95,15 @@ public sealed class MemoryForkStore : IForkStore
         return Task.FromResult(_commits[fork.Id] = commit);
     }
 
-    public Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default) => Task.FromResult(_commits.GetValueOrDefault(forkId));
+    /// <summary>Holds asking which commit a fork is on until released or cancelled, so a fork load waits at its start.</summary>
+    public TaskCompletionSource? CommitHold { get; set; }
+
+    public async Task<string?> CommitOfAsync(string forkId, CancellationToken ct = default)
+    {
+        if (CommitHold is { } hold)
+            await hold.Task.WaitAsync(ct);
+        return _commits.GetValueOrDefault(forkId);
+    }
 
     public Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default)
     {

@@ -47,7 +47,7 @@ public partial class MainWindow : Window
         };
         Opened += (_, _) =>
         {
-            if (_session == null)
+            if (_session == null && !_started)
                 Startup = StartAsync();
         };
     }
@@ -67,8 +67,12 @@ public partial class MainWindow : Window
         }
     }
 
+    // The first load has begun, here or behind the splash.
+    private bool _started;
+
     private async Task StartAsync()
     {
+        _started = true;
         // Nothing but the first load until it has started: a fork chosen meanwhile would load
         // alongside it.
         _loading = true;
@@ -78,7 +82,7 @@ public partial class MainWindow : Window
             LoadSettings();
             _restorePending = _settings.Autosave && File.Exists(AutosavePath);
             SetStatus("Opening the fork store");
-            _session = await Task.Run(() => EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE")));
+            _session = await Task.Run(_openSession ?? (() => EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE"))));
             var statuses = await _session.ForkStatusesAsync();
             await RefreshForkBoxAsync();
 
@@ -99,6 +103,7 @@ public partial class MainWindow : Window
             else
             {
                 SetStatus("No fork downloaded yet. Choose Fork > Forks... to download one.");
+                await LeaveSplashAsync();
                 await ShowForksAsync();
             }
         }
@@ -110,6 +115,7 @@ public partial class MainWindow : Window
         {
             _loading = false;
             SetBusy(false);
+            await LeaveSplashAsync();
         }
     }
 
@@ -133,12 +139,14 @@ public partial class MainWindow : Window
         _busyCancel = busy ? cancel : null;
         CancelButton.IsVisible = _busyCancel != null;
         CancelButton.IsEnabled = true;
+        _splash?.SetCancel(CancelButton.IsVisible, enabled: true);
     }
 
     private void OnCancelLoad(object? sender, RoutedEventArgs e)
     {
         _busyCancel?.Cancel();
         CancelButton.IsEnabled = false;
+        _splash?.SetCancel(CancelButton.IsVisible, enabled: false);
         SetStatus("Stopping...");
     }
 
@@ -322,7 +330,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SetStatus(string text) => StatusText.Text = text;
+    private void SetStatus(string text)
+    {
+        StatusText.Text = text;
+        _splash?.SetStatus(text);
+    }
 
     private async void OnForkChosen(object? sender, SelectionChangedEventArgs e)
     {

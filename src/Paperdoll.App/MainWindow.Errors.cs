@@ -8,6 +8,8 @@ public partial class MainWindow
     /// </summary>
     public void OnUnexpectedError(Exception error)
     {
+        // Shown, so the error is not hidden behind the splash.
+        LeaveSplash();
         var log = ErrorLog.Write(error);
         _animation?.Stop();
         _refreshing = false;
