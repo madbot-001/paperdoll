@@ -48,6 +48,9 @@ public sealed record AppSettings
 
     /// <summary>Whether the demo room is lit by its own lamps, as in the game, rather than flat.</summary>
     public bool Lighting { get; init; } = true;
+
+    /// <summary>The id of the demo room shown for every job; null, or one no longer there, is the job's own room.</summary>
+    public string? Room { get; init; }
 }
 
 public sealed record MatchedServer(string Name, string Commit);

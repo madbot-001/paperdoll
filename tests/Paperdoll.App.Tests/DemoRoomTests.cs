@@ -359,6 +359,139 @@ public class DemoRoomTests
         return Task.CompletedTask;
     });
 
+    // A hallway of the window's own, with no crate, as the room for jobs that no room names; the
+    // rooms folder as UseRooms made it.
+    private static void AddHallway(string folder) =>
+        File.WriteAllText(Path.Combine(folder, "hallway.yml"), TestRooms.Room
+            .Replace("id: bar", "id: hallway", StringComparison.Ordinal)
+            .Replace("name: Test bar", "name: Test hall", StringComparison.Ordinal)
+            .Replace("jobs: [ Clerk ]", "jobs: []", StringComparison.Ordinal)
+            .Replace("- { proto: TestCrate, pos: \"0.5,1.5\" }\n", "", StringComparison.Ordinal));
+
+    // Shows a job in the preview as the Job box does.
+    private static void ChooseJob(MainWindow window, Core.Editing.EditorSession editor, string job)
+    {
+        editor.PreviewJob = job;
+        typeof(MainWindow).GetMethod("RefreshAll", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, [false, false]);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static ComboBox RoomBox(MainWindow window) => Find<ComboBox>(window, "RoomBox");
+
+    private static void ChooseRoomItem(MainWindow window, string name)
+    {
+        RoomBox(window).SelectedItem = name;
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [Fact]
+    public Task The_Room_box_lists_By_job_and_the_rooms_and_is_offered_with_the_demo_room_only() => OnWindow(TestRooms.Fork, (window, editor) =>
+    {
+        var folder = UseRooms(window, TestRooms.Room);
+        AddHallway(folder);
+        Assert.Equal(PlainItem, Find<ComboBox>(window, "FloorBox").SelectedIndex);
+        Assert.False(RoomBox(window).IsEnabled);
+
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = RoomItem;
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(RoomBox(window).IsEnabled);
+        // By job first; then each room by name, a replaced room under its new name.
+        Assert.Equal(["By job", "Bridge", "Cargo bay", "Engine room", "Kitchen", "Medical bay", "Research lab", "Security office", "Test bar", "Test hall"],
+            RoomBox(window).ItemsSource!.Cast<string>());
+        Assert.Equal(0, RoomBox(window).SelectedIndex);
+
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = PlainItem;
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(RoomBox(window).IsEnabled);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task A_room_chosen_is_shown_for_any_job_and_By_job_gives_the_jobs_room_back() => OnWindow(TestRooms.Fork, (window, editor) =>
+    {
+        editor.PreviewJob = "Clerk";
+        AddHallway(UseRooms(window, TestRooms.Room));
+        Find<ComboBox>(window, "ZoomBox").SelectedItem = "2x";
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = RoomItem;
+        // The clerk's own room, with the crate west of the doll.
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Green);
+
+        // The hallway for the clerk: the same squares, no crate.
+        ChooseRoomItem(window, "Test hall");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Blue);
+        Assert.Equal("No light shines in the demo room; drawn without lighting.", Note(window));
+
+        ChooseRoomItem(window, "By job");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Green);
+
+        // A job no room names gets the hallway; chosen, the bar shows for it.
+        ChooseJob(window, editor, "Sculptor");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Blue);
+        ChooseRoomItem(window, "Test bar");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Green);
+        ChooseRoomItem(window, "By job");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Blue);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task With_a_room_chosen_a_job_that_changes_does_not_ask_for_or_draw_the_room_again() => OnWindow(TestRooms.Fork, (window, editor) =>
+    {
+        var store = (MemoryForkStore)editor.Store;
+        editor.PreviewJob = "Clerk";
+        AddHallway(UseRooms(window, TestRooms.Room));
+        Find<ComboBox>(window, "ZoomBox").SelectedItem = "2x";
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = RoomItem;
+        ChooseRoomItem(window, "Test hall");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Blue);
+        var drawn = PictureShown(window);
+        var fetches = store.Fetches.Count;
+
+        var asked = Field(window, "_roomAsked");
+        ChooseJob(window, editor, "Sculptor");
+        ChooseJob(window, editor, "Clerk");
+        ChooseJob(window, editor, "Sculptor");
+        Assert.Equal(asked, Field(window, "_roomAsked"));
+        Assert.Same(drawn, PictureShown(window));
+        Assert.Equal(fetches, store.Fetches.Count);
+        Assert.Equal(TestRooms.Blue, Pixel(window, -64 + 8, 56));
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task The_share_picture_and_the_credits_follow_the_room_chosen() => OnWindow(TestRooms.Fork, (window, editor) =>
+    {
+        editor.PreviewJob = "Clerk";
+        AddHallway(UseRooms(window, TestRooms.Room));
+        Find<ComboBox>(window, "ZoomBox").SelectedItem = "2x";
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = RoomItem;
+        ChooseRoomItem(window, "Test hall");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Blue);
+
+        // The hallway has no crate, so its credit is not listed.
+        window.ShowTab(EditorTab.Credits);
+        var rows = Find<DataGrid>(window, "CreditsGrid").ItemsSource!.Cast<CreditRow>().ToList();
+        Assert.Contains(new CreditRow("Structures/railing.rsi", "CC-BY-SA-3.0", "Railing made up"), rows);
+        Assert.DoesNotContain(rows, r => r.Rsi == "Structures/crate.rsi");
+
+        var share = OpenShare(window);
+        share.FindControl<RadioButton>("RoomButton")!.IsChecked = true;
+        Dispatcher.UIThread.RunJobs();
+        var credits = (string)typeof(ShareWindow).GetField("_fullCredits", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(share)!;
+        Assert.Contains("The Test hall demo room around the character:", credits);
+        Assert.DoesNotContain("crate.rsi", credits);
+        share.Close();
+
+        // Back to the clerk's own room, the crate is credited again.
+        ChooseRoomItem(window, "By job");
+        WaitFor(() => Pixel(window, -64 + 8, 56) == TestRooms.Green);
+        window.ShowTab(EditorTab.Messages);
+        window.ShowTab(EditorTab.Credits);
+        rows = Find<DataGrid>(window, "CreditsGrid").ItemsSource!.Cast<CreditRow>().ToList();
+        Assert.Contains(rows, r => r.Rsi == "Structures/crate.rsi");
+        return Task.CompletedTask;
+    });
+
     [Fact]
     public Task The_picture_window_offers_the_demo_room_only_while_one_is_shown() => OnWindow(TestRooms.Fork, (window, editor) =>
     {
@@ -458,6 +591,65 @@ public class DemoRoomSettingsTests
                 LoadSettings(window);
                 Assert.Equal("Demo room", ((ComboBoxItem)Floor(window).SelectedItem!).Content);
                 Assert.True(window.FindControl<CheckBox>("LightingBox")!.IsEnabled);
+                return Task.CompletedTask;
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PAPERDOLL_DATA", before);
+            if (Directory.Exists(data))
+                Directory.Delete(data, true);
+        }
+    }
+
+    [Fact]
+    public async Task The_room_chosen_is_kept_for_the_next_start_and_one_gone_or_unsaved_is_By_job()
+    {
+        var data = Path.Combine(TestData.Directory, "room-" + Guid.NewGuid().ToString("N"));
+        var before = Environment.GetEnvironmentVariable("PAPERDOLL_DATA");
+        Environment.SetEnvironmentVariable("PAPERDOLL_DATA", data);
+        static void LoadSettings(MainWindow window) =>
+            typeof(MainWindow).GetMethod("LoadSettings", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, []);
+        static ComboBox Rooms(MainWindow window) => window.FindControl<ComboBox>("RoomBox")!;
+        var settings = Path.Combine(data, "settings.json");
+        try
+        {
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                window.FindControl<ComboBox>("FloorBox")!.SelectedIndex = DemoRoomTests.RoomItem;
+                Rooms(window).SelectedItem = "Kitchen";
+                Dispatcher.UIThread.RunJobs();
+                return Task.CompletedTask;
+            });
+            Assert.Equal("kitchen", JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(settings))!.Room);
+
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Assert.Equal("Kitchen", Rooms(window).SelectedItem);
+                Assert.True(Rooms(window).IsEnabled);
+                // Back to By job, saved as none.
+                Rooms(window).SelectedIndex = 0;
+                Dispatcher.UIThread.RunJobs();
+                return Task.CompletedTask;
+            });
+            Assert.Null(JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(settings))!.Room);
+
+            // A room no longer there, and settings written before the box, are By job.
+            File.WriteAllText(settings, """{"Autosave":true,"Floor":2,"Room":"removed","Stations":{"r":"Test"}}""");
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Assert.Equal("By job", Rooms(window).SelectedItem);
+                Assert.True(Rooms(window).IsEnabled);
+                return Task.CompletedTask;
+            });
+            File.WriteAllText(settings, """{"Autosave":true,"Floor":2,"Stations":{"r":"Test"}}""");
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Assert.Equal(0, Rooms(window).SelectedIndex);
                 return Task.CompletedTask;
             });
         }

@@ -250,4 +250,60 @@ public class PrototypeIndexTests
         Assert.Equal("first", Get(index.Resolve("species", "Human")!, "name"));
         Assert.Contains(index.Problems, p => p.Message.Contains("Duplicate"));
     }
+
+    [Fact]
+    public void Prototypes_resolved_from_many_threads_at_once_all_see_the_fields_written_null()
+    {
+        // A parentless entity, and a child with a component its parent lacks, each with a field
+        // written null among many others, resolved for the first time from several threads at once.
+        var fields = string.Concat(Enumerable.Range(0, 200).Select(i => $"    f{i}: v{i}\n"));
+        var yaml = $"""
+            - type: entity
+              id: Plain
+              components:
+              - type: Door
+            {fields}    closedSpriteState: null
+            - type: entity
+              id: Parent
+              components:
+              - type: Sprite
+            - type: entity
+              id: Child
+              parent: Parent
+              components:
+              - type: Airlock
+            {fields}    closedSpriteState: null
+            """;
+        const int threads = 8;
+        for (var round = 0; round < 200; round++)
+        {
+            var index = Load(("race.yml", yaml));
+            Assert.Empty(index.Problems);
+            var seen = new bool[threads];
+            var thrown = new Exception?[threads];
+            using var start = new Barrier(threads);
+            var workers = Enumerable.Range(0, threads).Select(t => new Thread(() =>
+            {
+                start.SignalAndWait();
+                try
+                {
+                    var plain = index.Resolve("entity", "Plain")!;
+                    var child = index.Resolve("entity", "Child")!;
+                    seen[t] = index.WrittenNull(plain, "Door", "closedSpriteState") && index.WrittenNull(child, "Airlock", "closedSpriteState");
+                }
+                catch (Exception e)
+                {
+                    thrown[t] = e;
+                }
+            })).ToList();
+            foreach (var worker in workers)
+                worker.Start();
+            foreach (var worker in workers)
+                worker.Join();
+
+            Assert.All(thrown, Assert.Null);
+            Assert.All(seen, Assert.True);
+            Assert.True(index.WrittenNull(index.Resolve("entity", "Plain")!, "Door", "closedSpriteState"));
+        }
+    }
 }

@@ -10,7 +10,7 @@ namespace Paperdoll.Core.Rendering;
 /// How the game's visualizer systems leave an entity's layers at round start, on a thing that is
 /// powered, unbolted, unwelded and untouched, and a door open or closed as its prototype starts it:
 /// one rule per layer map key, which applies when the entity has the component that drives the
-/// layer. A rule may hide or show the layer and set its state and colour; anything a rule leaves
+/// layer. A rule may hide or show the layer and set its state, colour and shader; anything a rule leaves
 /// out stays as the prototype writes it.
 /// <para>
 /// A <c>GenericVisualizer</c> is not followed: it changes a layer only once the server has set
@@ -19,8 +19,9 @@ namespace Paperdoll.Core.Rendering;
 /// </summary>
 public static class RoundStartLook
 {
-    // What a rule does to a layer: shown or hidden, its state and its colour (null leaves each).
-    private readonly record struct Look(bool? Visible, string? State, Rgba? Color = null);
+    // What a rule does to a layer: shown or hidden, its state, its colour and its shader (null
+    // leaves each); NoState clears the state, as the engine's LayerSetRsiState does given null.
+    private readonly record struct Look(bool? Visible, string? State, Rgba? Color = null, string? Shader = null, bool NoState = false);
 
     private static readonly Look Hidden = new(false, null);
 
@@ -35,43 +36,56 @@ public static class RoundStartLook
         // Content.Client/Doors/DoorSystem.cs, UpdateAppearanceForDoorState: a closed door shows
         // Door.closedSpriteState and an open one Door.openSpriteState (defaults "closed" and "open",
         // Content.Shared/Doors/Components/DoorComponent.cs), and no emagging sparks.
-        ("enum.DoorVisualLayers.Base", "Door", (e, _) => new(null, DoorOpen(e)
-            ? Field(e, "Door", "openSpriteState") ?? "open"
-            : Field(e, "Door", "closedSpriteState") ?? "closed")),
+        // A state written as null blanks the layer.
+        ("enum.DoorVisualLayers.Base", "Door", (e, p) => SetState(null, DoorOpen(e)
+            ? StateField(e, p, "Door", "openSpriteState", "open")
+            : StateField(e, p, "Door", "closedSpriteState", "closed"))),
         ("enum.DoorVisualLayers.BaseEmagging", "Door", (_, _) => Hidden),
         // Content.Client/Doors/AirlockSystem.cs: a powered airlock without bolt or emergency lights
         // shows its unlit layer while closed, and while open only when openUnlitVisible; with
         // openUnlitVisible the layer takes Airlock.closedSpriteState or openSpriteState (defaults
-        // "closed_unlit" and "open_unlit", Content.Shared/Doors/Components/AirlockComponent.cs).
-        ("enum.DoorVisualLayers.BaseUnlit", "Airlock", (e, _) =>
+        // "closed_unlit" and "open_unlit", Content.Shared/Doors/Components/AirlockComponent.cs), a
+        // state written as null blanking it.
+        ("enum.DoorVisualLayers.BaseUnlit", "Airlock", (e, p) =>
         {
             var openUnlit = Field(e, "Airlock", "openUnlitVisible") is "true" or "True";
+            if (!openUnlit)
+                return new(!DoorOpen(e), null);
             return DoorOpen(e)
-                ? new(openUnlit, openUnlit ? Field(e, "Airlock", "openSpriteState") ?? "open_unlit" : null)
-                : new(true, openUnlit ? Field(e, "Airlock", "closedSpriteState") ?? "closed_unlit" : null);
+                ? SetState(true, StateField(e, p, "Airlock", "openSpriteState", "open_unlit"))
+                : SetState(true, StateField(e, p, "Airlock", "closedSpriteState", "closed_unlit"));
         }),
         ("enum.DoorVisualLayers.BaseBolted", "Airlock", (_, _) => Hidden),
         ("enum.DoorVisualLayers.BaseEmergencyAccess", "Airlock", (_, _) => Hidden),
         // Content.Client/VendingMachines/VendingMachineSystem.cs, UpdateAppearance: a powered machine
         // shows offState under normalState and screenState (VendingMachineVisualsComponent.cs); a
-        // state the component does not give leaves its layer alone.
-        ("enum.VendingMachineVisualLayers.Base", "VendingMachineVisuals", (e, _) => Shown(Field(e, "VendingMachineVisuals", "offState"))),
-        ("enum.VendingMachineVisualLayers.BaseUnshaded", "VendingMachineVisuals", (e, _) => Shown(Field(e, "VendingMachineVisuals", "normalState"))),
-        ("enum.VendingMachineVisualLayers.Screen", "VendingMachineVisuals", (e, _) => Shown(Field(e, "VendingMachineVisuals", "screenState"))),
+        // state the component does not give, or gives as null or empty, leaves its layer alone.
+        ("enum.VendingMachineVisualLayers.Base", "VendingMachineVisuals", (e, p) => Shown(StateField(e, p, "VendingMachineVisuals", "offState"))),
+        ("enum.VendingMachineVisualLayers.BaseUnshaded", "VendingMachineVisuals", (e, p) => Shown(StateField(e, p, "VendingMachineVisuals", "normalState"))),
+        ("enum.VendingMachineVisualLayers.Screen", "VendingMachineVisuals", (e, p) => Shown(StateField(e, p, "VendingMachineVisuals", "screenState"))),
         // Content.Client/Storage/Visualizers/EntityStorageVisualizerSystem.cs: a closed locker or
         // crate shows EntityStorageVisuals.stateBaseClosed on its base layer, and its door layer in
         // stateDoorClosed, hidden when the component gives none (EntityStorageVisualsComponent.cs).
-        ("enum.StorageVisualLayers.Base", "EntityStorageVisuals", (e, _) => Shown(Field(e, "EntityStorageVisuals", "stateBaseClosed"))),
-        ("enum.StorageVisualLayers.Door", "EntityStorageVisuals", (e, _) =>
-            Field(e, "EntityStorageVisuals", "stateDoorClosed") is { Length: > 0 } door ? new(true, door) : Hidden),
+        ("enum.StorageVisualLayers.Base", "EntityStorageVisuals", (e, p) => Shown(StateField(e, p, "EntityStorageVisuals", "stateBaseClosed"))),
+        ("enum.StorageVisualLayers.Door", "EntityStorageVisuals", (e, p) =>
+            StateField(e, p, "EntityStorageVisuals", "stateDoorClosed") is { Length: > 0 } door ? new(true, door) : Hidden),
         // Content.Client/Audio/Jukebox/JukeboxSystem.cs: a powered jukebox is On (as
         // Content.Server/Audio/Jukebox/JukeboxSystem.cs sets it), showing Jukebox.onState.
-        ("enum.JukeboxVisualLayers.Base", "Jukebox", (e, _) => Shown(Field(e, "Jukebox", "onState"))),
+        ("enum.JukeboxVisualLayers.Base", "Jukebox", (e, p) => Shown(StateField(e, p, "Jukebox", "onState"))),
         // Content.Client/Light/Visualizers/PoweredLightVisualizerSystem.cs: the base layer shows the
         // spriteStateMap entry of the bulb state, and the glow only when on, in the colour of the
         // entity's PointLight, which a lit fixture's bulb sets (SharedPoweredLightSystem.SetLight).
         ("enum.PoweredLightLayers.Base", "PoweredLightVisuals", (e, p) => new(null, LightStateMap(e).GetValueOrDefault(BulbState(e, p)))),
         ("enum.PoweredLightLayers.Glow", "PoweredLightVisuals", (e, p) => new(BulbState(e, p) == "On", null, GlowColor(e, p))),
+        // Content.Client/Computer/Visualizers/ComputerVisualizerSystem.cs: at startup each layer
+        // takes its ComputerVisuals state (ComputerVisualsComponent.cs), and one the component
+        // leaves unset is blanked (TrySetLayerState sets a null state); a powered computer shows
+        // its screen, and screen and keys unshaded.
+        ("enum.ComputerVisualLayers.Frame", "ComputerVisuals", (e, p) => SetState(null, StateField(e, p, "ComputerVisuals", "stateFrame"))),
+        ("enum.ComputerVisualLayers.Keyboard", "ComputerVisuals", (e, p) => SetState(null, StateField(e, p, "ComputerVisuals", "stateKeyboard"))),
+        ("enum.ComputerVisualLayers.Keys", "ComputerVisuals", (e, p) => SetState(null, StateField(e, p, "ComputerVisuals", "stateKeys"), "unshaded")),
+        ("enum.ComputerVisualLayers.Screen", "ComputerVisuals", (e, p) => SetState(true, StateField(e, p, "ComputerVisuals", "stateScreen"), "unshaded")),
+        ("enum.WiresVisualLayers.MaintenancePanel", "ComputerVisuals", (e, p) => SetState(null, StateField(e, p, "ComputerVisuals", "statePanel"))),
     ];
 
     /// <summary>
@@ -113,16 +127,39 @@ public static class RoundStartLook
                 var look = rule(entity, prototypes);
                 if (look.Visible is { } visible)
                     layer.Visible = visible;
-                if (look.State is { } state)
+                if (look.NoState)
+                    layer.State = null;
+                else if (look.State is { } state)
                     layer.State = state;
                 if (look.Color is { } color)
                     layer.Color = color;
+                if (look.Shader is { } shader)
+                    layer.Shader = shader;
             }
         }
     }
 
     // SetLayerState shows the layer in the state, when there is one.
     private static Look Shown(string? state) => string.IsNullOrEmpty(state) ? default : new(true, state);
+
+    // LayerSetRsiState: the state given, or none when it is null. With no state a layer draws
+    // nothing unless it has a texture, which it then draws (Robust.Client SpriteComponent.Layer.Blank
+    // and SpriteSystem.Render.cs, RenderLayer); LayerSpec keeps the texture for that.
+    private static Look SetState(bool? visible, string? state, string? shader = null) =>
+        new(visible, state, Shader: shader, NoState: state == null);
+
+    // A nullable string field as the engine reads it: null when written as null in the entity or
+    // a parent it inherits it from (PrototypeIndex.WrittenNull, PrototypeIndex.IsNull), else the
+    // value, or the fallback when it is not written.
+    private static string? StateField(YamlMappingNode entity, PrototypeIndex prototypes, string component, string field, string? fallback = null)
+    {
+        if (prototypes.WrittenNull(entity, component, field))
+            return null;
+        if (!(PrototypeYaml.Component(entity, component)?.Children.TryGetValue(new YamlScalarNode(field), out var node) ?? false)
+            || node is not YamlScalarNode scalar)
+            return fallback;
+        return PrototypeIndex.IsNull(scalar) ? null : scalar.Value;
+    }
 
     private static string? Field(YamlMappingNode entity, string component, string field) =>
         PrototypeYaml.Scalar(PrototypeYaml.Component(entity, component), field);

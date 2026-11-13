@@ -1,6 +1,8 @@
 // The edge sprites follow RobustToolbox (Robust.Client/Graphics/Clyde/Clyde.GridRendering.cs,
 // _updateChunkEdges, and Robust.Client/Map/ClydeTileDefinitionManager.cs), Copyright (c) 2019 Space
-// Station 14 Contributors, MIT licence. See THIRD-PARTY-NOTICES.md.
+// Station 14 Contributors, MIT licence; the reading of IconSmooth states follows Space Station 14
+// (Content.Client/IconSmoothing/), Copyright (c) 2017-2026 Space Wizards Federation, MIT licence.
+// See THIRD-PARTY-NOTICES.md.
 
 using System.Globalization;
 using System.Numerics;
@@ -84,7 +86,7 @@ public sealed class RoomPlan
                     PrototypeYaml.Scalar(smooth, "mode") ?? "Corners",
                     PrototypeYaml.Strings(smooth, "additionalKeys"),
                     int.TryParse(PrototypeYaml.Scalar(smooth, "index"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) ? index : null,
-                    PrototypeYaml.Bool(smooth, "enabled", true)),
+                    PrototypeYaml.Bool(smooth, "enabled", true)) { States = SmoothStates(smooth) },
             };
             entities.Add(visual);
             prototypesOf[visual] = proto;
@@ -93,7 +95,7 @@ public sealed class RoomPlan
         foreach (var entity in entities)
         {
             entity.Layers = EntityComposer.Layers(entity, (x, y) => anchored[(x, y)]);
-            // As the game's visualizers leave them at round start; IconSmooth's corner layers have no map key.
+            // As the game's visualizers leave them at round start; no rule names IconSmooth's layers.
             RoundStartLook.Apply(prototypesOf[entity], entity.Layers, prototypes);
         }
 
@@ -155,6 +157,52 @@ public sealed class RoomPlan
             Room = room, Entities = entities, Decals = decals, Edges = edges, RsiFiles = rsiFiles, Pictures = pictures,
             Lights = lights, Occluders = occluders, LightProblem = lightProblem, Roofed = roofed,
         };
+    }
+
+    /// <summary>
+    /// An <c>IconSmooth</c>'s <c>states</c> in the newer form (Content.Client/IconSmoothing/IconSmoothComponent.cs,
+    /// ISpriteSmoothState.cs and Smoothings/), or null when it is written in the older form of
+    /// <c>base</c> and <c>mode</c>. One with neither form's fields only lends its key to its
+    /// neighbours, as the newer form does. A state of a kind or shape not known here, or missing a
+    /// field the game requires, leaves the whole entity with its own layers.
+    /// </summary>
+    private static List<SmoothState>? SmoothStates(YamlMappingNode smooth)
+    {
+        if (!smooth.Children.TryGetValue(new YamlScalarNode("states"), out var written))
+        {
+            var older = new[] { "base", "mode", "additionalKeys", "index", "shader" };
+            return older.Any(field => smooth.Children.ContainsKey(new YamlScalarNode(field))) ? null : [];
+        }
+        if (written is not YamlSequenceNode list)
+            return [];
+        var states = new List<SmoothState>();
+        foreach (var item in list.Children)
+        {
+            // Each kind's [DataField(required: true)] fields; LayerKey's default is the kind's own.
+            var kind = item.Tag.IsEmpty ? null : item.Tag.Value switch
+            {
+                "!type:CornerSpriteSmoothing" => SmoothKind.Corner,
+                "!type:CardinalCornerSpriteSmoothing" => SmoothKind.CardinalCorner,
+                "!type:DiagonalSpriteSmoothing" => SmoothKind.Diagonal,
+                "!type:AltDiagonalSpriteSmoothing" => SmoothKind.AltDiagonal,
+                "!type:DirectionSpriteSmoothing" => SmoothKind.Direction,
+                "!type:EdgeSpriteSmoothing" => SmoothKind.Edge,
+                _ => (SmoothKind?)null,
+            };
+            if (kind is not { } k || item is not YamlMappingNode state || PrototypeYaml.Scalar(state, "base") is not { } stateBase
+                || PrototypeYaml.Sequence(state, "mask") == null)
+                return [];
+            var hasAlt = k is SmoothKind.CardinalCorner or SmoothKind.AltDiagonal;
+            if (hasAlt && PrototypeYaml.Sequence(state, "altMask") == null)
+                return [];
+            states.Add(new SmoothState(k, stateBase,
+                PrototypeYaml.Strings(state, "mask").ToHashSet(StringComparer.Ordinal),
+                hasAlt ? PrototypeYaml.Strings(state, "altMask").ToHashSet(StringComparer.Ordinal) : new HashSet<string>(),
+                PrototypeYaml.Scalar(state, "layerKey") ?? k switch { SmoothKind.Direction => "direction", SmoothKind.Edge => "edge", _ => "corner" },
+                int.TryParse(PrototypeYaml.Scalar(state, "index"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) ? index : null,
+                PrototypeYaml.Scalar(state, "shader")));
+        }
+        return states;
     }
 
     // Clyde.GridRendering.cs, _updateChunkEdges: every different neighbour of higher edge priority

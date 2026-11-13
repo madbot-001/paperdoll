@@ -94,6 +94,9 @@
                 <ComboBoxItem Content="Plain" />
                 <ComboBoxItem Content="Demo room" />
               </ComboBox>
+              <TextBlock Classes="hint" Text="Room" Margin="6,0,0,0" />
+              <ComboBox Name="RoomBox" Width="110" MinHeight="18" Height="18" Padding="4,0" FontSize="11" IsEnabled="False"
+                        SelectionChanged="OnRoomChosen" ToolTip.Tip="The demo room to show: the one for the previewed job, or one room whatever the job" />
               <CheckBox Name="LightingBox" Content="Lighting" IsChecked="True" FontSize="11" MinHeight="18" IsEnabled="False"
                         IsCheckedChanged="OnLightingToggled" ToolTip.Tip="Light the demo room by its own lamps, as in the game, with shadows; off draws it evenly lit" />
               <TextBlock Name="FloorNote" Classes="hint" FontSize="11" MaxWidth="320" TextWrapping="Wrap" IsVisible="False" />

@@ -9,7 +9,8 @@ namespace Paperdoll.Core.Tests;
 
 /// <summary>
 /// Made-up fork "r", with the things a demo room draws: tiles (one throwing edge sprites, one with
-/// no picture), a wall that smooths, a crate of several layers, a railing drawn over mobs, a sofa
+/// no picture), walls that smooth in the older and the newer form, a window, and things of each
+/// newer smoothing kind and of one not known, a crate of several layers, a railing drawn over mobs, a sofa
 /// of four directions, a chair that keeps upright, a lamp that snaps to quarter turns, two decals,
 /// things that the game's visualizers change at round start (a door, a vending machine, a jukebox,
 /// lamps), a giant crate, lights and what blocks them, and jobs shown as a red, animated doll and
@@ -124,6 +125,131 @@ public static class TestRooms
             key: walls
             base: wall
         - type: entity
+          id: TestNewWall
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/newwall.rsi
+            drawdepth: Walls
+          - type: IconSmooth
+            key: walls
+            states:
+            - !type:CardinalCornerSpriteSmoothing
+              mask: [ walls ]
+              altMask: [ windows, walls ]
+              base: wall
+        - type: entity
+          id: TestNewWindow
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/newwindow.rsi
+          - type: IconSmooth
+            key: windows
+            states:
+            - !type:CardinalCornerSpriteSmoothing
+              mask: [ windows ]
+              altMask: [ walls ]
+              base: window
+        - type: entity
+          id: TestPipe
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/crate.rsi
+            state: crate
+          - type: IconSmooth
+            key: pipes
+            states:
+            - !type:CornerSpriteSmoothing
+              mask: [ pipes ]
+              base: pipe
+        - type: entity
+          id: TestOddSmooth
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/crate.rsi
+            state: crate
+          - type: IconSmooth
+            key: walls
+            states:
+            - !type:CornerSpriteSmoothing
+              mask: [ walls ]
+              base: odd
+            - !type:SpiralSpriteSmoothing
+              mask: [ walls ]
+              base: spiral
+        - type: entity
+          id: TestRug
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/rug.rsi
+            state: rug
+          - type: IconSmooth
+            key: rug
+            states:
+            - !type:EdgeSpriteSmoothing
+              mask: [ rug ]
+              base: edge_
+        - type: entity
+          id: TestPost
+          parent: TestAnchored
+          components:
+          - type: Sprite
+            sprite: Structures/post.rsi
+          - type: IconSmooth
+            key: posts
+            states:
+            - !type:DirectionSpriteSmoothing
+              mask: [ walls ]
+              base: dir
+            - !type:DiagonalSpriteSmoothing
+              mask: [ walls ]
+              base: diag
+              layerKey: diagonal
+            - !type:AltDiagonalSpriteSmoothing
+              mask: [ walls ]
+              altMask: [ windows ]
+              base: alt
+              layerKey: alt
+              index: 0
+              shader: unshaded
+        - type: entity
+          id: TestComputer
+          components:
+          - type: WiresVisuals
+          - type: ComputerVisuals
+            stateFrame: computer
+            stateScreen: screen
+            stateKeys: keys
+            statePanel: panel
+          - type: Sprite
+            sprite: Structures/computer.rsi
+            layers:
+            - map: [ "enum.ComputerVisualLayers.Frame" ]
+            - map: [ "enum.ComputerVisualLayers.Keyboard" ]
+            - map: [ "enum.ComputerVisualLayers.Screen" ]
+            - map: [ "enum.ComputerVisualLayers.Keys" ]
+            - map: [ "enum.WiresVisualLayers.MaintenancePanel" ]
+        - type: entity
+          id: TestBareComputer
+          components:
+          - type: ComputerVisuals
+            stateFrame: computer
+            stateKeys: null
+          - type: Sprite
+            sprite: Structures/computer.rsi
+            layers:
+            - map: [ "enum.ComputerVisualLayers.Frame" ]
+            - map: [ "enum.ComputerVisualLayers.Keyboard" ]
+              state: generic_keyboard
+            - map: [ "enum.ComputerVisualLayers.Screen" ]
+              state: own_screen
+            - map: [ "enum.ComputerVisualLayers.Keys" ]
+              texture: Structures/sticker.png
+        - type: entity
           id: TestCrate
           parent: TestAnchored
           components:
@@ -215,6 +341,35 @@ public static class TestRooms
               map: [ "enum.WiresVisualLayers.MaintenancePanel" ]
             - state: sparks
               map: [ "enum.DoorVisualLayers.BaseEmagging" ]
+        - type: entity
+          id: TestNullDoor
+          parent: TestDoor
+          components:
+          - type: Door
+            closedSpriteState: null
+        - type: entity
+          id: TestNullUnlitDoor
+          parent: TestDoor
+          components:
+          - type: Airlock
+            closedSpriteState: null
+        - type: entity
+          id: TestShutDoor
+          parent: TestDoor
+          components:
+          - type: Door
+            closedSpriteState: shut
+        - type: entity
+          id: TestShutDoorNulled
+          parent: TestShutDoor
+          components:
+          - type: Door
+            closedSpriteState: null
+        - type: entity
+          id: TestShutDoorNulledChild
+          parent: TestShutDoorNulled
+          components:
+          - type: Weldable
         - type: entity
           id: TestVend
           components:
@@ -524,6 +679,14 @@ public static class TestRooms
         store.AddUnfetched("r", Textures + "Structures/wall.rsi/meta.json", Meta("Wall made up", walls));
         foreach (var (state, _) in walls)
             store.AddUnfetched("r", Textures + $"Structures/wall.rsi/{state}.png", Strip(Grey, Grey, Grey, Grey));
+        // The newer smoothing's corners, 0 to 13, and a full state nothing draws.
+        foreach (var (folder, prefix, color) in new[] { ("newwall", "wall", Grey), ("newwindow", "window", Blue) })
+        {
+            var corners = Enumerable.Range(0, 14).Select(i => ($"{prefix}{i}", 4)).Append(("full", 1)).ToArray();
+            store.AddUnfetched("r", Textures + $"Structures/{folder}.rsi/meta.json", Meta($"{folder} made up", corners));
+            foreach (var (state, _) in corners)
+                store.AddUnfetched("r", Textures + $"Structures/{folder}.rsi/{state}.png", Strip(color, color, color, color));
+        }
         return store
             .AddUnfetched("r", Textures + "Structures/crate.rsi/meta.json", Meta("Crate made up", ("crate", 1), ("glow", 1), ("hidden", 1)))
             .AddUnfetched("r", Textures + "Structures/crate.rsi/crate.png", Strip(Green))

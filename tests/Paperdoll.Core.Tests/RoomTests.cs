@@ -359,6 +359,228 @@ public class RoomDrawingTests
         Assert.All(plan.Entities.Single(e => e.Index == 0).Layers, l => Assert.Equal("Structures/wall.rsi", l.Rsi));
     }
 
+    // The layers of the entity at a place in the room file, as "state/dirOffset", bottom to top.
+    private static string Layers(RoomPlan plan, int index) =>
+        string.Join(" ", plan.Entities.Single(e => e.Index == index).Layers.Select(l => $"{l.State}/{l.DirOffset}"));
+
+    // Only the states, for entities whose layers all have the same direction offsets.
+    private static string States(RoomPlan plan, int index) =>
+        string.Join(" ", plan.Entities.Single(e => e.Index == index).Layers.Select(l => l.State));
+
+    [Fact]
+    public void A_newer_form_wall_picks_its_corner_states_alone_in_a_run_at_a_corner_and_at_a_junction()
+    {
+        // A run of three along the south row, one alone in the south-east, an L and a T-junction further north.
+        var plan = RoomPlan.Make(Floor(7, 4, """
+            - { proto: TestNewWall, pos: "0.5,0.5" }
+            - { proto: TestNewWall, pos: "1.5,0.5" }
+            - { proto: TestNewWall, pos: "2.5,0.5" }
+            - { proto: TestNewWall, pos: "6.5,0.5" }
+            - { proto: TestNewWall, pos: "0.5,2.5" }
+            - { proto: TestNewWall, pos: "1.5,2.5" }
+            - { proto: TestNewWall, pos: "0.5,3.5" }
+            - { proto: TestNewWall, pos: "3.5,2.5" }
+            - { proto: TestNewWall, pos: "4.5,2.5" }
+            - { proto: TestNewWall, pos: "5.5,2.5" }
+            - { proto: TestNewWall, pos: "4.5,3.5" }
+            """), Prototypes);
+
+        // Four corner layers, south-east, south-west, north-east, north-west, each from its own
+        // direction's frame and of the sprite's own RSI; a wall alone shows state 0 in each.
+        Assert.Equal("wall0/None wall0/Clockwise wall0/CounterClockwise wall0/Flip", Layers(plan, 3));
+        Assert.All(plan.Entities.Single(e => e.Index == 3).Layers, l => Assert.Equal("Structures/newwall.rsi", l.Rsi));
+        // In a run each corner reads 1 for the cardinal clockwise of it and 2 for the one
+        // counter-clockwise: the south-east corner's east is 2, the north-east corner's east is 1.
+        Assert.Equal("wall2 wall0 wall1 wall0", States(plan, 0));
+        Assert.Equal("wall2 wall1 wall1 wall2", States(plan, 1));
+        Assert.Equal("wall0 wall1 wall0 wall2", States(plan, 2));
+        // The corner of an L: east and north meet in the north-east corner, 5.
+        Assert.Equal("wall2 wall0 wall5 wall1", States(plan, 4));
+        // The middle of a T: both north corners meet the stem.
+        Assert.Equal("wall2 wall1 wall5 wall5", States(plan, 8));
+    }
+
+    [Fact]
+    public void A_newer_form_wall_joins_its_mask_counts_its_alt_mask_otherwise_and_ignores_other_keys()
+    {
+        var plan = RoomPlan.Make(Floor(6, 3, """
+            - { proto: TestNewWall, pos: "0.5,0.5" }
+            - { proto: TestNewWindow, pos: "1.5,0.5" }
+            - { proto: TestNewWall, pos: "4.5,0.5" }
+            - { proto: TestNewWall, pos: "3.5,0.5" }
+            - { proto: TestNewWindow, pos: "5.5,0.5" }
+            - { proto: TestNewWall, pos: "4.5,1.5" }
+            - { proto: TestPipe, pos: "0.5,2.5" }
+            - { proto: TestNewWall, pos: "1.5,2.5" }
+            - { proto: TestNewWall, pos: "5.5,2.5" }
+            """), Prototypes);
+
+        // A window east of a wall is in the wall's altMask only: 4 and 3 where a wall would be 2 and 1.
+        Assert.Equal("wall4 wall0 wall3 wall0", States(plan, 0));
+        // The window counts the wall by its own altMask.
+        Assert.Equal("window0 window3 window0 window4", States(plan, 1));
+        // Wall west, wall north, window east: the north-east corner mixes the two masks (8 and up),
+        // the south-east one has the window alone.
+        Assert.Equal("wall4 wall1 wall10 wall5", States(plan, 2));
+        // A pipe's key is in neither mask, and the pipe's own corners take no wall.
+        Assert.Equal("wall0 wall0 wall0 wall0", States(plan, 7));
+        Assert.Equal("pipe0 pipe0 pipe0 pipe0", string.Join(" ", plan.Entities.Single(e => e.Index == 6).Layers.Skip(1).Select(l => l.State)));
+        // A diagonal neighbour alone fills no corner.
+        Assert.Equal("wall0 wall0 wall0 wall0", States(plan, 8));
+    }
+
+    [Fact]
+    public void Older_and_newer_form_walls_join_each_other_by_key()
+    {
+        var plan = RoomPlan.Make(Floor(2, 1, """
+            - { proto: TestWall, pos: "0.5,0.5" }
+            - { proto: TestNewWall, pos: "1.5,0.5" }
+            """), Prototypes);
+
+        // The older wall's corners as before, with the newer wall to its east.
+        Assert.Equal("wall1/None wall4/CounterClockwise wall0/Flip wall0/Clockwise", Layers(plan, 0));
+        Assert.Equal("wall0 wall1 wall0 wall2", States(plan, 1));
+    }
+
+    [Fact]
+    public void A_turned_newer_form_wall_reads_its_neighbours_in_its_own_frame()
+    {
+        var plan = RoomPlan.Make(Floor(2, 1, """
+            - { proto: TestNewWall, pos: "0.5,0.5", rot: 90 }
+            - { proto: TestNewWall, pos: "1.5,0.5" }
+            """), Prototypes);
+
+        // Turned a quarter counter-clockwise, its east is its own south.
+        Assert.Equal("wall1 wall2 wall0 wall0", States(plan, 0));
+    }
+
+    [Fact]
+    public void Each_newer_smoothing_kind_sets_its_own_layers()
+    {
+        var plan = RoomPlan.Make(Floor(9, 3, """
+            - { proto: TestPost, pos: "1.5,1.5" }
+            - { proto: TestNewWall, pos: "1.5,2.5" }
+            - { proto: TestNewWall, pos: "2.5,1.5" }
+            - { proto: TestPost, pos: "4.5,1.5" }
+            - { proto: TestNewWall, pos: "4.5,0.5" }
+            - { proto: TestNewWall, pos: "5.5,0.5" }
+            - { proto: TestNewWall, pos: "5.5,1.5" }
+            - { proto: TestPost, pos: "7.5,1.5" }
+            - { proto: TestNewWindow, pos: "7.5,0.5" }
+            - { proto: TestNewWindow, pos: "8.5,0.5" }
+            - { proto: TestNewWindow, pos: "8.5,1.5" }
+            - { proto: TestRug, pos: "0.5,0.5" }
+            - { proto: TestRug, pos: "1.5,0.5" }
+            """), Prototypes);
+
+        // Direction: south 1, east 2, north 4, west 8. Diagonal: 1 when south, south-east and east
+        // all match. AltDiagonal, put at index 0 and unshaded: 1 for the mask, 2 for the altMask.
+        Assert.Equal("alt0 dir6 diag0", States(plan, 0));
+        Assert.Equal("alt1 dir3 diag1", States(plan, 3));
+        Assert.Equal("alt2 dir0 diag0", States(plan, 7));
+        Assert.Equal([true, false, false], plan.Entities.Single(e => e.Index == 0).Layers.Select(l => l.Shader == "unshaded"));
+        // Edge: the rug, then a layer a tile out each way, shown where no rug is.
+        var rug = plan.Entities.Single(e => e.Index == 11).Layers;
+        Assert.Equal(["rug", "edge_south", "edge_east", "edge_north", "edge_west"], rug.Select(l => l.State));
+        Assert.Equal([true, true, false, true, true], rug.Select(l => l.Visible));
+        Assert.Equal([(0f, 0f), (0f, -1f), (1f, 0f), (0f, 1f), (-1f, 0f)], rug.Select(l => (l.OffsetX, l.OffsetY)));
+    }
+
+    [Fact]
+    public void A_smoothing_kind_not_known_leaves_the_entity_its_own_layers_and_its_key()
+    {
+        var plan = RoomPlan.Make(Floor(2, 1, """
+            - { proto: TestOddSmooth, pos: "0.5,0.5" }
+            - { proto: TestNewWall, pos: "1.5,0.5" }
+            """), Prototypes);
+
+        Assert.Equal("crate", States(plan, 0));
+        Assert.Equal("wall0 wall1 wall0 wall2", States(plan, 1));
+    }
+
+    [Fact]
+    public void A_computer_shows_its_computer_visuals_states_with_screen_and_keys_unshaded()
+    {
+        var plan = RoomPlan.Make(Floor(1, 1, "- { proto: TestComputer, pos: \"0.5,0.5\" }"), Prototypes);
+        var layers = plan.Entities.Single().Layers;
+
+        // The keyboard has no state given; the panel takes its state but stays shut.
+        Assert.Equal(["computer", null, "screen", "keys", "panel"], layers.Select(l => l.State));
+        Assert.Equal([true, true, true, true, false], layers.Select(l => l.Visible));
+        Assert.Equal([null, null, "unshaded", "unshaded", null], layers.Select(l => l.Shader));
+        Assert.Equal(new[] { "meta.json", "computer.png", "screen.png", "keys.png" }.Select(f => "Structures/computer.rsi/" + f).ToHashSet(), plan.RsiFiles.ToHashSet());
+    }
+
+    [Fact]
+    public void A_computer_layer_its_computer_visuals_leave_unset_draws_nothing_unless_it_has_a_texture()
+    {
+        var plan = RoomPlan.Make(Floor(1, 1, "- { proto: TestBareComputer, pos: \"0.5,0.5\" }"), Prototypes);
+        var layers = plan.Entities.Single().Layers;
+
+        // The game blanks the keyboard and the screen, though the prototype gives them states, and
+        // the screen is still shown; the keys, set to null, keep their texture, drawn unshaded.
+        Assert.Equal(["computer", null, null, null], layers.Select(l => l.State));
+        Assert.Equal([null, null, null, "Structures/sticker.png"], layers.Select(l => l.Texture));
+        Assert.Equal([true, true, true, true], layers.Select(l => l.Visible));
+        Assert.Equal([null, null, "unshaded", "unshaded"], layers.Select(l => l.Shader));
+        Assert.Equal(new[] { "Structures/computer.rsi/meta.json", "Structures/computer.rsi/computer.png" }.ToHashSet(), plan.RsiFiles.ToHashSet());
+        Assert.Equal(new[] { "Structures/sticker.png" }.ToHashSet(), plan.Pictures.ToHashSet());
+    }
+
+    [Fact]
+    public void A_door_state_written_as_null_blanks_its_layer_and_one_not_written_takes_the_default()
+    {
+        var plan = RoomPlan.Make(Floor(6, 1, """
+            - { proto: TestDoor, pos: "0.5,0.5" }
+            - { proto: TestNullDoor, pos: "1.5,0.5" }
+            - { proto: TestNullUnlitDoor, pos: "2.5,0.5" }
+            - { proto: TestShutDoor, pos: "3.5,0.5" }
+            - { proto: TestShutDoorNulled, pos: "4.5,0.5" }
+            - { proto: TestShutDoorNulledChild, pos: "5.5,0.5" }
+            """), Prototypes);
+        LayerSpec Layer(int index, string key) => plan.Entities.Single(e => e.Index == index).Layers.Single(l => l.MapKeys.Contains(key));
+        const string Base = "enum.DoorVisualLayers.Base", Unlit = "enum.DoorVisualLayers.BaseUnlit";
+
+        // Not written: the defaults "closed" and, with openUnlitVisible, "closed_unlit".
+        Assert.Equal(("closed", "closed_unlit"), (Layer(0, Base).State, Layer(0, Unlit).State));
+        // Written as null: the game sets no state, so the layer draws nothing.
+        Assert.Null(Layer(1, Base).State);
+        Assert.Equal(("closed", null, true), (Layer(2, Base).State, Layer(2, Unlit).State, Layer(2, Unlit).Visible));
+        // A child's null over its parent's state, and a grandchild that inherits that null.
+        Assert.Equal("shut", Layer(3, Base).State);
+        Assert.Null(Layer(4, Base).State);
+        Assert.Null(Layer(5, Base).State);
+        // Nothing is fetched for a blanked layer.
+        var rsi = RoomPlan.Make(Floor(1, 1, "- { proto: TestNullDoor, pos: \"0.5,0.5\" }"), Prototypes).RsiFiles;
+        Assert.DoesNotContain("Structures/door.rsi/closed.png", rsi);
+        Assert.Contains("Structures/door.rsi/closed_unlit.png", rsi);
+    }
+
+    [Fact]
+    public async Task A_room_of_newer_form_walls_and_windows_downloads_every_state_it_draws_and_nothing_else()
+    {
+        var (session, store) = await ForkR();
+        await using var _s = session;
+        var room = Floor(4, 2, """
+            - { proto: TestNewWall, pos: "0.5,0.5" }
+            - { proto: TestNewWall, pos: "1.5,0.5" }
+            - { proto: TestNewWindow, pos: "2.5,0.5" }
+            - { proto: TestNewWall, pos: "1.5,1.5" }
+            """);
+        var plan = RoomPlan.Make(room, Prototypes);
+
+        var scene = await session.RoomAsync(room, TestContext.Current.CancellationToken);
+
+        var states = plan.Entities.SelectMany(e => e.Layers).Select(l => EntityComposer.StatePath(l.Rsi!, l.State!)).ToHashSet();
+        Assert.Equal(states.Concat(["Structures/newwall.rsi/meta.json", "Structures/newwindow.rsi/meta.json"]).ToHashSet(), plan.RsiFiles);
+        var fetched = Assert.Single(store.Fetches).Where(p => p.Contains(".rsi/", StringComparison.Ordinal)).ToHashSet();
+        Assert.Equal(plan.RsiFiles.Select(f => TestRooms.Textures + f).ToHashSet(), fetched);
+        // Every corner of every wall and window is drawn, from a state that was downloaded.
+        Assert.Equal(16, scene.Entities.Sum(e => e.Items.Count));
+        Assert.Subset(fetched, scene.Entities.SelectMany(e => e.Items).Select(i => TestRooms.Textures + i.Image).ToHashSet());
+        Assert.DoesNotContain(TestRooms.Textures + "Structures/newwall.rsi/full.png", fetched);
+    }
+
     [Fact]
     public async Task Entities_draw_by_depth_then_lower_edge_then_place_in_the_file()
     {

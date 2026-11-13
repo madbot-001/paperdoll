@@ -8,7 +8,7 @@ namespace Paperdoll.App;
 
 /// <summary>
 /// The preview's floor: plain plates, or the demo room, a small hand-made room, chosen by the
-/// dressed job, drawn from the fork's own sprites, lit by its own lamps or evenly. The room and its
+/// dressed job or in the Room box, drawn from the fork's own sprites, lit by its own lamps or evenly. The room and its
 /// light are worked out once and kept, both ways; the character is drawn between its two pictures,
 /// lit where it stands, so animation redraws only the character. Only the main preview shows the
 /// room; the facings and tables keep the plates.
@@ -17,6 +17,9 @@ public partial class MainWindow
 {
     // The floors in the order the Floor box lists them.
     private static readonly FloorMode[] FloorChoices = [FloorMode.Plain, FloorMode.DemoRoom];
+
+    // The rooms the Room box lists after "By job", by name.
+    private List<Room> _roomChoices = [];
 
     // The built-in rooms and the user's own from this folder, read when first needed.
     private RoomCatalog? _rooms;
@@ -51,6 +54,20 @@ public partial class MainWindow
         FloorBox.SelectedIndex = Array.IndexOf(FloorChoices, FloorShown());
         LightingBox.IsChecked = _settings.Lighting;
         LightingBox.IsEnabled = FloorShown() == FloorMode.DemoRoom;
+        ShowRoomChoices();
+        _refreshing = wasRefreshing;
+    }
+
+    // Fills the Room box with "By job" and the rooms as now read, and selects the saved one; none,
+    // or one no longer there, is "By job".
+    private void ShowRoomChoices()
+    {
+        _roomChoices = Rooms().Rooms.Values.OrderBy(r => r.Name, StringComparer.CurrentCulture).ThenBy(r => r.Id, StringComparer.Ordinal).ToList();
+        var wasRefreshing = _refreshing;
+        _refreshing = true;
+        RoomBox.ItemsSource = _roomChoices.Select(r => r.Name).Prepend("By job").ToList();
+        RoomBox.SelectedIndex = _roomChoices.FindIndex(r => r.Id == _settings.Room) + 1;
+        RoomBox.IsEnabled = FloorShown() == FloorMode.DemoRoom;
         _refreshing = wasRefreshing;
     }
 
@@ -67,6 +84,19 @@ public partial class MainWindow
         _roomEnded = null;
         ForgetRoomFiles();
         LightingBox.IsEnabled = FloorShown() == FloorMode.DemoRoom;
+        ShowRoomChoices();
+        ShowFloorChange();
+    }
+
+    private void OnRoomChosen(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_refreshing || RoomBox.SelectedIndex < 0)
+            return;
+        var id = RoomBox.SelectedIndex == 0 ? null : _roomChoices[RoomBox.SelectedIndex - 1].Id;
+        if (id == _settings.Room)
+            return;
+        _settings = _settings with { Room = id };
+        SaveSettings();
         ShowFloorChange();
     }
 
@@ -105,6 +135,9 @@ public partial class MainWindow
     {
         if (_session?.Content is not { } content || FloorShown() != FloorMode.DemoRoom)
             return null;
+        // A room chosen in the Room box is shown for every job; one no longer there is not chosen.
+        if (_settings.Room is { } id && Rooms().Rooms.TryGetValue(id, out var picked))
+            return picked;
         var job = _session.DressedJob();
         if (_roomChosen is not { } chosen || chosen.Content != content || chosen.Job != job)
             _roomChosen = chosen = (content, job, Rooms().For(job, content.Prototypes));

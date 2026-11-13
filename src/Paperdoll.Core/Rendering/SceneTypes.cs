@@ -73,9 +73,35 @@ public sealed class DrawItem
 /// </summary>
 public sealed record SmoothFacts(string? Key, string Base, string Mode, IReadOnlyList<string> AdditionalKeys, int? Index, bool Enabled)
 {
+    /// <summary>
+    /// The component's <c>states</c> in the form the game uses since October 2026, each smoothing
+    /// its own layers; null for the older form of <c>base</c> and <c>mode</c>, which forks still use.
+    /// Empty when there is nothing to smooth or a state is of a kind not known here.
+    /// </summary>
+    public IReadOnlyList<SmoothState>? States { get; init; }
+
     /// <summary><c>IconSmoothSystem.MatchingEntity</c>: the other's key is ours or one of our extra keys, and it is on.</summary>
     public bool JoinsWith(SmoothFacts other) => other.Enabled && (other.Key == Key || AdditionalKeys.Contains(other.Key ?? ""));
 }
+
+/// <summary>The <c>ISpriteSmoothState</c> kinds, one per file in <c>Content.Client/IconSmoothing/Smoothings/</c>.</summary>
+public enum SmoothKind
+{
+    Corner,
+    CardinalCorner,
+    Diagonal,
+    AltDiagonal,
+    Direction,
+    Edge,
+}
+
+/// <summary>
+/// One entry of <c>IconSmooth.states</c> (<c>Content.Client/IconSmoothing/ISpriteSmoothState.cs</c>):
+/// the state prefix, the keys it joins (<c>mask</c>) and, for the kinds that have one, the keys
+/// that count otherwise (<c>altMask</c>), the map key its layers are named by, where its layers go
+/// (null: on top) and their shader.
+/// </summary>
+public sealed record SmoothState(SmoothKind Kind, string Base, IReadOnlySet<string> Mask, IReadOnlySet<string> AltMask, string LayerKey, int? Index, string? Shader);
 
 /// <summary>A sprite layer while the visualizers change it.</summary>
 public sealed class LayerSpec

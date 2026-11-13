@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text;
 using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
@@ -40,6 +41,10 @@ public sealed class PrototypeIndex
 {
     private readonly Dictionary<(string Kind, string Id), Prototype> _prototypes;
     private readonly ConcurrentDictionary<(string Kind, string Id), YamlMappingNode> _resolved = new();
+    private readonly ConditionalWeakTable<YamlMappingNode, HashSet<(string Component, string Field)>> _nullFields = new();
+
+    // Held while a prototype is resolved the first time; entered again for its parents.
+    private readonly object _resolving = new();
 
     private PrototypeIndex(Dictionary<(string, string), Prototype> prototypes, List<LoadProblem> problems)
     {
@@ -125,22 +130,79 @@ public sealed class PrototypeIndex
     {
         if (_resolved.TryGetValue((kind, id), out var done))
             return done;
+        // One first resolve at a time: RemoveNulls edits nodes that prototypes share, so a resolve
+        // running beside another could lose the nulls it records, or fail on a changing node.
+        lock (_resolving)
+            return ResolveFirst(kind, id, visiting);
+    }
+
+    private YamlMappingNode? ResolveFirst(string kind, string id, HashSet<string> visiting)
+    {
+        if (_resolved.TryGetValue((kind, id), out var done))
+            return done;
         if (!_prototypes.TryGetValue((kind, id), out var proto))
             return null;
         if (!visiting.Add(id))
             return proto.Node; // a parent loop; the game rejects these
 
         var node = proto.Node;
+        var nulls = new HashSet<(string Component, string Field)>();
         foreach (var parentId in proto.Parents)
         {
-            if (Resolve(kind, parentId, visiting) is { } parent)
-                node = Inheritance.Apply(kind, parent, node);
+            if (Resolve(kind, parentId, visiting) is not { } parent)
+                continue;
+            // A parent's null comes down unless the child or a parent applied before wrote the field.
+            if (_nullFields.TryGetValue(parent, out var inherited))
+                nulls.UnionWith(inherited.Where(n => !Written(node, n.Component, n.Field)));
+            node = Inheritance.Apply(kind, parent, node);
         }
 
         visiting.Remove(id);
+        if (kind == "entity")
+        {
+            foreach (var component in Components(node))
+            {
+                if (Scalar(component, "type") is not { } type)
+                    continue;
+                foreach (var (key, value) in component.Children)
+                {
+                    if (key is YamlScalarNode { Value: { } field } && value is YamlScalarNode scalar && IsNull(scalar))
+                        nulls.Add((type, field));
+                }
+            }
+        }
         RemoveNulls(node);
+        if (nulls.Count > 0)
+            _nullFields.AddOrUpdate(node, nulls);
         return _resolved[(kind, id)] = node;
     }
+
+    /// <summary>
+    /// Whether a resolved entity's component field reads as null in the game: written so in the
+    /// prototype or a parent it inherits the field from. <see cref="Resolve(string, string)"/>
+    /// leaves such fields out, which for most fields is the same as not written; this tells the two
+    /// apart for a nullable field whose default is not null.
+    /// </summary>
+    public bool WrittenNull(YamlMappingNode resolved, string component, string field) =>
+        _nullFields.TryGetValue(resolved, out var nulls) && nulls.Contains((component, field));
+
+    /// <summary>
+    /// A scalar the engine reads as null (RobustToolbox/Robust.Shared/Serialization/Markdown/Value/ValueDataNode.cs,
+    /// CalculateIsNullValue): not quoted, and either "null" in any case or blank without a tag.
+    /// "~" is not null there, though <see cref="RemoveNulls"/> drops it.
+    /// </summary>
+    public static bool IsNull(YamlScalarNode scalar) =>
+        scalar.Style is not (ScalarStyle.DoubleQuoted or ScalarStyle.SingleQuoted)
+        && (string.Equals(scalar.Value?.Trim(), "null", StringComparison.OrdinalIgnoreCase)
+            || (string.IsNullOrWhiteSpace(scalar.Value) && scalar.Tag.IsEmpty));
+
+    private static IEnumerable<YamlMappingNode> Components(YamlMappingNode entity) =>
+        entity.Children.TryGetValue(new YamlScalarNode("components"), out var list) && list is YamlSequenceNode sequence
+            ? sequence.Children.OfType<YamlMappingNode>()
+            : [];
+
+    private static bool Written(YamlMappingNode entity, string component, string field) =>
+        Components(entity).Any(c => Scalar(c, "type") == component && c.Children.ContainsKey(new YamlScalarNode(field)));
 
     /// <summary>
     /// Drops fields written as a bare <c>null</c> (or <c>~</c>), which the game reads as no value:

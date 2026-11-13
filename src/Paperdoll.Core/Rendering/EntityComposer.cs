@@ -1,8 +1,10 @@
-// The IconSmooth rules are ported from Space Station 14 (Content.Client/IconSmoothing/IconSmoothSystem.cs),
+// The IconSmooth rules are ported from Space Station 14 (Content.Client/IconSmoothing/IconSmoothSystem.cs,
+// and for the newer form ISpriteSmoothState.cs and Smoothings/*SpriteSmoothing.cs),
 // Copyright (c) 2017-2026 Space Wizards Federation, and the drawing from RobustToolbox
 // (Robust.Client/GameObjects/EntitySystems/SpriteSystem.Render.cs, SpriteComponent.cs), Copyright (c)
 // 2019 Space Station 14 Contributors; both MIT licence. See THIRD-PARTY-NOTICES.md.
 
+using System.Globalization;
 using System.Numerics;
 using Paperdoll.Core.Editing;
 
@@ -12,8 +14,9 @@ namespace Paperdoll.Core.Rendering;
 /// Works out what the game draws for one placed entity: its prototype's sprite layers, changed the
 /// way <c>IconSmooth</c> changes them from the anchored neighbours (Corners adds four corner layers
 /// whose states come from the eight neighbours; CardinalFlags and Diagonal set the first layer's
-/// state), then each layer as a picture with the engine's direction and matrices. Everything else
-/// shows its prototype's layers as written: states the game sets at run time from appearance data
+/// state; in the newer form each of its states adds and sets its own layers), then each layer as
+/// a picture with the engine's direction and matrices. Everything else shows its prototype's
+/// layers as written: states the game sets at run time from appearance data
 /// (a door's lights, a machine's screen) are not shown, and animations show their first frame.
 /// </summary>
 public static class EntityComposer
@@ -23,7 +26,9 @@ public static class EntityComposer
     public static List<LayerSpec> Layers(EntityVisual v, Func<int, int, IEnumerable<EntityVisual>> anchoredAt)
     {
         var layers = v.Sprite.Layers.Select(l => new LayerSpec(l)).ToList();
-        if (v.Smooth is { Mode: not "NoSprite" } smooth)
+        if (v.Smooth is { States: { } states })
+            SmoothStates(v, states, anchoredAt, layers, v.Sprite.Rsi);
+        else if (v.Smooth is { Mode: not "NoSprite" } smooth)
             Smooth(v, smooth, anchoredAt, layers, v.Sprite.Rsi);
         return layers;
     }
@@ -171,6 +176,219 @@ public static class EntityComposer
                 return;
             }
         }
+    }
+
+    // The newer IconSmooth. IconSmoothSystem.StartupLayers has each state add its layers to the
+    // sprite in order (ISpriteSmoothState.Initialize); CalculateNewSprite then lets each state set
+    // its layers from the keys of the eight neighbouring tiles. An entity that is not anchored or
+    // is switched off is never smoothed at round start, so keeps the layers as first added.
+    private static void SmoothStates(EntityVisual v, IReadOnlyList<SmoothState> states, Func<int, int, IEnumerable<EntityVisual>> anchoredAt,
+        List<LayerSpec> layers, string? baseRsi)
+    {
+        var keyed = new Dictionary<string, LayerSpec>(StringComparer.Ordinal);
+        foreach (var state in states)
+            InitializeState(state, layers, keyed, baseRsi);
+        if (!v.Anchored || v.Smooth is not { Enabled: true })
+            return;
+        var adjacent = AdjacentKeys(v, anchoredAt);
+        foreach (var state in states)
+            ApplyState(state, adjacent, keyed);
+    }
+
+    /// <summary>
+    /// <c>IconSmoothSystem.PopulateAdjacentKeys</c>: for each of the eight neighbouring tiles, the
+    /// keys of the switched-on <c>IconSmooth</c> entities anchored there, or null for none; indexed
+    /// by direction (South 0, then counter-clockwise to South-West 7) turned into the entity's own
+    /// frame by its rotation.
+    /// </summary>
+    private static HashSet<string>?[] AdjacentKeys(EntityVisual v, Func<int, int, IEnumerable<EntityVisual>> anchoredAt)
+    {
+        var adjacent = new HashSet<string>?[8];
+        var (x, y) = v.Tile;
+        // AngleToOffset: the rotation turned back, as a cardinal Direction (0, 2, 4 or 6).
+        var offset = 2 * SpriteMath.CardinalQuarter(-v.Rotation);
+        for (var direction = 0; direction < 8; direction++)
+        {
+            var (dx, dy) = Step(direction);
+            var keys = anchoredAt(x + dx, y + dy)
+                .Select(o => o.Smooth is { Enabled: true, Key: { } key } ? key : null)
+                .OfType<string>()
+                .ToHashSet(StringComparer.Ordinal);
+            if (keys.Count > 0)
+                adjacent[(direction + offset) % 8] = keys;
+        }
+        return adjacent;
+    }
+
+    // Robust.Shared.Maths/Direction.cs, ToIntVec: the step of each Direction.
+    private static (int X, int Y) Step(int direction) => direction switch
+    {
+        0 => (0, -1),
+        1 => (1, -1),
+        2 => (1, 0),
+        3 => (1, 1),
+        4 => (0, 1),
+        5 => (-1, 1),
+        6 => (-1, 0),
+        _ => (-1, -1),
+    };
+
+    // ISpriteSmoothState.InitializeStates for each kind: AddRsiLayer in the sprite's own RSI, at the
+    // state's index or on top, mapped by its layer key; then Initialize sets the shader of the layer
+    // mapped by the plain layer key, when there is one.
+    private static void InitializeState(SmoothState state, List<LayerSpec> layers, Dictionary<string, LayerSpec> keyed, string? baseRsi)
+    {
+        void Add(string key, string rsiState, DirOffset dirOffset = DirOffset.None, float offsetX = 0, float offsetY = 0, bool visible = true)
+        {
+            var layer = new LayerSpec { Rsi = baseRsi, State = rsiState, DirOffset = dirOffset, OffsetX = offsetX, OffsetY = offsetY, Visible = visible, MapKeys = [key] };
+            if (state.Index is { } index)
+                layers.Insert(Math.Clamp(index, 0, layers.Count), layer);
+            else
+                layers.Add(layer);
+            keyed[key] = layer;
+        }
+
+        switch (state.Kind)
+        {
+            case SmoothKind.Corner or SmoothKind.CardinalCorner:
+                // CornerSpriteSmoothing.InitializeStates: one layer per DirectionOffset in the enum's
+                // order, each showing its corner's frame and first the state for no neighbours.
+                Add(state.LayerKey + "SouthEast", state.Base + 0, DirOffset.None);
+                Add(state.LayerKey + "SouthWest", state.Base + 0, DirOffset.Clockwise);
+                Add(state.LayerKey + "NorthEast", state.Base + 0, DirOffset.CounterClockwise);
+                Add(state.LayerKey + "NorthWest", state.Base + 0, DirOffset.Flip);
+                break;
+            case SmoothKind.Diagonal or SmoothKind.AltDiagonal or SmoothKind.Direction:
+                Add(state.LayerKey, state.Base + 0);
+                break;
+            case SmoothKind.Edge:
+                // EdgeSpriteSmoothing: south, east, north and west, each a tile out that way and hidden.
+                foreach (var direction in new[] { 0, 2, 4, 6 })
+                {
+                    var (dx, dy) = Step(direction);
+                    Add(state.LayerKey + EdgeSuffix(direction), state.Base + EdgeSuffix(direction), offsetX: dx, offsetY: dy, visible: false);
+                }
+                break;
+        }
+
+        if (state.Shader is { } shader && (keyed.GetValueOrDefault(state.LayerKey) ?? layers.FirstOrDefault(l => l.MapKeys.Contains(state.LayerKey))) is { } shaded)
+            shaded.Shader = shader;
+    }
+
+    // EdgeSpriteSmoothing.GetSuffix.
+    private static string EdgeSuffix(int direction) => direction switch
+    {
+        0 => "south",
+        2 => "east",
+        4 => "north",
+        _ => "west",
+    };
+
+    // Each kind's EnumerateStates, giving the states IconSmoothSystem.ApplyState sets by layer key.
+    private static void ApplyState(SmoothState state, HashSet<string>?[] adjacent, Dictionary<string, LayerSpec> keyed)
+    {
+        bool Matches(int i, IReadOnlySet<string> mask) => adjacent[i] is { } keys && keys.Overlaps(mask);
+
+        switch (state.Kind)
+        {
+            case SmoothKind.Corner or SmoothKind.CardinalCorner:
+            {
+                // Each corner from its three directions, once all three have been seen: at 2
+                // south-east, at 4 north-east, at 6 north-west and at 7 south-west.
+                int match = 0, altMatch = 0, seen = 0;
+                for (var i = 0; i < 8; i++)
+                {
+                    if (Matches(i, state.Mask))
+                        match |= 1 << i;
+                    if (state.Kind == SmoothKind.CardinalCorner && Matches(i, state.AltMask))
+                        altMatch |= 1 << i;
+                    if (Corner(i) is not { } corner)
+                        continue;
+                    var directions = Offset(match & corner.Mask, seen);
+                    var appendix = state.Kind == SmoothKind.Corner ? directions.ToString(CultureInfo.InvariantCulture)
+                        : CardinalCornerAppendix(directions, Offset(altMatch & corner.Mask, seen));
+                    keyed[state.LayerKey + corner.Name].State = state.Base + appendix;
+                    seen += 2;
+                }
+                return;
+            }
+            case SmoothKind.Diagonal or SmoothKind.AltDiagonal:
+            {
+                // South, south-east and east must all match.
+                const int mask = 0b111;
+                int match = 0, altMatch = 0;
+                for (var i = 0; i <= 2; i++)
+                {
+                    if (Matches(i, state.Mask))
+                        match |= 1 << i;
+                    if (state.Kind == SmoothKind.AltDiagonal && Matches(i, state.AltMask))
+                        altMatch |= 1 << i;
+                }
+                keyed[state.LayerKey].State = state.Base + ((match & mask) == mask ? 1 : (altMatch & mask) == mask ? 2 : 0);
+                return;
+            }
+            case SmoothKind.Direction:
+            {
+                // DirectionFlag: South 1, East 2, North 4, West 8.
+                var match = 0;
+                for (var i = 0; i < 4; i++)
+                {
+                    if (Matches(2 * i, state.Mask))
+                        match |= 1 << i;
+                }
+                keyed[state.LayerKey].State = state.Base + match;
+                return;
+            }
+            case SmoothKind.Edge:
+            {
+                // An edge shows where the neighbour does not match.
+                foreach (var direction in new[] { 0, 2, 4, 6 })
+                    keyed[state.LayerKey + EdgeSuffix(direction)].Visible = !Matches(direction, state.Mask);
+                return;
+            }
+        }
+    }
+
+    // CornerSpriteSmoothing.GetCorners and GetCornerLayerKey: the directions a corner is made from
+    // (as Direction8Flag bits) and its name.
+    private static (int Mask, string Name)? Corner(int i) => i switch
+    {
+        2 => (0b0000_0111, "SouthEast"),
+        4 => (0b0001_1100, "NorthEast"),
+        6 => (0b0111_0000, "NorthWest"),
+        7 => (0b1100_0001, "SouthWest"),
+        _ => null,
+    };
+
+    // CornerSpriteSmoothing.Offset: the byte turned right by the offset, so a corner's three
+    // directions read 1 (clockwise cardinal), 2 (diagonal) and 4 (counter-clockwise cardinal).
+    private static int Offset(int directions, int offset) =>
+        offset > 0 ? (byte)((directions >> offset) | (directions << (8 - offset))) : directions;
+
+    // CardinalCornerSpriteSmoothing.GetCornerState: 0 to 13 from which of the corner's directions
+    // match the mask and which only the alternative mask.
+    private static string CardinalCornerAppendix(int directions, int altDirections)
+    {
+        var cardinals = ConvertToCardinal(directions);
+        var cardinalMask = cardinals | ConvertToCardinal(altDirections);
+        int appendix;
+        if (cardinalMask < 3)
+            appendix = cardinalMask != cardinals ? cardinalMask + 2 : cardinals;
+        else if (cardinalMask == cardinals)
+            appendix = (directions & 2) == 2 ? 6 : (altDirections & 2) == 2 ? 7 : 5;
+        else
+            appendix = (directions & 2) == 2 || (altDirections & 2) == 2 ? cardinals + 11 : cardinals + 8;
+        return appendix.ToString(CultureInfo.InvariantCulture);
+    }
+
+    // CardinalCornerSpriteSmoothing.ConvertToCardinal: the even bits packed together.
+    private static int ConvertToCardinal(int flag)
+    {
+        flag &= 0x55;
+        flag |= flag >> 1;
+        flag &= 0x33;
+        flag |= flag >> 2;
+        return flag & 0xF;
     }
 
     /// <summary>
