@@ -199,7 +199,12 @@ internal sealed partial class GitCommand(string gitPath, string repository)
         await process.WaitForExitAsync(ct);
 
         if (process.ExitCode != 0)
+        {
+            // Killed when stopped: on Windows its output ends and it has exited before any wait
+            // sees the stop, so the failure is the stop.
+            ct.ThrowIfCancellationRequested();
             throw new GitException($"git {string.Join(' ', argList)} failed ({process.ExitCode}): {stderr.Trim()}");
+        }
 
         return stdout.ToArray();
     }
