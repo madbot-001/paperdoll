@@ -43,7 +43,7 @@ public sealed record AppSettings
     /// <summary>Whether the Forks window lists forks whose servers are 18+.</summary>
     public bool ShowAdultForks { get; init; }
 
-    /// <summary>What the preview stands the character on: plain plates or a demo room.</summary>
+    /// <summary>What the preview stands the character on: one flat colour, plain plates or a demo room.</summary>
     public Preview.FloorMode Floor { get; init; }
 
     /// <summary>Whether the demo room is lit by its own lamps, as in the game, rather than flat.</summary>

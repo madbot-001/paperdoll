@@ -15,6 +15,9 @@ public enum FloorMode
 
     /// <summary>A small hand-made room drawn from the fork's sprites.</summary>
     DemoRoom = 2,
+
+    /// <summary>One flat colour, with no plates or seams.</summary>
+    Blank = 3,
 }
 
 /// <summary>The squares a picture shows, counted from the one under the character: columns east, rows south.</summary>
@@ -37,7 +40,8 @@ public static class FloorCanvas
     /// <summary>Canvas with the sprite centred, scaled by <paramref name="zoom"/> and the character's own species/height scale.</summary>
     /// <param name="floor">Whether to draw the floor plates; without them the canvas is transparent.</param>
     /// <param name="room">The demo room to draw in place of the plates, its standing square under the character; what stands in front of the character is drawn over it, and its light, if lit, lights the character.</param>
-    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null, bool floor = true, RoomPicture? room = null)
+    /// <param name="blank">Whether to fill the floor with the plates' colour alone, without plates or seams.</param>
+    public static SKBitmap Compose(int width, int height, int zoom, SKBitmap sprite, (float X, float Y)? scale = null, bool floor = true, RoomPicture? room = null, bool blank = false)
     {
         var (scaleX, scaleY) = scale ?? (1f, 1f);
         width = Math.Max(width, 1);
@@ -59,7 +63,9 @@ public static class FloorCanvas
             canvas.Clear(Space);
             DrawRoom(canvas, boxX, boxY, zoom, room, room.Below);
         }
-        for (var y = startY; floor && room == null && y < height; y += plate)
+        else if (floor && blank)
+            canvas.Clear(Plate);
+        for (var y = startY; floor && room == null && !blank && y < height; y += plate)
         {
             for (var x = startX; x < width; x += plate)
             {

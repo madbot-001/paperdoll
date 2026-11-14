@@ -17,8 +17,8 @@ public class DemoRoomTests
 {
     private static T Find<T>(MainWindow window, string name) where T : Control => window.FindControl<T>(name)!;
 
-    // The Floor box's items: plain plates, then the demo room.
-    internal const int PlainItem = 0, RoomItem = 1;
+    // The Floor box's items: one flat colour, plain plates, then the demo room.
+    internal const int BlankItem = 0, PlainItem = 1, RoomItem = 2;
 
     private static readonly SKColor Plate = new(0x30, 0x36, 0x3D);
     private static readonly SKColor Space = new(0x0B, 0x0D, 0x10);
@@ -384,6 +384,53 @@ public class DemoRoomTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    // The main preview's top row and left column, which cross every seam between plates.
+    private static List<SKColor> Edges(MainWindow window)
+    {
+        var bitmap = (WriteableBitmap)Find<Image>(window, "PreviewImage").Source!;
+        using var pixels = bitmap.Lock();
+        var colors = new List<SKColor>();
+        var bytes = new byte[4];
+        for (var x = 0; x < bitmap.PixelSize.Width; x++)
+        {
+            Marshal.Copy(pixels.Address + x * 4, bytes, 0, 4);
+            colors.Add(new SKColor(bytes[0], bytes[1], bytes[2], bytes[3]));
+        }
+        for (var y = 0; y < bitmap.PixelSize.Height; y++)
+        {
+            Marshal.Copy(pixels.Address + y * pixels.RowBytes, bytes, 0, 4);
+            colors.Add(new SKColor(bytes[0], bytes[1], bytes[2], bytes[3]));
+        }
+        return colors;
+    }
+
+    [Fact]
+    public Task Blank_fills_the_preview_with_one_colour_and_the_facings_keep_their_plates() => OnWindow(TestRooms.Fork, (window, _) =>
+    {
+        Find<ComboBox>(window, "ZoomBox").SelectedItem = "2x";
+        Dispatcher.UIThread.RunJobs();
+        // Plain plates show their seams along the edges.
+        Assert.Contains(Edges(window), c => c != Plate);
+
+        Find<ComboBox>(window, "FloorBox").SelectedIndex = BlankItem;
+        Dispatcher.UIThread.RunJobs();
+        Assert.All(Edges(window), c => Assert.Equal(Plate, c));
+        Assert.Equal(Plate, Pixel(window, 8, -56));
+        Assert.False(RoomBox(window).IsEnabled);
+        Assert.False(Find<CheckBox>(window, "LightingBox").IsEnabled);
+        Assert.Equal("", Note(window));
+
+        // A facing thumbnail still stands on plates, a seam along its top.
+        var facing = ((Image[])Field(window, "_facingImages")!)[0];
+        using (var pixels = ((WriteableBitmap)facing.Source!).Lock())
+        {
+            var bytes = new byte[4 * 72];
+            Marshal.Copy(pixels.Address, bytes, 0, bytes.Length);
+            Assert.Contains(Enumerable.Range(0, 72), x => new SKColor(bytes[x * 4], bytes[x * 4 + 1], bytes[x * 4 + 2], bytes[x * 4 + 3]) != Plate);
+        }
+        return Task.CompletedTask;
+    });
+
     [Fact]
     public Task The_Room_box_lists_By_job_and_the_rooms_and_is_offered_with_the_demo_room_only() => OnWindow(TestRooms.Fork, (window, editor) =>
     {
@@ -570,6 +617,32 @@ public class DemoRoomSettingsTests
             {
                 LoadSettings(window);
                 Assert.True(window.FindControl<CheckBox>("LightingBox")! is { IsEnabled: true, IsChecked: false });
+                return Task.CompletedTask;
+            });
+
+            // Blank is kept too, and offers neither room nor lighting.
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Floor(window).SelectedIndex = DemoRoomTests.BlankItem;
+                Dispatcher.UIThread.RunJobs();
+                return Task.CompletedTask;
+            });
+            Assert.Equal(FloorMode.Blank, JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(Path.Combine(data, "settings.json")))!.Floor);
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Assert.Equal("Blank", ((ComboBoxItem)Floor(window).SelectedItem!).Content);
+                Assert.False(window.FindControl<CheckBox>("LightingBox")!.IsEnabled);
+                Assert.False(window.FindControl<ComboBox>("RoomBox")!.IsEnabled);
+                return Task.CompletedTask;
+            });
+            // Settings with no floor at all are plain plates.
+            File.WriteAllText(Path.Combine(data, "settings.json"), """{"Autosave":true}""");
+            await OnWindow(TestRooms.Fork, (window, _) =>
+            {
+                LoadSettings(window);
+                Assert.Equal("Plain", ((ComboBoxItem)Floor(window).SelectedItem!).Content);
                 return Task.CompletedTask;
             });
 

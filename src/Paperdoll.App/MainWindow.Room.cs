@@ -7,7 +7,7 @@ using Paperdoll.Core.Rooms;
 namespace Paperdoll.App;
 
 /// <summary>
-/// The preview's floor: plain plates, or the demo room, a small hand-made room, chosen by the
+/// The preview's floor: one flat colour, plain plates, or the demo room, a small hand-made room, chosen by the
 /// dressed job or in the Room box, drawn from the fork's own sprites, lit by its own lamps or evenly. The room and its
 /// light are worked out once and kept, both ways; the character is drawn between its two pictures,
 /// lit where it stands, so animation redraws only the character. Only the main preview shows the
@@ -16,7 +16,7 @@ namespace Paperdoll.App;
 public partial class MainWindow
 {
     // The floors in the order the Floor box lists them.
-    private static readonly FloorMode[] FloorChoices = [FloorMode.Plain, FloorMode.DemoRoom];
+    private static readonly FloorMode[] FloorChoices = [FloorMode.Blank, FloorMode.Plain, FloorMode.DemoRoom];
 
     // The rooms the Room box lists after "By job", by name.
     private List<Room> _roomChoices = [];
@@ -72,7 +72,7 @@ public partial class MainWindow
     }
 
     // The floor chosen; a value no longer offered, from older settings, is plain plates.
-    private FloorMode FloorShown() => _settings.Floor == FloorMode.DemoRoom ? FloorMode.DemoRoom : FloorMode.Plain;
+    private FloorMode FloorShown() => _settings.Floor is FloorMode.DemoRoom or FloorMode.Blank ? _settings.Floor : FloorMode.Plain;
 
     private void OnFloorChosen(object? sender, SelectionChangedEventArgs e)
     {

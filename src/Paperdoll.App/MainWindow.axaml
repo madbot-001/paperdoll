@@ -90,7 +90,8 @@
                         SelectionChanged="OnZoomChosen" />
               <TextBlock Classes="hint" Text="Floor" Margin="6,0,0,0" />
               <ComboBox Name="FloorBox" Width="96" MinHeight="18" Height="18" Padding="4,0" FontSize="11"
-                        SelectionChanged="OnFloorChosen" ToolTip.Tip="Plain plates, or a small room drawn from the fork's sprites">
+                        SelectionChanged="OnFloorChosen" ToolTip.Tip="One flat colour, plain plates, or a small room drawn from the fork's sprites">
+                <ComboBoxItem Content="Blank" />
                 <ComboBoxItem Content="Plain" />
                 <ComboBoxItem Content="Demo room" />
               </ComboBox>

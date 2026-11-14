@@ -143,7 +143,7 @@ public partial class MainWindow
                 RefreshShownTab();
         }
         using (var sprite = _session.Render(_direction, seconds))
-        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale, room: room?.Picture))
+        using (var canvas = FloorCanvas.Compose(width, height, _zoom, sprite, scale, room: room?.Picture, blank: FloorShown() == FloorMode.Blank))
             Replace(PreviewImage, FloorCanvas.ToAvalonia(canvas));
 
         for (var i = 0; i < 4; i++)
