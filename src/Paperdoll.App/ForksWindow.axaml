@@ -4,14 +4,18 @@
         x:Class="Paperdoll.App.ForksWindow"
         Icon="/Assets/icon.png"
         Title="Forks"
-        Width="720" Height="420" CanResize="True" WindowStartupLocation="CenterOwner">
+        Width="840" Height="440" CanResize="True" WindowStartupLocation="CenterOwner">
   <DockPanel Margin="8">
     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,6"
-               Text="Download only the forks you want; each needs about 10 to 30 MB, and files forks share are kept once. A few forks Paperdoll has not been checked against cannot be edited yet." />
-    <StackPanel DockPanel.Dock="Right" Spacing="5" Margin="8,0,0,0" Width="96">
+               Text="Download only the forks you want; each needs about 10 to 30 MB, and files forks share are kept once. Or read a fork from a copy or git clone of the game on this computer with From folder...: nothing is downloaded, and the folder is never changed. A few forks Paperdoll has not been checked against cannot be edited yet." />
+    <StackPanel DockPanel.Dock="Right" Spacing="5" Margin="8,0,0,0" Width="108">
       <Button Name="OpenButton" Content="Open" Click="OnOpenFork" HorizontalAlignment="Stretch" />
       <Button Name="UpdateButton" Content="Update" Click="OnUpdateFork" HorizontalAlignment="Stretch" />
       <Button Name="RemoveButton" Content="Remove" Click="OnRemoveFork" HorizontalAlignment="Stretch" />
+      <Button Name="FolderButton" Content="From folder..." Click="OnFromFolder" HorizontalAlignment="Stretch" Margin="0,12,0,0"
+              ToolTip.Tip="Read a fork from a copy or git clone of the game on this computer, as it is on disk" />
+      <Button Name="DownloadButton" Content="Use download" Click="OnUseDownload" HorizontalAlignment="Stretch"
+              ToolTip.Tip="Download this fork again rather than reading it from its game folder; the folder is left as it is" />
       <Button Content="Files..." Click="OnFiles" HorizontalAlignment="Stretch" Margin="0,12,0,0"
               ToolTip.Tip="Where downloads are kept, their size, and cleaning up after updates" />
       <Button Content="Close" Click="OnClose" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
@@ -26,7 +30,8 @@
         <DataGridTextColumn Header="Fork" Binding="{Binding Name}" Width="170" />
         <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="60" />
         <DataGridTextColumn Header="Editable" Binding="{Binding Editable}" Width="64" />
-        <DataGridTextColumn Header="Downloaded" Binding="{Binding Commit}" Width="90" />
+        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="78" />
+        <DataGridTextColumn Header="Version" Binding="{Binding Commit}" Width="118" />
         <DataGridTextColumn Binding="{Binding LastPlayed}" Width="80">
           <DataGridTextColumn.Header>
             <TextBlock Text="Last played"

@@ -18,6 +18,16 @@ public sealed partial class EditorSession
     // Each loose picture a room draws (a tile's, or another), with its credit, read once per fork version.
     private readonly ConcurrentDictionary<(string Commit, string Path), (SKImage? Picture, CreditLine Credit)> _tilePictures = new();
 
+    // A game folder is read again at every load, so a version of one that is not the version now
+    // loaded is never drawn again: its rooms and pictures go.
+    private void ForgetOtherFolderVersions(string loaded)
+    {
+        foreach (var key in _roomScenes.Keys.Where(k => ForkVersions.IsFolder(k.Commit) && k.Commit != loaded))
+            _roomScenes.TryRemove(key, out _);
+        foreach (var key in _tilePictures.Keys.Where(k => ForkVersions.IsFolder(k.Commit) && k.Commit != loaded))
+            _tilePictures.TryRemove(key, out _);
+    }
+
     /// <summary>
     /// A room with every picture it draws from the loaded fork. The pictures are downloaded in one
     /// batch when first needed and read away from the caller's thread; a room once drawn is kept

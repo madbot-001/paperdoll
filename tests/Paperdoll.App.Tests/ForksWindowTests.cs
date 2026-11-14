@@ -2,7 +2,11 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Interactivity;
 using Microsoft.Data.Sqlite;
+using Paperdoll.Core.Editing;
+using Paperdoll.Core.Forks;
+using Paperdoll.Core.Store;
 using Paperdoll.Core.Tests;
 
 namespace Paperdoll.App.Tests;
@@ -143,5 +147,152 @@ public sealed class ForksWindowTests : IDisposable
         Assert.Equal(0, before);
         Assert.Equal(5, after);
         Assert.Equal([true], reported);
+    }
+
+    // A made-up clone of a fork's repository, with its remote.
+    private string Clone(string origin)
+    {
+        var folder = TestGameFolders.Write(Directory.CreateDirectory(Path.Combine(_root, Guid.NewGuid().ToString("N"))).FullName, "b");
+        TestGameFolders.Git(folder, origin);
+        return folder;
+    }
+
+    private static ForkRow Row(ForksWindow window, string forkId)
+    {
+        Dispatcher.UIThread.RunJobs();
+        return NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource!.Cast<ForkRow>().Single(r => r.Fork.Id == forkId);
+    }
+
+    private static void Click(ForksWindow window, string button) =>
+        NameScopeExtensions.Find<Button>(window, button)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    private static string? Status(ForksWindow window) => NameScopeExtensions.Find<TextBlock>(window, "StatusText")!.Text;
+
+    [Fact]
+    public async Task Each_row_shows_its_source_and_a_fork_can_be_read_from_a_folder_and_downloaded_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var upstream = Clone("https://github.com/space-wizards/space-station-14");
+        var deltav = Clone("git@github.com:DeltaV-Station/Delta-v.git");
+        var before = TestGameFolders.Snapshot(deltav);
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore()));
+        await editor.UseFolderAsync(KnownForks.Find("upstream")!, upstream, ct);
+        var saves = 0;
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var window = new ForksWindow(editor, pickFolder: _ => Task.FromResult<string?>(deltav), sourcesChanged: () => saves++) { Width = 800, Height = 440 };
+            window.Show();
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            var grid = NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!;
+
+            Assert.Equal(("Folder", "01234567 (folder)", upstream), (Row(window, "upstream").Source, Row(window, "upstream").Commit, Row(window, "upstream").Folder));
+            Assert.Equal(("Download", "", null), (Row(window, "deltav").Source, Row(window, "deltav").Commit, Row(window, "deltav").Folder));
+            Assert.Contains("Source", grid.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+            Assert.Contains("01234567 (folder)", grid.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+
+            grid.SelectedItem = Row(window, "upstream");
+            Assert.Equal($"Wizard's Den (upstream): read from {upstream}", Status(window));
+            Assert.True(NameScopeExtensions.Find<Button>(window, "DownloadButton")!.IsEnabled);
+            Assert.Equal("Open", NameScopeExtensions.Find<Button>(window, "OpenButton")!.Content);
+
+            // From folder... reads the fork the folder's remote names, whichever row is chosen.
+            Click(window, "FolderButton");
+            DemoRoomTests.WaitFor(() => Status(window)?.StartsWith("Delta-V is now", StringComparison.Ordinal) == true);
+            Assert.Equal(1, saves);
+            Assert.Equal(deltav, Row(window, "deltav").Folder);
+            Assert.Equal("deltav", ((ForkRow)grid.SelectedItem!).Fork.Id);
+            Assert.Equal($"Delta-V is now read from {deltav}, as it is on disk. Open loads it.", Status(window));
+
+            // Use download goes back, leaving the folder as it is.
+            Click(window, "DownloadButton");
+            DemoRoomTests.WaitFor(() => Status(window)?.StartsWith("Delta-V is downloaded again", StringComparison.Ordinal) == true);
+            Assert.Equal(2, saves);
+            Assert.Equal("", Row(window, "deltav").Commit);
+            Assert.Equal("Download", NameScopeExtensions.Find<Button>(window, "OpenButton")!.Content);
+            Assert.False(NameScopeExtensions.Find<Button>(window, "DownloadButton")!.IsEnabled);
+            window.Close();
+            return Task.CompletedTask;
+        }, ct);
+        Assert.Equal(ForkSource.Download, editor.SourceOf("deltav"));
+        Assert.Equal(before, TestGameFolders.Snapshot(deltav));
+    }
+
+    [Fact]
+    public async Task Removing_a_folder_fork_forgets_its_source_and_leaves_the_folder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var upstream = Clone("https://github.com/space-wizards/space-station-14.git");
+        var before = TestGameFolders.Snapshot(upstream);
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore()));
+        await editor.UseFolderAsync(KnownForks.Find("upstream")!, upstream, ct);
+        var saves = 0;
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var window = new ForksWindow(editor, sourcesChanged: () => saves++) { Width = 800, Height = 440 };
+            window.Show();
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.SelectedItem = Row(window, "upstream");
+            Assert.True(NameScopeExtensions.Find<Button>(window, "RemoveButton")!.IsEnabled);
+
+            Click(window, "RemoveButton");
+            DemoRoomTests.WaitFor(() => Status(window)?.StartsWith("Removed", StringComparison.Ordinal) == true);
+            Assert.Equal("Download", Row(window, "upstream").Source);
+            Assert.Equal($"Removed Wizard's Den (upstream); {upstream} was left as it is.", Status(window));
+            Assert.Equal(1, saves);
+            window.Close();
+            return Task.CompletedTask;
+        }, ct);
+        Assert.Empty(editor.Sources());
+        Assert.Equal(before, TestGameFolders.Snapshot(upstream));
+    }
+
+    [Fact]
+    public async Task A_folder_that_will_not_do_is_explained_and_changes_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var empty = Directory.CreateDirectory(Path.Combine(_root, "empty")).FullName;
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore()));
+        var saves = 0;
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var window = new ForksWindow(editor, pickFolder: _ => Task.FromResult<string?>(empty), sourcesChanged: () => saves++) { Width = 800, Height = 440 };
+            window.Show();
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            Click(window, "FolderButton");
+            DemoRoomTests.WaitFor(() => Status(window)?.Contains("has no Resources", StringComparison.Ordinal) == true);
+            Assert.True(window.IsEnabled);
+            window.Close();
+            return Task.CompletedTask;
+        }, ct);
+        Assert.Equal(0, saves);
+        Assert.Empty(editor.Sources());
+    }
+
+    [Fact]
+    public async Task Switching_the_open_forks_source_is_left_to_the_load_that_follows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var upstream = KnownForks.Find("upstream")!;
+        var clone = Clone("https://github.com/space-wizards/space-station-14.git");
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore().Add("upstream", "Resources/Prototypes/body.yml", TestForks.Body)));
+        await editor.LoadForkAsync(upstream, update: false, ct: ct);
+        var saves = 0;
+        var choice = await HeadlessApp.Session.Dispatch(async () =>
+        {
+            var owner = new Window();
+            owner.Show();
+            var window = new ForksWindow(editor, pickFolder: _ => Task.FromResult<string?>(clone), sourcesChanged: () => saves++) { Width = 800, Height = 440 };
+            var shown = window.ShowDialog<ForkChoice?>(owner);
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            Click(window, "FolderButton");
+            DemoRoomTests.WaitFor(() => shown.IsCompleted);
+            owner.Close();
+            return await shown;
+        }, ct);
+
+        Assert.Equal(new ForkChoice(upstream, false, ForkSource.FromFolder(clone)), choice);
+        // Not yet: only once it has loaded from there.
+        Assert.Equal(ForkSource.Download, editor.SourceOf("upstream"));
+        Assert.Equal(0, saves);
     }
 }

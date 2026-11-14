@@ -45,7 +45,9 @@ public sealed class ForkContent
 
         progress?.Report($"Listing {fork.Name}'s prototypes and strings");
         var entries = await store.ListAsync(fork.Id, [PrototypesFolder, LocaleFolder], ct);
-        progress?.Report($"Downloading {entries.Count} files");
+        // A game folder's files are only read, never downloaded.
+        var getting = (store as SourcedForkStore)?.SourceOf(fork.Id).Kind == ForkSourceKind.Folder ? "Reading" : "Downloading";
+        progress?.Report($"{getting} {entries.Count} files");
         await store.FetchAsync(fork.Id, entries, ct);
 
         var sources = new List<PrototypeSource>();
@@ -89,7 +91,7 @@ public sealed class ForkContent
         var wardrobeFolders = new HashSet<string>(wardrobe.Entities().SelectMany(clothing.SpriteFolders), StringComparer.Ordinal);
         wardrobeFolders.ExceptWith(folders);
 
-        progress?.Report("Downloading character and clothing sprites");
+        progress?.Report($"{getting} character and clothing sprites");
         var (textures, wardrobeFiles) = await FetchSpritesAsync(store, fork.Id, folders, wardrobeFolders, ct);
 
         return new ForkContent

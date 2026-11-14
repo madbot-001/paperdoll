@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Paperdoll.App.SourceWindow"
+        Icon="/Assets/icon.png"
+        Title="Game Files"
+        Width="460" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Name="ContinueButton" Content="Continue" Width="90" Click="OnContinue" IsDefault="True" />
+      <Button Content="Cancel" Width="90" Click="OnCancel" IsCancel="True" />
+    </StackPanel>
+    <StackPanel Spacing="2">
+      <TextBlock Text="Where should Paperdoll get the game's files?" FontWeight="SemiBold" Margin="0,0,0,8" />
+      <RadioButton Name="DownloadChoice" GroupName="source" Content="Download" IsChecked="True" />
+      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="26,0,0,8"
+                 Text="Any fork, at its newest version. Needs a download of about 10 to 30 MB per fork." />
+      <RadioButton Name="FolderChoice" GroupName="source" Content="Game folder" />
+      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="26,0,0,0"
+                 Text="A copy or git clone of the game on this computer. Nothing is downloaded; its files are used as they are on disk, and never changed." />
+    </StackPanel>
+  </DockPanel>
+</Window>

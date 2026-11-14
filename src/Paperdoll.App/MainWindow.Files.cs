@@ -51,6 +51,9 @@ public sealed record AppSettings
 
     /// <summary>The id of the demo room shown for every job; null, or one no longer there, is the job's own room.</summary>
     public string? Room { get; init; }
+
+    /// <summary>Where each fork's files come from, by fork id; a fork not listed is downloaded.</summary>
+    public Dictionary<string, Core.Store.ForkSource> Sources { get; init; } = [];
 }
 
 public sealed record MatchedServer(string Name, string Commit);

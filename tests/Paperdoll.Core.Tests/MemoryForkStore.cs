@@ -43,6 +43,10 @@ public sealed class MemoryForkStore : IForkStore
         return this;
     }
 
+    /// <summary>Every file of a fork, fetched or not, by path, to lay it out as a game folder.</summary>
+    public IReadOnlyDictionary<string, byte[]> FilesOf(string forkId) =>
+        _files.GetValueOrDefault(forkId, []).ToDictionary(f => f.Key, f => _objects.GetValueOrDefault(f.Value) ?? _remote[f.Value], StringComparer.Ordinal);
+
     /// <summary>Each fetch that had something to download, with the paths it downloaded.</summary>
     public List<IReadOnlyList<string>> Fetches { get; } = [];
 
@@ -105,8 +109,13 @@ public sealed class MemoryForkStore : IForkStore
         return _commits.GetValueOrDefault(forkId);
     }
 
+    /// <summary>What undoing a download throws, as a store that cannot write would.</summary>
+    public Exception? RevertFails { get; set; }
+
     public Task RevertSyncAsync(string forkId, string? previousCommit, CancellationToken ct = default)
     {
+        if (RevertFails is { } failure)
+            return Task.FromException(failure);
         if (previousCommit == null)
             _commits.Remove(forkId);
         else

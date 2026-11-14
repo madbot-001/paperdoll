@@ -61,7 +61,7 @@ public partial class MainWindow
         var session = _session!;
         var lines = new List<string>
         {
-            $"Sprites in this picture of {name}, from {session.Fork!.Name} (github.com/{session.Fork.Repository}, {session.Content!.Commit[..8]}):",
+            $"Sprites in this picture of {name}, from {session.Fork!.Name} (github.com/{session.Fork.Repository}{(Core.Store.ForkVersions.Commit(session.Content!.Commit) is { } commit ? ", " + commit[..Math.Min(8, commit.Length)] : "")}):",
         };
         lines.AddRange(session.Credits().Select(c => $"- {c.Rsi}: {c.License ?? "licence not stated"}; {c.Copyright ?? "authors not stated"}"));
         if (tiles.Count > 0 && heading != null)

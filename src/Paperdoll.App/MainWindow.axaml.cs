@@ -4,6 +4,7 @@ using Avalonia.Media.Imaging;
 using Paperdoll.Core.Editing;
 using Paperdoll.Core.Forks;
 using Paperdoll.Core.Profiles;
+using Paperdoll.Core.Store;
 
 namespace Paperdoll.App;
 
@@ -83,6 +84,7 @@ public partial class MainWindow : Window
             _restorePending = _settings.Autosave && File.Exists(AutosavePath);
             SetStatus("Opening the fork store");
             _session = await Task.Run(_openSession ?? (() => EditorSession.OpenAsync(Environment.GetEnvironmentVariable("PAPERDOLL_STORE"))));
+            await _session.RestoreSourcesAsync(_settings.Sources);
             var statuses = await _session.ForkStatusesAsync();
             await RefreshForkBoxAsync();
 
@@ -102,9 +104,13 @@ public partial class MainWindow : Window
                 await LoadForkAsync(start, update: false);
             else
             {
-                SetStatus("No fork downloaded yet. Choose Fork > Forks... to download one.");
+                SetStatus("No fork downloaded yet. Choose Fork > Forks... to download one or to read one from a game folder.");
                 await LeaveSplashAsync();
-                await ShowForksAsync();
+                // With no fork from anywhere yet, first ask where forks are to come from.
+                if (statuses.Any(s => s.Downloaded) || _session.Sources().Count > 0)
+                    await ShowForksAsync();
+                else
+                    await ShowFirstRunAsync();
             }
         }
         catch (Exception e)
@@ -236,11 +242,13 @@ public partial class MainWindow : Window
         _selected = new Node(NodeKind.Character);
         RefreshAll();
         var changes = session.LastFixes.Count;
-        SetStatus(changes == 0
+        var skipped = session.FolderSkipped(session.Fork!.Id);
+        var leftOut = skipped.Count == 0 ? "" : $" Left out of the game folder: {skipped[0]}{(skipped.Count > 1 ? $", and {skipped.Count - 1} more" : "")}.";
+        SetStatus((changes == 0
             ? $"{session.Fork!.Name} loaded. Work through {session.File?.Name ?? "the character"} in the tabs, or choose a species with Change... on Appearance."
             : session.ChangedBySwitch
                 ? $"{session.Fork!.Name} loaded. {session.File?.Name} was fitted to it ({changes} change{(changes == 1 ? "" : "s")} in Messages); switching back restores it, editing or saving here keeps the changes."
-                : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.");
+                : $"{session.Fork!.Name} loaded. {session.File?.Name} was checked against it; {changes} change{(changes == 1 ? "" : "s")} listed in Messages.") + leftOut);
     }
 
     private async Task RefreshForkBoxAsync()
@@ -295,7 +303,11 @@ public partial class MainWindow : Window
             UpdateTitle();
             var matched = _settings.MatchedServers.TryGetValue(_session.Fork!.Id, out var server) && server.Commit == _session.Content.Commit
                 ? $", as on {server.Name}" : "";
-            StatusFork.Text = $"{_session.Fork!.Name} {_session.Content.Commit[..8]}{matched} via {_session.StoreKind}";
+            var commit = _session.Content.Commit;
+            StatusFork.Text = ForkVersions.IsFolder(commit)
+                ? $"{_session.Fork!.Name} {ForkVersions.Short(commit)}"
+                : $"{_session.Fork!.Name} {ForkVersions.Short(commit)}{matched} via {_session.StoreKind}";
+            ToolTip.SetTip(StatusFork, _session.SourceOf(_session.Fork.Id).Folder);
             StatusCounts.Text = $"{_session.Selectable().Count} species, {_session.Content.Characters.Markings.Count} markings";
         }
         finally
@@ -411,7 +423,7 @@ public partial class MainWindow : Window
         {
             _settings = _settings with { ShowAdultForks = show };
             SaveSettings();
-        }).ShowDialog<ForkChoice?>(this);
+        }, PickFolder, SaveSources).ShowDialog<ForkChoice?>(this);
         try
         {
             await RefreshForkBoxAsync();
@@ -420,8 +432,44 @@ public partial class MainWindow : Window
         {
             SetStatus($"Could not list the downloaded forks: {e.Message}");
         }
-        if (choice != null)
+        if (choice?.Source is { } source)
+            await LoadFromSourceAsync(choice.Fork, source);
+        else if (choice != null)
             await LoadForkAsync(choice.Fork, choice.Update);
+    }
+
+    // Loads a fork from a new source, which is kept only if the fork loads from it.
+    private async Task LoadFromSourceAsync(ForkInfo fork, ForkSource source)
+    {
+        await LoadAsync(fork, (session, character, progress, ct) => session.PrepareFromSourceAsync(fork, source, character, progress, ct));
+        SaveSources();
+    }
+
+    /// <summary>Asks for a game folder; the system's folder picker unless replaced.</summary>
+    public Func<Window, Task<string?>> PickFolder { get; set; } = GameFolderChoice.PickAsync;
+
+    // Keeps where each fork's files come from.
+    private void SaveSources()
+    {
+        if (_session == null)
+            return;
+        _settings = _settings with { Sources = new Dictionary<string, ForkSource>(_session.Sources()) };
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// Asks where forks are to come from, when none has a source yet: Download goes on to the
+    /// Forks window, Game folder to a folder and the fork it holds, which then loads.
+    /// </summary>
+    private async Task ShowFirstRunAsync()
+    {
+        if (_session == null)
+            return;
+        var choice = await new SourceWindow().ShowDialog<ForkSourceKind?>(this);
+        if (choice == ForkSourceKind.Download)
+            await ShowForksAsync();
+        else if (choice == ForkSourceKind.Folder && await GameFolderChoice.ChooseAsync(this, PickFolder, null, SetStatus) is { } chosen)
+            await LoadFromSourceAsync(chosen.Fork, ForkSource.FromFolder(chosen.Folder));
     }
 
     private async void OnNew(object? sender, RoutedEventArgs e)

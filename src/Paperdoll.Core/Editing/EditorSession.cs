@@ -52,7 +52,7 @@ public sealed partial class EditorSession : IAsyncDisposable
     public EditorSession(IForkStore store) => Store = store;
 
     public IForkStore Store { get; }
-    public string StoreKind => Store is GitForkStore ? "git" : "GitHub API";
+    public string StoreKind => (Store is SourcedForkStore sourced ? sourced.Downloads : Store) is GitForkStore ? "git" : "GitHub API";
 
     public ForkInfo? Fork { get; private set; }
     public ForkContent? Content { get; private set; }
@@ -76,8 +76,9 @@ public sealed partial class EditorSession : IAsyncDisposable
     /// </summary>
     public string WorkingCopy() => _beforeSwitch ?? Export();
 
+    /// <summary>A session over the usual download store, where any fork can be read from a game folder instead.</summary>
     public static async Task<EditorSession> OpenAsync(string? directory = null, CancellationToken ct = default) =>
-        new(await ForkStores.OpenAsync(directory ?? ForkStores.DefaultDirectory, ct: ct));
+        new(new SourcedForkStore(await ForkStores.OpenAsync(directory ?? ForkStores.DefaultDirectory, ct: ct)));
 
     public async Task<IReadOnlyList<ForkStatus>> ForkStatusesAsync(CancellationToken ct = default)
     {
@@ -112,10 +113,14 @@ public sealed partial class EditorSession : IAsyncDisposable
         try
         {
             var previous = await Store.CommitOfAsync(fork.Id, ct);
-            if (!update && previous != null)
+            // A game folder is read again at every load, so what is kept for its last reading
+            // (rooms, pictures) is never taken for files changed since.
+            if (!update && previous != null && SourceOf(fork.Id).Kind != ForkSourceKind.Folder)
                 return await PrepareAsync(fork, source, progress, ct);
 
-            progress?.Report($"Checking {fork.Name} for its newest version");
+            progress?.Report(SourceOf(fork.Id).Kind == ForkSourceKind.Folder
+                ? $"Reading {fork.Name}'s game folder"
+                : $"Checking {fork.Name} for its newest version");
             try
             {
                 // Inside: a sync stopped part way may already have moved the fork.
@@ -211,6 +216,7 @@ public sealed partial class EditorSession : IAsyncDisposable
             (load.Fork, load.Content, load.Renderer, load.Textures, load.File, load.Fixes, load.Look, load.BeforeSwitch);
         _available.Clear();
         ClearDressUp();
+        ForgetOtherFolderVersions(load.Content.Commit);
     }
 
     // The sprite files the renderer reads, which clothing tried on adds to.
@@ -263,6 +269,8 @@ public sealed partial class EditorSession : IAsyncDisposable
             ?? throw new InvalidOperationException($"This server runs {build.ForkId ?? "a fork it does not name"}, which Paperdoll does not know.");
         if (!new ForkStatus(fork, null).Editable)
             throw new InvalidOperationException($"This server runs {fork.Name}, which Paperdoll cannot edit yet.");
+        if (SourceOf(fork.Id).Kind == ForkSourceKind.Folder)
+            throw new InvalidOperationException($"This server runs {fork.Name}, which is read from a game folder as it is on disk, so it cannot be moved to the server's version. To match the server, switch {fork.Name} back to Download in Fork > Forks....");
         if (!build.IsCommit)
             throw new InvalidOperationException($"This server gives its version as {build.Version ?? "nothing"}, not a git commit, so it cannot be matched.");
 
