@@ -211,6 +211,36 @@ public class DemoRoomTests
     });
 
     [Fact]
+    public Task The_room_shown_list_widens_the_picture_to_share_only_with_the_room_behind() => OnWindow(TestRooms.Fork, (window, editor) =>
+    {
+        editor.PreviewJob = "Clerk";
+        ChooseRoom(window);
+        WaitForRoom(window);
+        var share = OpenShare(window);
+        var list = share.FindControl<ComboBox>("RoomBox")!;
+        SKBitmap Picture() => (SKBitmap)typeof(ShareWindow).GetField("_picture", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(share)!;
+
+        share.FindControl<RadioButton>("FloorButton")!.IsChecked = true;
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(list.IsVisible);
+        Assert.False(list.IsEnabled);
+
+        share.FindControl<RadioButton>("RoomButton")!.IsChecked = true;
+        share.FindControl<RadioButton>("FrontOnlyButton")!.IsChecked = true;
+        list.SelectedIndex = 0;
+        Dispatcher.UIThread.RunJobs();
+        var close = Picture().Width;
+        list.SelectedIndex = 3;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(list.IsEnabled);
+        Assert.Equal(7, ((ShareOptions)typeof(ShareWindow).GetField("_options", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(share)!).RoomTiles);
+        Assert.True(Picture().Width > close);
+        share.Close();
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task Animation_redraws_the_character_and_not_the_room() => OnWindow(TestRooms.Fork, (window, editor) =>
     {
         editor.PreviewJob = "Clerk";

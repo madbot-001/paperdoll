@@ -24,7 +24,9 @@ public sealed record ShareRoom(Core.Rooms.RoomScene Scene, Core.Rooms.RoomPictur
 /// </summary>
 public partial class ShareWindow : Window
 {
-    private static readonly int[] Zooms = [2, 3, 4, 6, 8];
+    private static readonly int[] Zooms = SharePicture.Zooms;
+    // The Room shown list's items, as ShareOptions.RoomTiles.
+    private static readonly int[] RoomViews = [0, 3, 5, 7, ShareOptions.WholeRoom];
     private static readonly FilePickerFileType PngFiles = new("PNG pictures") { Patterns = ["*.png"], MimeTypes = ["image/png"] };
 
     private readonly ShareRequest? _request;
@@ -58,6 +60,10 @@ public partial class ShareWindow : Window
         TransparentButton.IsChecked = options.Background == ShareBackground.Transparent;
         RoomButton.IsVisible = request.Room != null;
         RoomButton.IsChecked = options.Background == ShareBackground.Room && request.Room != null;
+        RoomShownText.IsVisible = RoomBox.IsVisible = request.Room != null;
+        RoomBox.ItemsSource = new[] { "Close", "3 tiles", "5 tiles", "7 tiles", "Whole room" };
+        RoomBox.SelectedIndex = Math.Max(0, Array.IndexOf(RoomViews, options.RoomTiles));
+        RoomBox.IsEnabled = RoomButton.IsChecked == true;
         CaptionBox.IsChecked = options.Caption;
         CreditBox.IsChecked = options.Credit;
         _reading = false;
@@ -86,7 +92,9 @@ public partial class ShareWindow : Window
             TransparentButton.IsChecked == true ? ShareBackground.Transparent : PlainButton.IsChecked == true ? ShareBackground.Plain
                 : RoomButton.IsChecked == true ? ShareBackground.Room : ShareBackground.Floor,
             CaptionBox.IsChecked == true,
-            CreditBox.IsChecked == true);
+            CreditBox.IsChecked == true,
+            RoomViews[Math.Max(0, RoomBox.SelectedIndex)]);
+        RoomBox.IsEnabled = RoomButton.IsChecked == true;
         _remember?.Invoke(_options);
         Redraw();
     }
@@ -96,7 +104,7 @@ public partial class ShareWindow : Window
         var sides = _options.AllSides ? _request!.Sides : [_request!.Sides[0]];
         _picture?.Dispose();
         var room = _options.Background == ShareBackground.Room ? _request.Room : null;
-        var tiles = room != null ? SharePicture.RoomCredits(sides, _request.Scale, _options, room.Scene) : [];
+        var tiles = room != null ? SharePicture.RoomCredits(sides, _request.Scale, _options, room.Scene, room.Picture) : [];
         _fullCredits = room?.FullCredits(tiles) ?? _request.FullCredits;
         var credit = room?.Credit(tiles);
         _picture = SharePicture.Compose(sides, _request.Scale, _options, credit == null ? _request.Text : _request.Text with { Credit = credit }, room?.Picture);
@@ -104,7 +112,10 @@ public partial class ShareWindow : Window
         PictureImage.Source = shown;
         _shown?.Dispose();
         _shown = shown;
-        SizeText.Text = $"{_picture.Width} × {_picture.Height} pixels";
+        // A wide view of the room may be drawn smaller than asked, to keep the picture within bounds.
+        var zoom = SharePicture.Panel(sides, _request.Scale, _options, room?.Picture).Zoom;
+        SizeText.Text = $"{_picture.Width} × {_picture.Height} pixels"
+            + (zoom < Math.Clamp(_options.Zoom, 1, 16) ? $" (drawn at {zoom}× to stay within {SharePicture.MaxSide} pixels)" : "");
     }
 
     private async void OnCopy(object? sender, RoutedEventArgs e)
