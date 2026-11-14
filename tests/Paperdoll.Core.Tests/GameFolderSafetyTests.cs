@@ -126,7 +126,8 @@ public sealed class GameFolderSafetyTests : IDisposable
     }
 
     // Textures/sub leads out of the folder, to out/a; Textures/L leads to sub/../../Prototypes/secretdir,
-    // which the system resolves from where sub leads: out/a/../.. is the folder holding the game.
+    // which Linux and macOS resolve from where sub leads: out/a/../.. is the folder holding the game.
+    // Windows takes each ".." by name, from L's own folder: Resources/Prototypes/secretdir.
     private (string Folder, string L) DotDotThroughALink()
     {
         var folder = Clone("a");
@@ -145,12 +146,14 @@ public sealed class GameFolderSafetyTests : IDisposable
     [Fact]
     public void A_dot_dot_after_a_link_is_resolved_where_the_link_leads()
     {
-        var (_, l) = DotDotThroughALink();
+        var (folder, l) = DotDotThroughALink();
 
         var real = GameFolder.RealPath(l);
 
         Assert.Equal(File.ReadAllText(Path.Combine(l, "marker.png")), File.ReadAllText(Path.Combine(real, "marker.png")));
-        Assert.Equal(Path.Combine(_root, "Prototypes", "secretdir"), real);
+        var leads = OperatingSystem.IsWindows() ? Path.Combine(folder, "Resources", "Prototypes", "secretdir") : Path.Combine(_root, "Prototypes", "secretdir");
+        // Compared with the temporary folder's own links followed, as macOS's /var is a link.
+        Assert.Equal(GameFolder.RealPath(leads), real);
     }
 
     [Fact]

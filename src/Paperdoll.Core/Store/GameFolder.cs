@@ -485,14 +485,17 @@ public sealed partial record GameFolder(string? Top, string Resources, string Ro
     /// <summary>
     /// The path with every link in it followed, as the system would to open it: each link is
     /// read where it is met and its target, absolute or relative, takes the place of the part,
-    /// so a ".." after a link goes up from where the link leads. Throws
-    /// <see cref="IOException"/> for links that go round in a loop, and for a link met inside
-    /// <paramref name="noLinksIn"/>, when given.
+    /// so a ".." after a link goes up from where the link leads. On Windows, which takes each
+    /// ".." by name, a ".." in the path or in a link's target goes up from the part before it.
+    /// Throws <see cref="IOException"/> for links that go round in a loop, and for a link met
+    /// inside <paramref name="noLinksIn"/>, when given.
     /// </summary>
     public static string RealPath(string path, string? noLinksIn = null)
     {
         if (!Path.IsPathRooted(path))
             path = Path.Combine(Directory.GetCurrentDirectory(), path);
+        if (OperatingSystem.IsWindows())
+            path = Path.GetFullPath(path);
         var current = Path.GetPathRoot(path)!;
         // The parts still to walk, the next on top.
         var pending = new Stack<string>(Parts(path[current.Length..]).Reverse());
@@ -517,6 +520,14 @@ public sealed partial record GameFolder(string? Top, string Resources, string Ro
                 throw new IOException($"{path} passes through a link inside the game folder.");
             if (++hops > 40)
                 throw new IOException($"{path} goes round a loop of links.");
+            if (OperatingSystem.IsWindows())
+            {
+                // The target, from the folder holding the link, then the rest, each ".." taken by name.
+                var joined = Path.GetFullPath(Path.Combine([current, target, .. pending]));
+                current = Path.GetPathRoot(joined)!;
+                pending = new Stack<string>(Parts(joined[current.Length..]).Reverse());
+                continue;
+            }
             if (Path.IsPathRooted(target))
             {
                 current = Path.GetPathRoot(target)!;
