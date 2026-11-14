@@ -13,7 +13,7 @@ Import button takes.
 sprite's `meta.json` there names its authors), and so is the picture.</sub>
 
 Species, markings, colours, loadouts and traits are read from each fork's own repository, so the
-choices match that fork. Delta-V and Euphoria get the most attention, then upstream. Fork > Match
+choices match that fork. Wisden and Delta-V get the most attention, then upstream. Fork > Match
 a Server loads the exact version a server runs, read from its public info page, since servers
 often lag behind a fork's newest code.
 
