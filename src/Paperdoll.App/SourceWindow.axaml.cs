@@ -9,8 +9,18 @@ public partial class SourceWindow : Window
 {
     public SourceWindow() => InitializeComponent();
 
+    /// <param name="noLauncher">Why the SS14 launcher cannot be chosen, or null when it can.</param>
+    public SourceWindow(string? noLauncher) : this()
+    {
+        LauncherChoice.IsEnabled = noLauncher == null;
+        if (noLauncher != null)
+            LauncherHint.Text = noLauncher;
+    }
+
     private void OnContinue(object? sender, RoutedEventArgs e) =>
-        Close(FolderChoice.IsChecked == true ? ForkSourceKind.Folder : ForkSourceKind.Download);
+        Close(FolderChoice.IsChecked == true ? ForkSourceKind.Folder
+            : LauncherChoice.IsChecked == true && LauncherChoice.IsEnabled ? ForkSourceKind.Launcher
+            : ForkSourceKind.Download);
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close(null);
 }

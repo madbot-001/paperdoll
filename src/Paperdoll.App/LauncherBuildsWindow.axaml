@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Paperdoll.App"
+        x:Class="Paperdoll.App.LauncherBuildsWindow"
+        Icon="/Assets/icon.png"
+        Title="Copy from the SS14 Launcher"
+        Width="540" Height="360" CanResize="True" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="12">
+    <TextBlock DockPanel.Dock="Top" Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,8" />
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,10,0,0">
+      <Button Name="CopyButton" Content="Copy" Width="90" Click="OnCopy" IsDefault="True" IsEnabled="False" />
+      <Button Content="Cancel" Width="90" Click="OnCancel" IsCancel="True" />
+    </StackPanel>
+    <TextBlock DockPanel.Dock="Bottom" Name="NoteText" Classes="hint" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="False" />
+    <Border Classes="pane">
+      <DataGrid Name="BuildGrid" IsReadOnly="True" SelectionMode="Single" SelectionChanged="OnSelection" DoubleTapped="OnCopy" x:DataType="app:LauncherRow">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Fork" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="130" />
+          <DataGridTextColumn Header="Last played" Binding="{Binding LastPlayed}" Width="90" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+  </DockPanel>
+</Window>

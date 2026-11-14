@@ -336,6 +336,137 @@ public class SplashTests
     }
 
     [Fact]
+    public void Settings_keep_a_launcher_source_and_read_game_folder_sources_from_before()
+    {
+        var launcher = new AppSettings { Sources = new() { ["upstream"] = ForkSource.FromLauncher("/made/up/launcher") } };
+        var again = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(System.Text.Json.JsonSerializer.Serialize(launcher))!;
+        var folder = System.Text.Json.JsonSerializer.Deserialize<AppSettings>("""{"Sources":{"deltav":{"Kind":1,"Folder":"/made/up/clone"}}}""")!;
+
+        Assert.Equal(launcher.Sources, again.Sources);
+        Assert.Equal(new Dictionary<string, ForkSource> { ["deltav"] = ForkSource.FromFolder("/made/up/clone") }, folder.Sources);
+        Assert.Null(folder.Sources["deltav"].Launcher);
+    }
+
+    [Fact]
+    public void Matching_a_server_keeps_and_shows_the_commit_whatever_the_forks_source()
+    {
+        var hash = new string('e', 64);
+        foreach (var (version, shown) in new[]
+        {
+            (TestGameFolders.Commit, "01234567"),
+            (ForkVersions.OfLauncher(TestGameFolders.Commit, hash, 5), "01234567 (launcher)"),
+            (ForkVersions.OfFolder(TestGameFolders.Commit, 5), "01234567 (folder)"),
+        })
+        {
+            var (kept, status) = MainWindow.Matched(Upstream, "Made-up Server", version);
+            Assert.Equal(new MatchedServer("Made-up Server", TestGameFolders.Commit), kept);
+            Assert.Equal($"Wizard's Den (upstream) now matches Made-up Server ({shown}). Fork > Update goes back to the newest version.", status);
+        }
+    }
+
+    // A made-up SS14 launcher holding a build of Wizard's Den made of the test forks' body, and
+    // one of a fork Paperdoll cannot edit yet.
+    private static TestLauncher LauncherWithBuilds(params string[] forkIds)
+    {
+        var launcher = new TestLauncher(Path.Combine(TestData.Directory, "launcher-" + Guid.NewGuid().ToString("N")));
+        foreach (var id in forkIds)
+            launcher.AddBuild(id, TestGameFolders.Commit, new DateTime(2026, 11, 2, 10, 0, 0, DateTimeKind.Utc), TestLauncher.Build("b"));
+        return launcher;
+    }
+
+    [Fact]
+    public async Task SS14_launcher_copies_the_fork_picked_loads_it_and_the_next_start_needs_no_launcher()
+    {
+        var launcher = LauncherWithBuilds("wizards");
+        var before = TestLauncher.Snapshot(launcher.Folder);
+        var copies = Path.Combine(TestData.Directory, "store-" + Guid.NewGuid().ToString("N"), "launcher");
+        string? settings = null;
+        await using (var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), copies)))
+        {
+            await OnStart(() => Task.FromResult(editor), async (window, splash) =>
+            {
+                window.LauncherFolders = [launcher.Folder];
+                DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<SourceWindow>().Any());
+                Assert.False(splash.IsVisible);
+                var ask = window.OwnedWindows.OfType<SourceWindow>().Single();
+                Assert.True(Find<RadioButton>(ask, "LauncherChoice").IsEnabled);
+                Find<RadioButton>(ask, "LauncherChoice").IsChecked = true;
+                Click(Find<Button>(ask, "ContinueButton"));
+                DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<LauncherBuildsWindow>().Any());
+                var builds = window.OwnedWindows.OfType<LauncherBuildsWindow>().Single();
+                // The only fork it holds is chosen already.
+                Click(Find<Button>(builds, "CopyButton"));
+                await window.Startup;
+
+                Assert.StartsWith("Wizard's Den (upstream) loaded.", Status(window));
+                Assert.Equal("Wizard's Den (upstream) 01234567 (launcher)", Find<TextBlock>(window, "StatusFork").Text);
+                Assert.Equal(Upstream, editor.Fork);
+                Assert.Empty(window.OwnedWindows);
+                settings = File.ReadAllText(Path.Combine(Environment.GetEnvironmentVariable("PAPERDOLL_DATA")!, "settings.json"));
+            });
+        }
+        var saved = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(settings!)!;
+        Assert.Equal(new Dictionary<string, ForkSource> { ["upstream"] = ForkSource.FromLauncher(launcher.Folder) }, saved.Sources);
+        Assert.Equal(before, TestLauncher.Snapshot(launcher.Folder));
+
+        // The next start reads Paperdoll's copy, without asking and without the launcher.
+        Directory.Delete(launcher.Folder, recursive: true);
+        await using (var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), copies)))
+        {
+            await OnStart(() => Task.FromResult(editor), async (window, _) =>
+            {
+                await window.Startup;
+                Assert.StartsWith("Wizard's Den (upstream) loaded.", Status(window));
+                Assert.Equal(ForkSource.FromLauncher(launcher.Folder), editor.SourceOf("upstream"));
+                Assert.Empty(window.OwnedWindows);
+            }, settings: settings);
+        }
+    }
+
+    [Fact]
+    public async Task Without_a_launcher_its_choice_is_offered_disabled_with_why()
+    {
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore()));
+        await OnStart(() => Task.FromResult(editor), async (window, _) =>
+        {
+            window.LauncherFolders = [Path.Combine(TestData.Directory, "absent-launcher")];
+            DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<SourceWindow>().Any());
+            var ask = window.OwnedWindows.OfType<SourceWindow>().Single();
+
+            Assert.False(Find<RadioButton>(ask, "LauncherChoice").IsEnabled);
+            Assert.Equal("No SS14 launcher was found on this computer.", Find<TextBlock>(ask, "LauncherHint").Text);
+            ask.Close();
+            await window.Startup;
+        });
+    }
+
+    [Fact]
+    public async Task A_launcher_with_no_build_Paperdoll_can_edit_says_so_and_cancelling_asks_again()
+    {
+        var launcher = LauncherWithBuilds("rmc14");
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), Path.Combine(TestData.Directory, "store-" + Guid.NewGuid().ToString("N"), "launcher")));
+        await OnStart(() => Task.FromResult(editor), async (window, _) =>
+        {
+            window.LauncherFolders = [launcher.Folder];
+            DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<SourceWindow>().Any());
+            var ask = window.OwnedWindows.OfType<SourceWindow>().Single();
+            Find<RadioButton>(ask, "LauncherChoice").IsChecked = true;
+            Click(Find<Button>(ask, "ContinueButton"));
+            DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<LauncherBuildsWindow>().Any());
+            var builds = window.OwnedWindows.OfType<LauncherBuildsWindow>().Single();
+
+            Assert.StartsWith("The SS14 launcher on this computer holds no build of a fork Paperdoll can edit.", Find<TextBlock>(builds, "MessageText").Text);
+            Assert.Equal("Also in the launcher, not editable yet: RMC-14.", Find<TextBlock>(builds, "NoteText").Text);
+            Assert.False(Find<Button>(builds, "CopyButton").IsEnabled);
+            builds.Close();
+            DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<SourceWindow>().Any(w => w != ask));
+            window.OwnedWindows.OfType<SourceWindow>().Single().Close();
+            await window.Startup;
+            Assert.Null(editor.Fork);
+        });
+    }
+
+    [Fact]
     public async Task An_unexpected_error_during_the_load_closes_the_splash_and_is_shown_in_the_main_window()
     {
         var release = new TaskCompletionSource();

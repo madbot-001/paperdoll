@@ -64,6 +64,12 @@ public sealed partial record GameFolder(string? Top, string Resources, string Ro
     public IReadOnlyList<string> FromRoot(IEnumerable<string> belowResources) =>
         [.. Resources == Root ? [] : new[] { Path.GetFileName(Resources) }, .. belowResources];
 
+    // Files the operating system or its file browser leaves in folders, never the game's own.
+    private static readonly string[] SystemFiles = [".DS_Store", "Thumbs.db", "desktop.ini"];
+
+    /// <summary>Whether a file name is one the operating system or its file browser leaves in folders (.DS_Store, Thumbs.db, desktop.ini), in any case.</summary>
+    public static bool IsSystemFile(string name) => SystemFiles.Contains(name, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The largest file read from a game folder; no sprite, prototype or string file comes near it.</summary>
     public const long MaxFileSize = 32L * 1024 * 1024;
 
@@ -473,7 +479,8 @@ public sealed partial record GameFolder(string? Top, string Resources, string Ro
         return path.Equals(folder, comparison) || path.StartsWith(folder + Path.DirectorySeparatorChar, comparison);
     }
 
-    private static bool IgnoresCase => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+    /// <summary>Whether the platform's file system takes names that differ only in case for one: on Windows and macOS.</summary>
+    public static bool IgnoresCase => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 
     /// <summary>
     /// The path with every link in it followed, as the system would to open it: each link is

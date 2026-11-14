@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SauceControl.Blake2Fast" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="ZstdSharp.Port" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Locale\color-naming.ftl" LogicalName="Paperdoll.Core.Locale.color-naming.ftl" />

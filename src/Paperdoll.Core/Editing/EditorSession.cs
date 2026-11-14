@@ -76,9 +76,12 @@ public sealed partial class EditorSession : IAsyncDisposable
     /// </summary>
     public string WorkingCopy() => _beforeSwitch ?? Export();
 
-    /// <summary>A session over the usual download store, where any fork can be read from a game folder instead.</summary>
-    public static async Task<EditorSession> OpenAsync(string? directory = null, CancellationToken ct = default) =>
-        new(new SourcedForkStore(await ForkStores.OpenAsync(directory ?? ForkStores.DefaultDirectory, ct: ct)));
+    /// <summary>A session over the usual download store, where any fork can be read from a game folder or a copy of a launcher build instead.</summary>
+    public static async Task<EditorSession> OpenAsync(string? directory = null, CancellationToken ct = default)
+    {
+        directory ??= ForkStores.DefaultDirectory;
+        return new(new SourcedForkStore(await ForkStores.OpenAsync(directory, ct: ct), Path.Combine(directory, "launcher")));
+    }
 
     public async Task<IReadOnlyList<ForkStatus>> ForkStatusesAsync(CancellationToken ct = default)
     {
@@ -205,6 +208,9 @@ public sealed partial class EditorSession : IAsyncDisposable
                 // The first in the species list, which is in name order.
                 : content.Characters.Selectable(fork.HiddenSpecies).OrderBy(s => content.Strings.Get(s.NameKey), StringComparer.CurrentCulture).First().Id);
         var (fixes, look) = Checked(file, content, fork);
+        // A launcher copy the fork has loaded from is kept over one it has not, after a stop.
+        if (Sourced?.LauncherOf(fork.Id) != null)
+            Sourced.LauncherCopies?.MarkLoaded(fork.Id);
         progress?.Report($"{fork.Name} ready");
         return new ForkLoad(fork, content, renderer, textures, file, fixes, look, source != null && fixes.Count > 0 ? source : null);
     }

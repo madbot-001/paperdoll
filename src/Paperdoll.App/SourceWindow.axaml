@@ -15,8 +15,11 @@
       <TextBlock Classes="hint" TextWrapping="Wrap" Margin="26,0,0,8"
                  Text="Any fork, at its newest version. Needs a download of about 10 to 30 MB per fork." />
       <RadioButton Name="FolderChoice" GroupName="source" Content="Game folder" />
-      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="26,0,0,0"
+      <TextBlock Classes="hint" TextWrapping="Wrap" Margin="26,0,0,8"
                  Text="A copy or git clone of the game on this computer. Nothing is downloaded; its files are used as they are on disk, and never changed." />
+      <RadioButton Name="LauncherChoice" GroupName="source" Content="SS14 launcher" />
+      <TextBlock Name="LauncherHint" Classes="hint" TextWrapping="Wrap" Margin="26,0,0,0"
+                 Text="A fork the SS14 launcher on this computer has already downloaded. Nothing is downloaded; its files are copied into Paperdoll's folder, and the launcher is never changed." />
     </StackPanel>
   </DockPanel>
 </Window>

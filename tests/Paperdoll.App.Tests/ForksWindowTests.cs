@@ -295,4 +295,129 @@ public sealed class ForksWindowTests : IDisposable
         Assert.Equal(ForkSource.Download, editor.SourceOf("upstream"));
         Assert.Equal(0, saves);
     }
+
+    private static readonly DateTime Monday = new(2026, 11, 2, 10, 0, 0, DateTimeKind.Utc);
+
+    // A made-up launcher holding builds of these server fork ids, each the test forks' body.
+    private TestLauncher Builds(params string[] forkIds)
+    {
+        var launcher = new TestLauncher(Path.Combine(_root, Guid.NewGuid().ToString("N")));
+        foreach (var id in forkIds)
+            launcher.AddBuild(id, TestGameFolders.Commit, Monday, TestLauncher.Build("b"));
+        return launcher;
+    }
+
+    private string Copies => Path.Combine(_root, "store", "launcher");
+
+    private async Task<bool> OffersLauncherAsync(IReadOnlyList<string> folders)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), Copies));
+        return await HeadlessApp.Session.Dispatch(() =>
+        {
+            var window = new ForksWindow(editor, launcherFolders: folders) { Width = 800, Height = 440 };
+            window.Show();
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            var offered = NameScopeExtensions.Find<Button>(window, "LauncherButton")!.IsEnabled;
+            window.Close();
+            return Task.FromResult(offered);
+        }, ct);
+    }
+
+    [Fact]
+    public async Task From_launcher_is_offered_only_when_the_launcher_holds_a_build_Paperdoll_can_edit()
+    {
+        Assert.True(await OffersLauncherAsync([Builds("wizards").Folder]));
+        // A fork not editable yet, a build still downloading, the launcher's list alone, or no launcher.
+        Assert.False(await OffersLauncherAsync([Builds("rmc14").Folder]));
+        var downloading = new TestLauncher(Path.Combine(_root, "downloading"));
+        downloading.AddBuild("wizards", null, Monday, TestLauncher.Build("b"), downloading: true);
+        Assert.False(await OffersLauncherAsync([downloading.Folder]));
+        Assert.False(await OffersLauncherAsync([Launcher(("wizards", "2026-11-03 12:00:00"))]));
+        Assert.False(await OffersLauncherAsync([Path.Combine(_root, "absent")]));
+    }
+
+    [Fact]
+    public async Task From_launcher_lists_each_forks_newest_build_and_the_fork_picked_is_copied_by_the_load_that_follows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var launcher = Builds("wizards", "rmc14");
+        var before = TestLauncher.Snapshot(launcher.Folder);
+        var upstream = KnownForks.Find("upstream")!;
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), Copies));
+        var (choice, rows, note) = await HeadlessApp.Session.Dispatch(async () =>
+        {
+            var owner = new Window();
+            owner.Show();
+            var window = new ForksWindow(editor, launcherFolders: [launcher.Folder]) { Width = 800, Height = 440 };
+            var shown = window.ShowDialog<ForkChoice?>(owner);
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<Button>(window, "LauncherButton")!.IsEnabled);
+            Click(window, "LauncherButton");
+            DemoRoomTests.WaitFor(() => window.OwnedWindows.OfType<LauncherBuildsWindow>().Any());
+            var builds = window.OwnedWindows.OfType<LauncherBuildsWindow>().Single();
+            var grid = NameScopeExtensions.Find<DataGrid>(builds, "BuildGrid")!;
+            var listed = grid.ItemsSource!.Cast<LauncherRow>().ToList();
+            var hint = NameScopeExtensions.Find<TextBlock>(builds, "NoteText")!.Text;
+            NameScopeExtensions.Find<Button>(builds, "CopyButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            DemoRoomTests.WaitFor(() => shown.IsCompleted);
+            owner.Close();
+            return (await shown, listed, hint);
+        }, ct);
+
+        var row = Assert.Single(rows);
+        Assert.Equal(("Wizard's Den (upstream)", "01234567 (launcher)", Day(11, 2)), (row.Name, row.Version, row.LastPlayed));
+        Assert.Equal("Also in the launcher, not editable yet: RMC-14.", note);
+        Assert.Equal(new ForkChoice(upstream, false, ForkSource.FromLauncher(launcher.Folder)), choice);
+        // Nothing is copied until the main window loads it.
+        Assert.Equal(ForkSource.Download, editor.SourceOf("upstream"));
+        Assert.False(Directory.Exists(Copies));
+        Assert.Equal(before, TestLauncher.Snapshot(launcher.Folder));
+    }
+
+    [Fact]
+    public async Task A_launcher_copy_shows_as_Launcher_updates_from_the_launcher_and_Use_download_deletes_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var launcher = Builds("wizards");
+        var before = TestLauncher.Snapshot(launcher.Folder);
+        var upstream = KnownForks.Find("upstream")!;
+        await using var editor = new EditorSession(new SourcedForkStore(new MemoryForkStore(), Copies));
+        await editor.PrepareFromSourceAsync(upstream, ForkSource.FromLauncher(launcher.Folder), null, ct: ct);
+        var saves = 0;
+        var update = await HeadlessApp.Session.Dispatch(async () =>
+        {
+            var owner = new Window();
+            owner.Show();
+            var window = new ForksWindow(editor) { Width = 800, Height = 440 };
+            var shown = window.ShowDialog<ForkChoice?>(owner);
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            Assert.Equal(("Launcher", "01234567 (launcher)"), (Row(window, "upstream").Source, Row(window, "upstream").Commit));
+            NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.SelectedItem = Row(window, "upstream");
+            Assert.Equal($"Wizard's Den (upstream): copied from the SS14 launcher in {launcher.Folder}", Status(window));
+            Assert.True(NameScopeExtensions.Find<Button>(window, "UpdateButton")!.IsEnabled);
+            Click(window, "UpdateButton");
+            DemoRoomTests.WaitFor(() => shown.IsCompleted);
+            owner.Close();
+            return await shown;
+        }, ct);
+        Assert.Equal(new ForkChoice(upstream, true, ForkSource.FromLauncher(launcher.Folder)), update);
+
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var window = new ForksWindow(editor, sourcesChanged: () => saves++) { Width = 800, Height = 440 };
+            window.Show();
+            DemoRoomTests.WaitFor(() => NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.ItemsSource != null);
+            NameScopeExtensions.Find<DataGrid>(window, "ForkGrid")!.SelectedItem = Row(window, "upstream");
+            Assert.True(NameScopeExtensions.Find<Button>(window, "DownloadButton")!.IsEnabled);
+            Click(window, "DownloadButton");
+            DemoRoomTests.WaitFor(() => Status(window)?.StartsWith("Wizard's Den (upstream) is downloaded again", StringComparison.Ordinal) == true);
+            Assert.Equal("Wizard's Den (upstream) is downloaded again from now on; Paperdoll's copy from the SS14 launcher was deleted, and the launcher left as it is.", Status(window));
+            Assert.Equal("Download", Row(window, "upstream").Source);
+            window.Close();
+            return Task.CompletedTask;
+        }, ct);
+        Assert.Equal(1, saves);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Copies));
+        Assert.Equal(before, TestLauncher.Snapshot(launcher.Folder));
+    }
 }

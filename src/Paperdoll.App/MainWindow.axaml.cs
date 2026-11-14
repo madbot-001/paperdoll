@@ -304,10 +304,11 @@ public partial class MainWindow : Window
             var matched = _settings.MatchedServers.TryGetValue(_session.Fork!.Id, out var server) && server.Commit == _session.Content.Commit
                 ? $", as on {server.Name}" : "";
             var commit = _session.Content.Commit;
-            StatusFork.Text = ForkVersions.IsFolder(commit)
+            StatusFork.Text = ForkVersions.IsFolder(commit) || ForkVersions.IsLauncher(commit)
                 ? $"{_session.Fork!.Name} {ForkVersions.Short(commit)}"
                 : $"{_session.Fork!.Name} {ForkVersions.Short(commit)}{matched} via {_session.StoreKind}";
-            ToolTip.SetTip(StatusFork, _session.SourceOf(_session.Fork.Id).Folder);
+            var source = _session.SourceOf(_session.Fork.Id);
+            ToolTip.SetTip(StatusFork, source.Kind == ForkSourceKind.Launcher ? $"Copied from the SS14 launcher in {source.Launcher}" : source.Folder);
             StatusCounts.Text = $"{_session.Selectable().Count} species, {_session.Content.Characters.Markings.Count} markings";
         }
         finally
@@ -394,16 +395,30 @@ public partial class MainWindow : Window
         // A server version that cannot be loaded leaves the fork as it was.
         if (await LoadAsync(fork, (session, source, progress, ct) => session.PrepareSyncedForkAsync(fork, previous, source, progress, ct)))
         {
-            _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = new MatchedServer(choice.Name, commit) } };
+            var (kept, status) = Matched(fork, choice.Name, commit);
+            _settings = _settings with { MatchedServers = new(_settings.MatchedServers) { [fork.Id] = kept } };
             SaveSettings();
             RefreshAll();
-            SetStatus($"{fork.Name} now matches {choice.Name} ({commit[..8]}). Fork > Update goes back to the newest version.");
+            SetStatus(status);
         }
     }
 
+    /// <summary>
+    /// What is kept for a fork matched to a server, and what is said, from the version the store
+    /// gave it: a commit for a download, or a launcher copy's version, which holds the commit.
+    /// </summary>
+    public static (MatchedServer Kept, string Status) Matched(ForkInfo fork, string server, string version) =>
+        (new MatchedServer(server, ForkVersions.Commit(version) ?? version),
+            $"{fork.Name} now matches {server} ({ForkVersions.Short(version)}). Fork > Update goes back to the newest version.");
+
     private async void OnUpdateFork(object? sender, RoutedEventArgs e)
     {
-        if (_session?.Fork is { } fork)
+        if (_session?.Fork is not { } fork)
+            return;
+        // A copy from the launcher is updated by copying the newest build the launcher holds.
+        if (_session.SourceOf(fork.Id) is { Kind: ForkSourceKind.Launcher } launcher)
+            await LoadFromSourceAsync(fork, launcher);
+        else
             await LoadForkAsync(fork, update: true);
     }
 
@@ -417,9 +432,7 @@ public partial class MainWindow : Window
     {
         if (_session == null)
             return;
-        // PAPERDOLL_LAUNCHER names the one launcher folder to read instead, so tests never read the real one.
-        IReadOnlyList<string> launcher = Environment.GetEnvironmentVariable("PAPERDOLL_LAUNCHER") is { } folder ? [folder] : LauncherForks.CandidateFolders();
-        var choice = await new ForksWindow(_session, ShowFilesAsync, launcher, _settings.ShowAdultForks, show =>
+        var choice = await new ForksWindow(_session, ShowFilesAsync, LauncherFolders, _settings.ShowAdultForks, show =>
         {
             _settings = _settings with { ShowAdultForks = show };
             SaveSettings();
@@ -448,6 +461,13 @@ public partial class MainWindow : Window
     /// <summary>Asks for a game folder; the system's folder picker unless replaced.</summary>
     public Func<Window, Task<string?>> PickFolder { get; set; } = GameFolderChoice.PickAsync;
 
+    /// <summary>
+    /// Where the SS14 launcher may keep its content.db: the one folder PAPERDOLL_LAUNCHER names,
+    /// so tests never read the real one, or where the launcher keeps it on this computer.
+    /// </summary>
+    public IReadOnlyList<string> LauncherFolders { get; set; } =
+        Environment.GetEnvironmentVariable("PAPERDOLL_LAUNCHER") is { } folder ? [folder] : LauncherForks.CandidateFolders();
+
     // Keeps where each fork's files come from.
     private void SaveSources()
     {
@@ -459,17 +479,42 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Asks where forks are to come from, when none has a source yet: Download goes on to the
-    /// Forks window, Game folder to a folder and the fork it holds, which then loads.
+    /// Forks window, Game folder to a folder and the fork it holds, SS14 launcher to the forks
+    /// the launcher holds; the fork chosen then loads. Cancelling the launcher's list asks again.
     /// </summary>
     private async Task ShowFirstRunAsync()
     {
         if (_session == null)
             return;
-        var choice = await new SourceWindow().ShowDialog<ForkSourceKind?>(this);
-        if (choice == ForkSourceKind.Download)
-            await ShowForksAsync();
-        else if (choice == ForkSourceKind.Folder && await GameFolderChoice.ChooseAsync(this, PickFolder, null, SetStatus) is { } chosen)
-            await LoadFromSourceAsync(chosen.Fork, ForkSource.FromFolder(chosen.Folder));
+        // Only whether the launcher's file is there: it is not opened until the launcher is chosen.
+        var launcherFolders = LauncherFolders;
+        var hasLauncher = await Task.Run(() => launcherFolders.Any(f =>
+        {
+            try
+            {
+                return File.Exists(Path.Combine(f, LauncherForks.ContentDb));
+            }
+            catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }));
+        while (true)
+        {
+            var choice = await new SourceWindow(hasLauncher ? null : "No SS14 launcher was found on this computer.").ShowDialog<ForkSourceKind?>(this);
+            if (choice == ForkSourceKind.Download)
+                await ShowForksAsync();
+            else if (choice == ForkSourceKind.Folder && await GameFolderChoice.ChooseAsync(this, PickFolder, null, SetStatus) is { } chosen)
+                await LoadFromSourceAsync(chosen.Fork, ForkSource.FromFolder(chosen.Folder));
+            else if (choice == ForkSourceKind.Launcher)
+            {
+                var scan = await Task.Run(() => LauncherCache.Scan(launcherFolders));
+                if (await new LauncherBuildsWindow(scan, null).ShowDialog<LauncherBuild?>(this) is not { } build)
+                    continue;
+                await LoadFromSourceAsync(build.Fork, ForkSource.FromLauncher(build.Launcher));
+            }
+            return;
+        }
     }
 
     private async void OnNew(object? sender, RoutedEventArgs e)

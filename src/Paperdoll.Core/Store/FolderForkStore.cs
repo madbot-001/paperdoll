@@ -17,11 +17,18 @@ public sealed class FolderForkStore : IForkStore
     private readonly List<string> _skipped = [];
     private readonly Lock _lock = new();
 
+    // Paperdoll's own folders, which a game folder may not be in or hold.
+    private readonly IReadOnlyList<string> _ownFolders;
+
     /// <param name="folder">The folder as chosen: the game's top folder or its Resources folder.</param>
-    public FolderForkStore(string forkId, string folder)
+    /// <param name="ownFolders">Paperdoll's own folders (its store), which Paperdoll writes and
+    /// deletes in: a game folder inside one, or holding one, is refused, as Paperdoll never writes
+    /// in a game folder.</param>
+    public FolderForkStore(string forkId, string folder, IReadOnlyList<string>? ownFolders = null)
     {
         _forkId = forkId;
         Directory = folder;
+        _ownFolders = ownFolders ?? [];
     }
 
     /// <summary>The folder as chosen.</summary>
@@ -55,6 +62,7 @@ public sealed class FolderForkStore : IForkStore
         try
         {
             var folder = GameFolder.Open(Directory);
+            CheckNotOwn(folder);
             // Reading the folder again gives its files a new count of opens given up on.
             var gate = new OpenGate();
             var git = folder.Top is { } top ? GameFolder.ReadGit(top, gate) : GitCheckout.None;
@@ -77,6 +85,19 @@ public sealed class FolderForkStore : IForkStore
         {
             Problem = $"Could not read {Directory}: {e.Message}";
             throw new GameFolderException(Problem, e);
+        }
+    }
+
+    // Refuses a game folder inside Paperdoll's own folders, or holding one, compared with every
+    // link followed as the file system compares names.
+    private void CheckNotOwn(GameFolder folder)
+    {
+        foreach (var own in _ownFolders)
+        {
+            var real = GameFolder.RealPath(own);
+            string?[] game = [folder.Root, folder.Resources, folder.Top];
+            if (game.OfType<string>().Any(g => GameFolder.IsWithin(g, real, GameFolder.IgnoresCase) || GameFolder.IsWithin(real, g, GameFolder.IgnoresCase)))
+                throw new GameFolderException($"{Directory} is in Paperdoll's own folder {real}, or holds it, where Paperdoll keeps, replaces and deletes its own files. Choose the game's own folder: a copy or git clone of its repository.");
         }
     }
 
@@ -153,6 +174,9 @@ public sealed class FolderForkStore : IForkStore
             foreach (var item in items)
             {
                 var itemPath = at.Path + "/" + item.Name;
+                // Left out quietly: the operating system's, not the game's.
+                if (GameFolder.IsSystemFile(item.Name) && item is FileInfo)
+                    continue;
                 if (!IsPlainName(item.Name))
                 {
                     Skip($"{itemPath}: a name Paperdoll does not read");

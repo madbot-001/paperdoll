@@ -23,5 +23,6 @@
     <Compile Include="..\Paperdoll.Core.Tests\TestForks.cs" Link="Shared\TestForks.cs" />
     <Compile Include="..\Paperdoll.Core.Tests\TestRooms.cs" Link="Shared\TestRooms.cs" />
     <Compile Include="..\Paperdoll.Core.Tests\TestGameFolders.cs" Link="Shared\TestGameFolders.cs" />
+    <Compile Include="..\Paperdoll.Core.Tests\TestLauncher.cs" Link="Shared\TestLauncher.cs" />
   </ItemGroup>
 </Project>

@@ -45,8 +45,8 @@ public sealed class ForkContent
 
         progress?.Report($"Listing {fork.Name}'s prototypes and strings");
         var entries = await store.ListAsync(fork.Id, [PrototypesFolder, LocaleFolder], ct);
-        // A game folder's files are only read, never downloaded.
-        var getting = (store as SourcedForkStore)?.SourceOf(fork.Id).Kind == ForkSourceKind.Folder ? "Reading" : "Downloading";
+        // A game folder's or launcher copy's files are only read, never downloaded.
+        var getting = (store as SourcedForkStore)?.SourceOf(fork.Id).Kind is ForkSourceKind.Folder or ForkSourceKind.Launcher ? "Reading" : "Downloading";
         progress?.Report($"{getting} {entries.Count} files");
         await store.FetchAsync(fork.Id, entries, ct);
 

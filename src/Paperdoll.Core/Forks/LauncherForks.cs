@@ -40,24 +40,12 @@ public static class LauncherForks
         var rows = new List<(string, DateTime)>();
         try
         {
-            var path = Path.GetFullPath(Path.Combine(folder, "content.db"));
+            var path = Path.GetFullPath(Path.Combine(folder, ContentDb));
             if (!File.Exists(path))
                 return rows;
-            // immutable=1: SQLite takes no locks and makes no -wal, -shm or -journal file beside
-            // it. The launcher keeps this file in WAL mode, where even a read-only connection
-            // would otherwise create those files. While the launcher writes, a read may miss its
-            // latest changes or fail, which only means nothing is found. No pooling, so the file
-            // is let go as soon as it is read. Each part of the path is escaped by hand: SQLite
-            // decodes %XX, so a folder name that holds such text would otherwise open another file.
-            var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Select(Uri.EscapeDataString);
-            var source = new SqliteConnectionStringBuilder
-            {
-                DataSource = "file://" + (path.StartsWith('/') ? "" : "/") + string.Join('/', parts) + "?immutable=1",
-                Mode = SqliteOpenMode.ReadOnly,
-                Pooling = false,
-            };
-            using var connection = new SqliteConnection(source.ToString());
-            connection.Open();
+            // While the launcher writes, a read may miss its latest changes or fail, which only
+            // means nothing is found.
+            using var connection = OpenReadOnly(path);
             using var command = connection.CreateCommand();
             command.CommandText = "SELECT ForkId, LastUsed FROM ContentVersion";
             using var reader = command.ExecuteReader();
@@ -76,6 +64,39 @@ public static class LauncherForks
             // A missing table, a file that is not a database, one the launcher holds, a native
             // library that will not load: the launcher's file is only a hint, so nothing is found.
             return [];
+        }
+    }
+
+    /// <summary>The launcher's file of game builds, in its folder; the only launcher file Paperdoll opens.</summary>
+    public const string ContentDb = "content.db";
+
+    /// <summary>
+    /// Opens a launcher's <c>content.db</c> (given as a full path) for reading only. With
+    /// immutable=1, SQLite takes no locks and makes no -wal, -shm or -journal file beside it: the
+    /// launcher keeps this file in WAL mode, where even a read-only connection would otherwise
+    /// create those files. No pooling, so the file is let go as soon as the connection closes.
+    /// Each part of the path is escaped by hand: SQLite decodes %XX, so a folder name that holds
+    /// such text would otherwise open another file.
+    /// </summary>
+    internal static SqliteConnection OpenReadOnly(string path)
+    {
+        var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Select(Uri.EscapeDataString);
+        var source = new SqliteConnectionStringBuilder
+        {
+            DataSource = "file://" + (path.StartsWith('/') ? "" : "/") + string.Join('/', parts) + "?immutable=1",
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false,
+        };
+        var connection = new SqliteConnection(source.ToString());
+        try
+        {
+            connection.Open();
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
         }
     }
 
