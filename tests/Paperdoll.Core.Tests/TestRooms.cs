@@ -431,6 +431,7 @@ public static class TestRooms
             color: "#0000FF"
             radius: 3
             energy: 0.5
+            softness: 0.5
           - type: PoweredLight
             hasLampOnSpawn: TestBulb
           - type: PoweredLightVisuals
@@ -469,6 +470,7 @@ public static class TestRooms
             color: "#FF8000"
             lightRadius: 6
             lightEnergy: 2
+            lightSoftness: 2
         - type: entity
           id: TestBulbBroken
           parent: TestBulb

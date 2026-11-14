@@ -23,10 +23,11 @@ public readonly record struct LightCone(double Direction, double InnerWidth, dou
 /// <summary>
 /// A light that shines at round start: where it is in room tiles (the entity's position plus its
 /// offset turned with it), its radius, energy, falloff and curve, its colour as written (sRGB),
-/// whether it casts shadows, and its mask's cones (none for a round light) and their turn.
+/// whether it casts shadows, its mask's cones (none for a round light) and their turn, and how soft
+/// its shadows' edges are.
 /// </summary>
 public sealed record LightSource(Vector2 Position, float Radius, float Energy, float Falloff, float CurveFactor, Rgba Color, bool CastShadows,
-    IReadOnlyList<LightCone> Cones, double MaskRotation);
+    IReadOnlyList<LightCone> Cones, double MaskRotation, float Softness = 1);
 
 /// <summary>
 /// The lights of a room that shine at round start on a station with power everywhere and the
@@ -63,7 +64,7 @@ public static class LightSources
                 continue;
 
             // RobustToolbox/Robust.Shared/GameObjects/Components/Light/SharedPointLightComponent.cs
-            // for the defaults: falloff 6.8, curveFactor 0, castShadows true, autoRot false.
+            // for the defaults: falloff 6.8, curveFactor 0, castShadows true, autoRot false, softness 1.
             var (offsetX, offsetY) = PrototypeYaml.Vector(PrototypeYaml.Scalar(light, "offset")) ?? (0, 0);
             var (sin, cos) = Math.SinCos(placed.Rotation);
             // LightQuery: the entity's position plus its rotation applied to the offset.
@@ -79,7 +80,8 @@ public static class LightSources
                 Cones(light, prototypes),
                 // SharedPointLightSystem.GetMaskWorldRotation: the light's own rotation (0 until
                 // something turns it) plus the entity's when autoRot.
-                PrototypeYaml.Bool(light, "autoRot", false) ? placed.Rotation : 0);
+                PrototypeYaml.Bool(light, "autoRot", false) ? placed.Rotation : 0,
+                shine.Softness);
             if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || (source.CastShadows && occluders.Contains(position)))
                 continue;
             lights.Add(source);
@@ -92,25 +94,25 @@ public static class LightSources
         return lights.Where(l => !dropped.Contains(l)).ToList();
     }
 
-    // The colour, radius and energy a light shines with at round start, or null when it is off.
-    private static (Rgba Color, float Radius, float Energy)? Shine(YamlMappingNode entity, YamlMappingNode light, PrototypeIndex prototypes)
+    // The colour, radius, energy and softness a light shines with at round start, or null when it is off.
+    private static (Rgba Color, float Radius, float Energy, float Softness)? Shine(YamlMappingNode entity, YamlMappingNode light, PrototypeIndex prototypes)
     {
         bool Has(string type) => PrototypeYaml.Component(entity, type) != null;
         var own = (Rgba.TryParse(PrototypeYaml.Scalar(light, "color"), out var color) ? color : Rgba.White,
-            Float(light, "radius", 5f), Float(light, "energy", 1f));
+            Float(light, "radius", 5f), Float(light, "energy", 1f), Float(light, "softness", 1f));
 
         if (Has("EmergencyLight"))
             return null;
         if (Has("PoweredLight"))
         {
-            // The bulb's colour, radius and energy, while it is whole and the fixture is on
+            // The bulb's colour, radius, energy and softness, while it is whole and the fixture is on
             // (Content.Shared/Light/Components/LightBulbComponent.cs for the defaults).
             if (RoundStartLook.Bulb(entity, prototypes) is not { } bulb
                 || (PrototypeYaml.Scalar(bulb, "startingState") ?? "Normal") != "Normal"
                 || !PrototypeYaml.Bool(PrototypeYaml.Component(entity, "PoweredLight"), "on", true))
                 return null;
             return (Rgba.TryParse(PrototypeYaml.Scalar(bulb, "color"), out var bulbColor) ? bulbColor : Rgba.White,
-                Float(bulb, "lightRadius", 10f), Float(bulb, "lightEnergy", 0.8f));
+                Float(bulb, "lightRadius", 10f), Float(bulb, "lightEnergy", 0.8f), Float(bulb, "lightSoftness", 1f));
         }
         if (Has("LitOnPowered"))
             return own;

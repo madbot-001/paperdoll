@@ -17,6 +17,7 @@ public sealed record RoomDecal(string Id, float X, float Y, Rgba Color, double A
 /// name: Bar
 /// departments: [ Civilian ]     # whose jobs it suits, by department prototype id
 /// jobs: [ Bartender ]           # and by job id, which wins over a department
+/// jobsIfNoDepartment: [ Mime ]  # job ids it takes only when no room names the job's departments
 /// stand: "4,2"                  # the tile the character stands on, x east and y north
 /// legend:                       # a character of the rows below for each tile prototype
 ///   w: FloorWood
@@ -50,6 +51,9 @@ public sealed class Room
     public required string Name { get; init; }
     public IReadOnlyList<string> Departments { get; init; } = [];
     public IReadOnlyList<string> Jobs { get; init; } = [];
+
+    /// <summary>Jobs the room suits only when none of the job's departments has a room.</summary>
+    public IReadOnlyList<string> JobsIfNoDepartment { get; init; } = [];
     public required (int X, int Y) Stand { get; init; }
 
     /// <summary>The tile prototype on each square that has one, by square.</summary>
@@ -160,6 +164,7 @@ public sealed class Room
             Name = PrototypeYaml.Scalar(root, "name") ?? id,
             Departments = Strings(root, "departments"),
             Jobs = Strings(root, "jobs"),
+            JobsIfNoDepartment = Strings(root, "jobsIfNoDepartment"),
             Stand = stand,
             Tiles = tiles,
             Width = width,

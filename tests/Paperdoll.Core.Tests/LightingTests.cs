@@ -64,10 +64,10 @@ public class LightingTests
     }
 
     [Fact]
-    public void A_fixture_shines_with_its_bulb_s_colour_radius_and_energy_rather_than_its_own()
+    public void A_fixture_shines_with_its_bulb_s_colour_radius_energy_and_softness_rather_than_its_own()
     {
         var light = Assert.Single(Lights(Floor(1, 1, "- { proto: TestLamp2, pos: \"0.5,0.5\" }")));
-        Assert.Equal((Rgba.Parse("#FF8000"), 6f, 2f), (light.Color, light.Radius, light.Energy));
+        Assert.Equal((Rgba.Parse("#FF8000"), 6f, 2f, 2f), (light.Color, light.Radius, light.Energy, light.Softness));
         Assert.Equal((6.8f, 0f, true), (light.Falloff, light.CurveFactor, light.CastShadows));
     }
 
@@ -282,6 +282,139 @@ public class LightingTests
         Assert.Equal((true, Rgba.Parse("#FF8000")), (Glow("TestLamp2").Visible, Glow("TestLamp2").Color));
         // Off, the glow is hidden, in the fixture's own light colour.
         Assert.Equal((false, Rgba.Parse("#0000FF")), (Glow("TestLampOff").Visible, Glow("TestLampOff").Color));
+    }
+
+    // How much of a white light at 0.5,3 of the given softness gets past a block on 6..7, 2..3 to
+    // x, y, against the same light with nothing in the way: 0 to 1. The block's face toward the light
+    // runs from 6,2 to 6,3, so the shadow's north side runs east, just north of y = 3.
+    private static Func<float, float, double> PastBlock(float softness, bool castShadows = true)
+    {
+        var room = Floor(16, 6, "- { proto: TestBlock, pos: \"6.5,2.5\" }");
+        var light = new LightSource(new Vector2(0.5f, 3), 20, 1, 6.8f, 0, Rgba.White, castShadows, [], 0, softness);
+        var bounds = new Box(0, 0, 16, 6);
+        var ct = TestContext.Current.CancellationToken;
+        var shadowed = LightField.Compute(bounds, [light], Occluders.Build(room, Prototypes), (_, _) => false, ct);
+        var open = LightField.Compute(bounds, [light], new Occluders(), (_, _) => false, ct);
+        return (x, y) => shadowed.LinearAt(x, y).R / open.LinearAt(x, y).R;
+    }
+
+    [Fact]
+    public void A_softness_that_is_not_a_number_is_the_default_for_a_shadow_caster_and_unread_for_a_light_without_shadows()
+    {
+        // softness: 1e39 reads as infinity; the shader's sums with it are not defined.
+        var usual = PastBlock(1);
+        foreach (var odd in new[] { float.PositiveInfinity, float.NaN })
+        {
+            var caster = PastBlock(odd);
+            foreach (var y in new[] { 2.2f, 2.9f, 2.95f, 3f, 3.05f, 3.1f, 4f })
+                Assert.Equal(usual(10, y), caster(10, y), 9);
+            // The engine never reads the softness of a light that casts no shadows: it shines as ever.
+            var through = PastBlock(odd, castShadows: false);
+            Assert.Equal(1, through(10, 2.2f), 6);
+            Assert.Equal(1, through(10, 4), 6);
+        }
+    }
+
+    [Fact]
+    public void An_occluder_out_of_a_light_s_reach_still_shapes_the_side_of_a_nearer_shadow()
+    {
+        // A lamp reaching 5.9 tiles, a block 1.5 tiles east of it, and another 9.5 east just north of
+        // the first's shadow, out of reach: the engine draws every occluder into every light's map.
+        var near = Light(Floor(12, 6, """
+            - { proto: TestLamp2, pos: "0.5,3" }
+            - { proto: TestBlock, pos: "2.5,2.5" }
+            """));
+        var both = Light(Floor(12, 6, """
+            - { proto: TestLamp2, pos: "0.5,3" }
+            - { proto: TestBlock, pos: "2.5,2.5" }
+            - { proto: TestBlock, pos: "10.5,3.5" }
+            """));
+        // Its depth, not the empty map's 1234, is what the filtering mixes in beside the side, so less
+        // light gets past there; away from the side nothing changes.
+        foreach (var y in new[] { 3f, 3.05f, 3.1f })
+            Assert.True(both.LinearAt(5.5, y).R < near.LinearAt(5.5, y).R * 0.995, $"at 5.5,{y}");
+        Assert.Equal(near.LinearAt(3.5, 3.05).R, both.LinearAt(3.5, 3.05).R, 6);
+        Assert.Equal(near.LinearAt(4.5, 4.5).R, both.LinearAt(4.5, 4.5).R, 6);
+    }
+
+    // Across the shadow's north side at x: from 10% to 90% of the light, in tiles, checking that it
+    // only rises on the way out of the shadow.
+    private static double EdgeWidth(Func<float, float, double> past, float x)
+    {
+        double? low = null, high = null;
+        var last = 0.0;
+        for (var y = 2.5f; y <= 3.5f; y += 0.001f)
+        {
+            var value = past(x, y);
+            Assert.True(value >= last - 1e-6, $"{value} after {last} at {x},{y}");
+            last = value;
+            if (low == null && value >= 0.1)
+                low = y;
+            if (high == null && value >= 0.9)
+                high = y;
+        }
+        Assert.True(low != null && high != null);
+        return high!.Value - low!.Value;
+    }
+
+    [Fact]
+    public void A_shadow_s_edge_softens_with_the_light_s_softness_and_away_from_the_occluder()
+    {
+        var hard = PastBlock(0);
+        var soft = PastBlock(1);
+        var softer = PastBlock(2);
+
+        // Well inside the shadow it is dark and well outside fully lit, whatever the softness.
+        foreach (var past in new[] { hard, soft, softer })
+        {
+            Assert.InRange(past(10, 2.2f), 0, 1e-3);
+            Assert.Equal(1, past(10, 4), 6);
+        }
+        // A light that casts no shadows shines through the block, soft or not.
+        Assert.Equal(1, PastBlock(1, castShadows: false)(10, 2.2f), 6);
+
+        // The face is 5.5 tiles from the light; x = 7.5 is 7 tiles out, x = 15 is 14.5.
+        var near = new[] { hard, soft, softer }.Select(p => EdgeWidth(p, 7.5f)).ToArray();
+        var far = new[] { hard, soft, softer }.Select(p => EdgeWidth(p, 15)).ToArray();
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(ShaderEdgeWidth(i, 7 - 5.5), near[i], 0.025);
+            Assert.Equal(ShaderEdgeWidth(i, 14.5 - 5.5), far[i], 0.025);
+        }
+        // Softness 0 is the hard edge, only the light buffer's blur wide, the same anywhere.
+        Assert.Equal(near[0], far[0], 0.005);
+        Assert.True(near[0] < near[1] && near[1] < near[2] && far[0] < far[1] && far[1] < far[2]);
+        Assert.True(near[1] < far[1] - 0.05 && near[2] < far[2] - 0.1);
+    }
+
+    // The 10% to 90% width of a shadow's edge by light-soft.swsl's createOcclusion, for a straight edge
+    // `past` tiles beyond the occluder: seven looks 1.5 × softness / 32 tiles apart, weighted by a
+    // Gaussian of 0.75 × past steps, each a sharp edge, then the light buffer's blur of 0.014 × √29 tiles.
+    private static double ShaderEdgeWidth(float softness, double past)
+    {
+        var step = 1.5 * softness / 32;
+        var sigma = Math.Max(0.001, 0.75 * past);
+        var blur = 0.014 * Math.Sqrt(29);
+        var weights = Enumerable.Range(-3, 7).Select(k => (K: k, W: Math.Exp(-k * k / (2 * sigma * sigma)))).ToArray();
+        var total = weights.Sum(w => w.W);
+        double Lit(double y) => weights.Sum(w => w.W * Normal((y - w.K * step) / blur)) / total;
+        double Crossing(double level)
+        {
+            var y = -1.0;
+            while (Lit(y) < level)
+                y += 0.0005;
+            return y;
+        }
+        return Crossing(0.9) - Crossing(0.1);
+    }
+
+    // The standard normal distribution, by Abramowitz and Stegun's 7.1.26 for erf (error under 2e-7).
+    private static double Normal(double z)
+    {
+        var x = Math.Abs(z) / Math.Sqrt(2);
+        var t = 1 / (1 + 0.3275911 * x);
+        var erf = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.Exp(-x * x);
+        return 0.5 * (1 + Math.Sign(z) * erf);
     }
 
     [Fact]

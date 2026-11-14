@@ -1,5 +1,6 @@
 // Ported from RobustToolbox (Resources/Shaders/Internal/light_shared.swsl, the falloff;
-// Robust.Client/Graphics/Clyde/Clyde.LightRendering.cs and Shaders/shadow-depth.vert, the shadow map;
+// Robust.Client/Graphics/Clyde/Clyde.LightRendering.cs and Shaders/shadow-depth.vert and .frag, the shadow map;
+// Resources/Shaders/Internal/light-soft.swsl and shadow_cast_shared.swsl, the soft shadows;
 // Resources/Shaders/Internal/light-blur.swsl and wall-bleed-blur.swsl, the blurs; Robust.Shared.Maths/Color.cs,
 // FromSrgb and ToSrgb), Copyright (c) 2019 Space Station 14 Contributors, and Space Station 14
 // (Content.Server/Light/EntitySystems/SpaceLightSystem.cs and Content.Client/Light/*Overlay.cs, the
@@ -26,11 +27,29 @@ namespace Paperdoll.Core.Lighting;
 /// the "wall bleed", a wider blur of the buffer times 1.1 per pass, so that walls are not black.
 /// </para>
 /// <para>
-/// Shadows are hard: a shadow-casting light keeps, for each of 512 directions (the engine's shadow
-/// map width), the nearest edge of the occluders' outline facing it, and a sample is lit when it is
-/// not past that edge's line. The engine's soft-shadow penumbra (at most about 0.3 × softness tiles)
-/// is left out. A light mask is read from its prototype's cones, as the engine's own CPU light level
-/// does, not from its texture.
+/// Shadows are soft, as the engine draws them with <c>light.soft_shadows</c> on, its default: a
+/// shadow-casting light keeps, for each of 512 directions (the engine's shadow map width), the
+/// distance to the nearest edge of the occluders' outline facing it and that distance squared plus a
+/// quarter of its change from one direction to the next squared (the two moments of a variance
+/// shadow map, <c>shadow-depth.frag</c>), read between directions as the map's linear filtering
+/// reads it. A sample looks along its own direction and three more each side, 1.5 × softness / 32
+/// tiles apart across it, and takes, of each, the Chebyshev bound on how much light gets past
+/// (1 short of the edge); these seven are weighted by a Gaussian whose width, in steps, is 0.75 ×
+/// how far the sample is past the nearest of their edges (<c>light-soft.swsl</c>, createOcclusion).
+/// So a shadow's edge is sharp where it leaves the occluder and widens away from it, up to about
+/// ±0.14 × softness tiles.
+/// </para>
+/// <para>
+/// Where this differs from the GPU: the change from one direction to the next is the exact
+/// derivative rather than the difference across a 2 × 2 block of pixels; the nearest edge in a
+/// direction is found by its exact distance rather than an interpolated depth buffer; filtering
+/// weights are exact rather than the GPU's 8-bit fractions. As in the engine, every occluder goes
+/// into every shadow-casting light's map however far it is (the engine draws all those in view, the
+/// view stretched to take in each light's centre: <c>GetLightsToRender</c>, <c>UpdateOcclusionGeometry</c>),
+/// since a far edge next to a shadow's side changes what the filtering reads there. A softness that
+/// is not a number or is infinite leaves the shader's sums undefined and is taken as the default 1.
+/// A light mask is read from its prototype's cones, as the engine's own CPU light
+/// level does, not from its texture.
 /// </para>
 /// </remarks>
 public sealed class LightField
@@ -326,7 +345,7 @@ public sealed class LightField
     private sealed class Prepared
     {
         public required LightSource Source;
-        public required float X, Y, Reach2, InvRadius2, Falloff, Curve, R, G, B;
+        public required float X, Y, Reach2, InvRadius2, Falloff, Curve, Softness, R, G, B;
         public bool CastShadows => Source.CastShadows;
         public ShadowMap? Shadow;
     }
@@ -348,6 +367,7 @@ public sealed class LightField
             InvRadius2 = 1 / (light.Radius * light.Radius),
             Falloff = light.Falloff,
             Curve = Math.Clamp(light.CurveFactor, 0, 1),
+            Softness = light.Softness,
             // Clyde.ShaderProgram.cs makes a light's colour linear when it sets the uniform.
             R = FromSrgb(light.Color.R) * light.Energy,
             G = FromSrgb(light.Color.G) * light.Energy,
@@ -391,10 +411,13 @@ public sealed class LightField
         {
             var dx = Bounds.MinX + (i + 0.5f) / s - light.X;
             var d2 = dx * dx + dy2;
-            if (d2 >= light.Reach2 || (light.Shadow != null && !light.Shadow.Lit(dx, dy)))
+            if (d2 >= light.Reach2)
+                continue;
+            var occlusion = light.Shadow?.Occlusion(dx, dy, MathF.Sqrt(d2)) ?? 1;
+            if (occlusion == 0)
                 continue;
             // s < 1 inside the reach, so only the result's clamp matters.
-            var value = Shape(MathF.Sqrt((d2 + 1) * light.InvRadius2), light.Falloff, light.Curve);
+            var value = Shape(MathF.Sqrt((d2 + 1) * light.InvRadius2), light.Falloff, light.Curve) * occlusion;
             if (cones.Count > 0)
                 value *= LightSources.ConeFactor(cones, light.Source.MaskRotation, dx, dy);
             var k = (j * _width + i) * 3;
@@ -405,26 +428,37 @@ public sealed class LightField
     }
 
     /// <summary>
-    /// A shadow-casting light's view of the occluders: for each of <see cref="Bins"/> directions, the
-    /// line of the nearest outline edge facing it, kept as a unit normal (pointing away from the light)
-    /// and the line's distance from the light. Only edges facing the light cast shadows, so an
-    /// occluder's own body is in its shadow, as in the engine (its depth pass culls back faces).
+    /// A shadow-casting light's view of the occluders, as the engine's depth pass writes it: for each
+    /// of <see cref="Bins"/> directions, the distance along its middle to the nearest outline edge
+    /// facing the light, and that distance squared plus a quarter of its change to the next direction
+    /// squared (<c>shadow-depth.frag</c>); a direction with no edge holds 1234 and 1234², the pass's
+    /// clear colour (<c>Clyde.LightRendering.cs</c>, PrepareDepthDraw). Only edges facing the light
+    /// cast shadows, so an occluder's own body is in its shadow, as in the engine (its depth pass
+    /// culls back faces).
     /// </summary>
     private sealed class ShadowMap
     {
         private const float BinsPerRadian = Bins / (2 * MathF.PI);
+        private const float Empty = 1234;
+        // Enough halvings for a range of every bin.
+        private const int Levels = 10;
 
-        private readonly float[] _nx = new float[Bins];
-        private readonly float[] _ny = new float[Bins];
-        private readonly float[] _distance = new float[Bins];
+        private readonly float[] _depth = new float[Bins];
+        private readonly float[] _square = new float[Bins];
+        // _nearest[l][i] is the least depth of bins i to i + 2^l − 1, counted round the circle twice,
+        // so that a sample whose seven directions all lie short of every edge is found lit at once.
+        private readonly float[][] _nearest = new float[Levels][];
+        // The step across a sample between its seven directions, in tiles (light-soft.swsl,
+        // createOcclusion: the unit perpendicular / 32 × softness × 1.5; its sign changes nothing).
+        private float _step;
 
         public static ShadowMap Build(Prepared light, Edge[] edges)
         {
-            var map = new ShadowMap();
-            Array.Fill(map._distance, float.PositiveInfinity);
-            var nearest = new float[Bins];
-            Array.Fill(nearest, float.PositiveInfinity);
-            var reach = MathF.Sqrt(light.Reach2);
+            // An infinite or NaN softness makes the shader's offsets, and so its result, undefined: the default 1 is used.
+            var softness = float.IsFinite(light.Softness) ? MathF.Abs(light.Softness) : 1;
+            var map = new ShadowMap { _step = softness * 1.5f / 32 };
+            Array.Fill(map._depth, Empty);
+            Array.Fill(map._square, Empty * Empty);
             var centre = new Vector2(light.X, light.Y);
 
             foreach (var edge in edges)
@@ -443,8 +477,6 @@ public sealed class LightField
                 if (distance <= 1e-6f)
                     continue;
                 var closest = DistanceToSegment(a, b);
-                if (closest >= reach)
-                    continue;
                 var farthest = MathF.Max(a.Length(), b.Length());
 
                 // Seen from the light a facing edge runs clockwise: from b's angle up to a's.
@@ -461,24 +493,113 @@ public sealed class LightField
                     var (sin, cos) = MathF.SinCos(angle);
                     var along = normal.X * cos + normal.Y * sin;
                     var hit = along > 1e-6f ? Math.Clamp(distance / along, closest, farthest) : farthest;
-                    if (hit >= nearest[bin])
+                    if (hit >= map._depth[bin])
                         continue;
-                    nearest[bin] = hit;
-                    map._nx[bin] = normal.X;
-                    map._ny[bin] = normal.Y;
-                    map._distance[bin] = distance;
+                    // The fragment shader's dFdx(dist): r = p / cos(θ − φ) changes by r · tan(θ − φ) a radian.
+                    var change = along > 1e-6f ? hit * (normal.X * sin - normal.Y * cos) / along / BinsPerRadian : 0;
+                    map._depth[bin] = hit;
+                    map._square[bin] = hit * hit + 0.25f * change * change;
                 }
+            }
+
+            map._nearest[0] = new float[2 * Bins];
+            for (var i = 0; i < 2 * Bins; i++)
+                map._nearest[0][i] = map._depth[i % Bins];
+            for (var level = 1; level < Levels; level++)
+            {
+                var below = map._nearest[level - 1];
+                var half = 1 << (level - 1);
+                var row = map._nearest[level] = new float[2 * Bins - (1 << level) + 1];
+                for (var i = 0; i < row.Length; i++)
+                    row[i] = MathF.Min(below[i], below[i + half]);
             }
             return map;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Lit(float dx, float dy)
+        /// <summary>
+        /// How much of the light reaches the offset (<paramref name="dx"/>, <paramref name="dy"/>),
+        /// <paramref name="distance"/> tiles from it, 0 to 1 (<c>light-soft.swsl</c>, createOcclusion).
+        /// </summary>
+        public float Occlusion(float dx, float dy, float distance)
         {
-            var bin = (int)((MathF.Atan2(dy, dx) + MathF.PI) * BinsPerRadian);
-            if (bin >= Bins)
-                bin = Bins - 1;
-            return _nx[bin] * dx + _ny[bin] * dy <= _distance[bin];
+            // Where the direction falls on the map, in bins, a bin's middle at a whole number.
+            var at = (MathF.Atan2(dy, dx) + MathF.PI) * BinsPerRadian - 0.5f;
+            if (_step == 0)
+                return Chebyshev(at, distance);
+            // The other six directions are the offsets ±1, 2, 3 steps across the sample, at right angles to the light.
+            var widest = MathF.Atan(3 * _step / distance) * BinsPerRadian;
+            var first = (int)MathF.Floor(at - widest);
+            if (distance <= Nearest(first, (int)MathF.Floor(at + widest) + 1 - first + 1))
+                return 1;
+
+            var one = MathF.Atan(_step / distance) * BinsPerRadian;
+            var two = MathF.Atan(2 * _step / distance) * BinsPerRadian;
+            Span<float> depth = stackalloc float[7];
+            Span<float> square = stackalloc float[7];
+            Read(at, out depth[0], out square[0]);
+            Read(at + one, out depth[1], out square[1]);
+            Read(at - one, out depth[2], out square[2]);
+            Read(at + two, out depth[3], out square[3]);
+            Read(at - two, out depth[4], out square[4]);
+            Read(at + widest, out depth[5], out square[5]);
+            Read(at - widest, out depth[6], out square[6]);
+            var nearest = depth[0];
+            for (var k = 1; k < 7; k++)
+                nearest = MathF.Min(nearest, depth[k]);
+            nearest = MathF.Max(0.001f, nearest);
+
+            // calcGaussianWeights at 0, 1, 2, 3 steps, sigma at least 0.001; the shader divides by
+            // their sum, so their common factor 1 / (σ√2π) is left out.
+            var sigma = MathF.Max(0.001f, (distance - nearest) * 0.75f);
+            var w1 = MathF.Exp(-1 / (2 * sigma * sigma));
+            var w2 = w1 * w1 * w1 * w1;
+            var w3 = w2 * w2 * w1;
+            var lit = Chebyshev(depth[0], square[0], distance)
+                + w1 * (Chebyshev(depth[1], square[1], distance) + Chebyshev(depth[2], square[2], distance))
+                + w2 * (Chebyshev(depth[3], square[3], distance) + Chebyshev(depth[4], square[4], distance))
+                + w3 * (Chebyshev(depth[5], square[5], distance) + Chebyshev(depth[6], square[6], distance));
+            return lit / (1 + 2 * (w1 + w2 + w3));
+        }
+
+        private float Chebyshev(float at, float distance)
+        {
+            Read(at, out var depth, out var square);
+            return Chebyshev(depth, square, distance);
+        }
+
+        // ChebyshevUpperBound (shadow_cast_shared.swsl): 1 short of the depth, past it the bound
+        // variance / (variance + (t − depth)²) on how much light gets by.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float Chebyshev(float depth, float square, float distance)
+        {
+            if (distance <= depth)
+                return 1;
+            var variance = MathF.Max(square - depth * depth, 0);
+            var past = distance - depth;
+            return variance / (variance + past * past);
+        }
+
+        // The two moments at a place between bins, read as the map's linear filtering reads them, round the circle.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Read(float at, out float depth, out float square)
+        {
+            var below = MathF.Floor(at);
+            var t = at - below;
+            var i = (((int)below % Bins) + Bins) % Bins;
+            var j = i == Bins - 1 ? 0 : i + 1;
+            depth = _depth[i] + (_depth[j] - _depth[i]) * t;
+            square = _square[i] + (_square[j] - _square[i]) * t;
+        }
+
+        // The least depth of the count bins from first, round the circle.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private float Nearest(int first, int count)
+        {
+            first = ((first % Bins) + Bins) % Bins;
+            count = Math.Min(count, Bins);
+            var level = BitOperations.Log2((uint)count);
+            var row = _nearest[level];
+            return MathF.Min(row[first], row[first + count - (1 << level)]);
         }
 
         private static float DistanceToSegment(Vector2 a, Vector2 b)

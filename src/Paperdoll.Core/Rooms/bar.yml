@@ -2,6 +2,10 @@
 # it, copy this file into a "rooms" folder in Paperdoll's own folder and edit the copy; if the copy
 # cannot be read, Messages says why and this one is used. The other rooms are written the same way.
 #
+# A job gets the room that names it in jobs; else the room that names one of its departments (the
+# heaviest department first, as the game sorts them); else the room that names it in
+# jobsIfNoDepartment; else the hallway.
+#
 # stand is the tile the character stands on, "x,y" with 0,0 the south-west tile. Tiles are rows
 # from north to south, each character a tile prototype from the legend (a space or "." for none).
 # Entities name entity prototypes, with pos in tiles (a tile's centre at .5) and rot in degrees,
@@ -12,6 +16,9 @@ id: bar
 name: Bar
 departments: [ Service ]
 jobs: [ Bartender ]
+# Upstream's Service jobs, less those with a room of their own (the chef, janitor, lawyer and head of
+# personnel), for forks that put them in no department with a room, such as Civilian with the Passenger.
+jobsIfNoDepartment: [ Botanist, Chaplain, Clown, Librarian, Mime, Musician, Reporter, ServiceWorker, TramDriver ]
 stand: "4,3"
 legend:
   p: Plating

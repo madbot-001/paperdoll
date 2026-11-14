@@ -67,9 +67,9 @@ public sealed class RoomCatalog
     }
 
     /// <summary>
-    /// The room for a job: one that names the job, else one that names a department the job is in
-    /// (the fork's <c>department</c> prototypes, by weight as the game sorts them), else
-    /// <see cref="FallbackRoom"/>.
+    /// The room for a job: one that names the job in <c>jobs</c>, else one that names a department
+    /// the job is in (the fork's <c>department</c> prototypes, by weight as the game sorts them), else
+    /// one that names the job in <c>jobsIfNoDepartment</c>, else <see cref="FallbackRoom"/>.
     /// </summary>
     public Room For(string? jobId, PrototypeIndex prototypes)
     {
@@ -88,6 +88,8 @@ public sealed class RoomCatalog
                 if (rooms.FirstOrDefault(r => r.Departments.Contains(department)) is { } room)
                     return room;
             }
+            if (rooms.FirstOrDefault(r => r.JobsIfNoDepartment.Contains(jobId)) is { } otherwise)
+                return otherwise;
         }
         return Rooms.GetValueOrDefault(FallbackRoom) ?? rooms[0];
     }

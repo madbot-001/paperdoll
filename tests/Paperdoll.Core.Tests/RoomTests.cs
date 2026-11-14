@@ -41,6 +41,9 @@ public class RoomFileTests
         Assert.Equal(("test", "Test room", 3, 2, (1, 0)), (room.Id, room.Name, room.Width, room.Height, room.Stand));
         Assert.Equal(["Service"], room.Departments);
         Assert.Equal(["Clerk"], room.Jobs);
+        // A file from before jobsIfNoDepartment reads as naming none.
+        Assert.Empty(room.JobsIfNoDepartment);
+        Assert.Equal(["Porter", "Boss"], Room.TryParse(Good.Replace("jobs: [ Clerk ]", "jobs: [ Clerk ]\njobsIfNoDepartment: [ Porter, Boss ]"), out _)!.JobsIfNoDepartment);
         // The first row is the north one; a space or a dot is no tile.
         Assert.Equal(["FloorA", "FloorB", null, null, "FloorB", "FloorA"],
             new[] { (0, 1), (1, 1), (2, 1), (0, 0), (1, 0), (2, 0) }.Select(s => room.TileAt(s.Item1, s.Item2)));
@@ -65,6 +68,8 @@ public class RoomFileTests
     [InlineData("color: \"#FF0000\"", "color: \"nope\"", "has colour 'nope'")]
     [InlineData("z: 2", "z: top", "has z 'top'")]
     [InlineData("tiles:", "tiles: none\nrows:", "tiles is not a list of text")]
+    [InlineData("jobs: [ Clerk ]", "jobs: [ Clerk ]\njobsIfNoDepartment: { Clerk: 1 }", "jobsIfNoDepartment is not a list of text")]
+    [InlineData("jobs: [ Clerk ]", "jobs: [ Clerk ]\njobsIfNoDepartment: [ [ Clerk ] ]", "jobsIfNoDepartment is not a list of text")]
     [InlineData("- \"ab.\"", "- \"ab.ababababababababababababababab\"", "the room is 33 by 2 tiles; it may be at most 32 by 32")]
     [InlineData("pos: \"1.5,0.5\"", "pos: \"1000.5,1000.5\"", "entity 1 (Thing) is at 1000.5,1000.5, more than 2 tiles outside the room")]
     [InlineData("pos: \"1,1\"", "pos: \"-2.5,0\"", "decal 1 (Mark) is at -2.5,0, more than 2 tiles outside the room")]
@@ -143,14 +148,20 @@ public class RoomFileTests
     public void A_job_gets_the_room_naming_it_then_one_for_its_department_then_the_hallway()
     {
         var prototypes = PrototypeIndex.Load([new PrototypeSource("room.yml", Encoding.UTF8.GetBytes(TestRooms.Prototypes))]);
-        var rooms = new[] { Named("hallway", ""), Named("shop", "jobs: [ Clerk ]"), Named("lounge", "departments: [ Service ]"), Named("office", "departments: [ Command ]") };
+        var rooms = new[]
+        {
+            Named("hallway", ""), Named("shop", "jobs: [ Clerk ]"), Named("lounge", "departments: [ Service ]"), Named("office", "departments: [ Command ]"),
+            Named("attic", "jobsIfNoDepartment: [ Boss, Loner ]"),
+        };
         var catalog = new RoomCatalog(rooms.ToDictionary(r => r.Id), []);
 
         // The Clerk's own room wins over its department's.
         Assert.Equal("shop", catalog.For("Clerk", prototypes).Id);
         // The Porter is in Service and in Command, which weighs more, as the game sorts departments.
         Assert.Equal("office", catalog.For("Porter", prototypes).Id);
+        // A department's room wins over one taking the job only when its departments have none.
         Assert.Equal("office", catalog.For("Boss", prototypes).Id);
+        Assert.Equal("attic", catalog.For("Loner", prototypes).Id);
         Assert.Equal("hallway", catalog.For("Nobody", prototypes).Id);
         Assert.Equal("hallway", catalog.For(null, prototypes).Id);
     }
@@ -188,7 +199,7 @@ public class RoomFileTests
           roles: [ Mover ]
         - type: department
           id: Service
-          roles: [ Server, Chef, Janitor, Lawyer ]
+          roles: [ Server, Chef, Janitor, Lawyer, Chaplain, Librarian ]
         - type: department
           id: Civilian
           weight: -10
@@ -205,12 +216,40 @@ public class RoomFileTests
         // Heads go to the bridge, Command weighing most.
         Assert.Equal(["bridge", "bridge"], new[] { "Boss", "Overseer" }.Select(RoomOf));
         Assert.Equal(["security", "medical", "lab", "engine", "cargo", "bar"], new[] { "Guard", "Healer", "Thinker", "Fixer", "Hauler", "Server" }.Select(RoomOf));
+        // Upstream keeps the chaplain and the librarian in Service.
+        Assert.Equal(["bar", "bar"], new[] { "Chaplain", "Librarian" }.Select(RoomOf));
         // Delta-V's names for the security, science and cargo departments.
         Assert.Equal(["security", "lab", "cargo"], new[] { "Judge", "Mystic", "Mover" }.Select(RoomOf));
         // Jobs a room names, over their department's room.
         Assert.Equal(["kitchen", "hallway", "security"], new[] { "Chef", "Janitor", "Lawyer" }.Select(RoomOf));
         // A department no room names, a job in none, and no job: the hallway.
         Assert.Equal(["hallway", "hallway", "hallway"], new[] { "Wanderer", "Nobody", null }.Select(RoomOf));
+
+        // A fork with no Service department, its service jobs in Civilian with the Passenger.
+        var civilian = PrototypeIndex.Load([new PrototypeSource("departments.yml", Encoding.UTF8.GetBytes("""
+            - type: department
+              id: Command
+              weight: 100
+              roles: [ HeadOfPersonnel ]
+            - type: department
+              id: Civilian
+              roles: [ Passenger, Bartender, Botanist, Chaplain, Clown, Librarian, Mime, Musician, Reporter, Chef, Janitor, Lawyer, HeadOfPersonnel ]
+            """))]);
+        string CivilianRoomOf(string job) => catalog.For(job, civilian).Id;
+        Assert.Equal(["bar", "bar", "bar", "bar", "bar", "bar", "bar", "bar"],
+            new[] { "Bartender", "Botanist", "Chaplain", "Clown", "Librarian", "Mime", "Musician", "Reporter" }.Select(CivilianRoomOf));
+        Assert.Equal(["hallway", "kitchen", "hallway", "security", "bridge"], new[] { "Passenger", "Chef", "Janitor", "Lawyer", "HeadOfPersonnel" }.Select(CivilianRoomOf));
+
+        // The same, with the chaplain and the librarian moved to Epistemics, which has a room.
+        var epistemics = PrototypeIndex.Load([new PrototypeSource("departments.yml", Encoding.UTF8.GetBytes("""
+            - type: department
+              id: Epistemics
+              roles: [ Chaplain, Librarian ]
+            - type: department
+              id: Civilian
+              roles: [ Passenger, Bartender, Botanist, Clown, Mime ]
+            """))]);
+        Assert.Equal(["lab", "lab", "bar", "bar", "hallway"], new[] { "Chaplain", "Librarian", "Bartender", "Mime", "Passenger" }.Select(j => catalog.For(j, epistemics).Id));
     }
 
     // Light fixtures a room lights itself with.
