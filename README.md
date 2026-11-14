@@ -17,6 +17,10 @@ choices match that fork. Wisden and Delta-V get the most attention, then upstrea
 a Server loads the exact version a server runs, read from its public info page, since servers
 often lag behind a fork's newest code.
 
+The preview can stand the character in a small lit room for its job, and the Wardrobe tab tries
+on any of the fork's clothing without changing the character. Picture... makes a picture of the
+character to save or copy.
+
 Paperdoll only downloads game data. Your characters stay on your computer: nothing is uploaded or
 shared, and it never reads other players' characters.
 
@@ -40,9 +44,10 @@ From source, with the .NET 10 SDK:
 dotnet run --project src/Paperdoll.App
 ```
 
-The first time, pick a fork under Fork > Forks and download it. Fork data goes in
-`~/.local/share/Paperdoll/store` on Linux (your local application data folder elsewhere), 10 to
-30 MB per fork. If you have git 2.45 or newer it's used; otherwise downloads go through the GitHub
+The first time, Paperdoll asks where to get a fork's files: a download, a copy or git clone of
+the game on your computer, or a build the SS14 launcher already holds. Fork > Forks changes this
+per fork later. Downloads go in `~/.local/share/Paperdoll/store` on Linux (your local application
+data folder elsewhere), 10 to 30 MB per fork; a copy from the launcher takes about 200 MB. If you have git 2.45 or newer it's used; otherwise downloads go through the GitHub
 API, which allows 60 requests an hour. File > Files on this computer shows where Paperdoll keeps
 its files and how much room they take, and can clean up what old fork versions leave behind.
 
