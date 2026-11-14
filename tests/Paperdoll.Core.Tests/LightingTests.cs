@@ -428,7 +428,8 @@ public class LightingTests
             entities.Append($"- {{ proto: {kinds[i % 4]}, pos: \"{i % 32 + 0.5},{i / 32 + 0.5}\" }}\n");
         var room = Floor(Room.MaxSize, Room.MaxSize, entities.ToString());
         // A fixed piece of work on one thread, timed on the same computer around the lighting, so
-        // the bound holds on a slow or busy computer and still catches lighting ten times slower.
+        // the bound holds on a slow or busy computer. With few cores it catches lighting several
+        // times slower; with many it is looser.
         static long Yardstick()
         {
             var watch = Stopwatch.StartNew();
