@@ -70,9 +70,13 @@ public static class TestGameFolders
         pending.Push(new DirectoryInfo(folder));
         while (pending.TryPop(out var at))
         {
+            // Each read from the item itself: on Windows, the copy of its times in the listing of
+            // the folder holding it is brought up to date late, such as when it is next opened.
+            at.Refresh();
             lines.Add($"{Path.GetRelativePath(folder, at.FullName)}/ {at.LastWriteTimeUtc.Ticks}");
             foreach (var item in at.EnumerateFileSystemInfos())
             {
+                item.Refresh();
                 if (item.LinkTarget is { } target)
                     lines.Add($"{Path.GetRelativePath(folder, item.FullName)} -> {target}");
                 else if (item is DirectoryInfo directory)
