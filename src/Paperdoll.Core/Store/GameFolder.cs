@@ -488,10 +488,13 @@ public sealed partial record GameFolder(string? Top, string Resources, string Ro
     /// so a ".." after a link goes up from where the link leads. On Windows, which takes each
     /// ".." by name, a ".." in the path or in a link's target goes up from the part before it.
     /// Throws <see cref="IOException"/> for links that go round in a loop, and for a link met
-    /// inside <paramref name="noLinksIn"/>, when given.
+    /// inside <paramref name="noLinksIn"/>, when given, with the links in the path to it followed.
     /// </summary>
     public static string RealPath(string path, string? noLinksIn = null)
     {
+        // A link above the folder, such as macOS's /var to /private/var, does not hide one inside it.
+        if (noLinksIn != null)
+            noLinksIn = RealPath(noLinksIn);
         if (!Path.IsPathRooted(path))
             path = Path.Combine(Directory.GetCurrentDirectory(), path);
         if (OperatingSystem.IsWindows())

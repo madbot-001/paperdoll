@@ -39,13 +39,16 @@ public sealed class GameFolderTests : IDisposable
     {
         var folder = Clone("a");
 
+        // Its path with the temporary folder's own links followed, as macOS's /var is a link.
+        var real = GameFolder.RealPath(folder);
+
         var top = GameFolder.Open(folder);
         var resources = GameFolder.Open(Path.Combine(folder, "Resources"));
 
-        Assert.Equal(Path.Combine(folder, "Resources"), top.Resources);
-        Assert.Equal(folder, top.Top);
+        Assert.Equal(Path.Combine(real, "Resources"), top.Resources);
+        Assert.Equal(real, top.Top);
         Assert.Equal((top.Top, top.Resources), (resources.Top, resources.Resources));
-        Assert.Equal((folder, Path.Combine(folder, "Resources")), (top.Root, resources.Root));
+        Assert.Equal((real, Path.Combine(real, "Resources")), (top.Root, resources.Root));
     }
 
     [Fact]

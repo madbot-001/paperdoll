@@ -281,7 +281,7 @@ public sealed class GameFolderSafetyTests : IDisposable
         Assert.Null(named.Fork);
         // The game's own Resources folder, in its clone.
         var clone = Clone("a");
-        Assert.Equal(clone, GameFolder.Open(Path.Combine(clone, "Resources")).Top);
+        Assert.Equal(GameFolder.RealPath(clone), GameFolder.Open(Path.Combine(clone, "Resources")).Top);
         Assert.Equal(TestGameFolders.Commit, GameFolder.Inspect(Path.Combine(clone, "Resources"), [TestForks.A]).Git.Commit);
     }
 
@@ -392,6 +392,25 @@ public sealed class GameFolderSafetyTests : IDisposable
         // Pointing straight there, out of the folder, as git itself would follow it.
         File.WriteAllText(Path.Combine(folder, ".git"), $"gitdir: {Path.Combine(elsewhere, ".git")}\n");
         Assert.Equal(TestGameFolders.Commit, GameFolder.ReadGit(folder).Commit);
+    }
+
+    [Fact]
+    public void A_folder_chosen_through_a_link_above_it_is_read_and_a_link_inside_it_still_is_not()
+    {
+        // As on macOS, where the temporary folder is under /var, a link to /private/var.
+        var real = Directory.CreateDirectory(Path.Combine(_root, "private")).FullName;
+        var above = Path.Combine(_root, "var");
+        Link(above, real, folder: true);
+        var folder = TestGameFolders.Write(Directory.CreateDirectory(Path.Combine(real, "worktree")).FullName, "a");
+        var elsewhere = Clone("a", "main");
+        Link(Path.Combine(folder, "inside"), Path.Combine(elsewhere, ".git"), folder: true);
+        File.WriteAllText(Path.Combine(folder, ".git"), "gitdir: inside\n");
+        var chosen = Path.Combine(above, "worktree");
+
+        Assert.Equal(GameFolder.Open(folder).Root, GameFolder.Open(chosen).Root);
+        var refused = GameFolder.ReadGit(chosen);
+        Assert.Null(refused.Commit);
+        Assert.Contains("passes through a link inside the game folder", refused.Problem);
     }
 
     [Fact]
