@@ -13,6 +13,8 @@ using Paperdoll.Core.Tests;
 
 namespace Paperdoll.App.Tests;
 
+// Run alone, as saving the mode points Paperdoll's own folder elsewhere for a while.
+[Collection(nameof(OwnFolder))]
 public class ColorSlidersTests
 {
     // The block for a field on the Appearance page, found again after each edit rebuilds the page.

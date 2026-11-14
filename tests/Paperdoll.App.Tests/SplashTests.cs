@@ -58,8 +58,8 @@ public class SplashTests
                 finally
                 {
                     splash.Close();
-                    if (window.IsVisible)
-                        window.Close();
+                    // Closed even when never shown, so it no longer saves settings when the colour mode changes.
+                    window.Close();
                 }
                 return true;
             }, ct);
