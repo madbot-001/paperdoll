@@ -62,6 +62,16 @@ public class ScreenshotTests
             if (part != null || tab != null)
                 window.ShowPart(part ?? "", tab);
             Dispatcher.UIThread.RunJobs();
+            // PAPERDOLL_SCREENSHOT_ZOOM sets the preview's zoom ("3x").
+            if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_ZOOM") is { } zoom)
+                Avalonia.Controls.ControlExtensions.FindControl<Avalonia.Controls.ComboBox>(window, "ZoomBox")!.SelectedItem = zoom;
+            // PAPERDOLL_SCREENSHOT_FLOOR=room stands the character in the demo room.
+            if (Environment.GetEnvironmentVariable("PAPERDOLL_SCREENSHOT_FLOOR") == "room")
+            {
+                Avalonia.Controls.ControlExtensions.FindControl<Avalonia.Controls.ComboBox>(window, "FloorBox")!.SelectedIndex = DemoRoomTests.RoomItem;
+                var shown = typeof(MainWindow).GetField("_roomShown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                DemoRoomTests.WaitFor(() => shown.GetValue(window) != null);
+            }
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
 
