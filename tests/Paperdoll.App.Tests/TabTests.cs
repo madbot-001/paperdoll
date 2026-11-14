@@ -345,8 +345,9 @@ public class TabTests
         return Task.CompletedTask;
     });
 
+    // The page's own controls, not the scroll bar parts around it.
     internal static IEnumerable<T> InPage<T>(MainWindow window) where T : Control =>
-        Find<ScrollViewer>(window, "PageHost").GetVisualDescendants().OfType<T>();
+        Find<Grid>(window, "Inspector").GetVisualDescendants().OfType<T>();
 
     [Fact]
     public Task No_job_free_is_on_the_Jobs_tab_and_not_on_Appearance() => OnWindow(TestForks.C, (window, _) =>

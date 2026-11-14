@@ -82,6 +82,7 @@ public class CyberneticsTabTests
         return Task.CompletedTask;
     });
 
+    // Short enough that the page scrolls, as it does at full height with some systems' fonts.
     [Fact]
     public Task A_species_without_points_says_so() => OnWindow(TestForks.E, (window, editor) =>
     {
@@ -91,5 +92,5 @@ public class CyberneticsTabTests
         Assert.Contains(InPage<TextBlock>(window), t => t.Text?.EndsWith("cannot have roundstart cybernetics.") == true);
         Assert.Empty(InPage<Button>(window));
         return Task.CompletedTask;
-    });
+    }, height: 300);
 }
