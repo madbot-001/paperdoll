@@ -49,7 +49,7 @@ public partial class App : Application
             }
             catch (Exception e)
             {
-                // No splash, then: the main window opens at once and loads as it did before there was one.
+                // No splash, then: the main window opens at once and loads in view.
                 ErrorLog.Write(e);
                 desktop.MainWindow = main;
             }

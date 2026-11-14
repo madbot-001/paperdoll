@@ -71,7 +71,7 @@
     </Border>
 
     <Grid Name="Workspace" ColumnDefinitions="340,5,*" Margin="5,5,5,4">
-      <!-- Preview: character on the station floor, facings below. -->
+      <!-- Preview: character on the floor, facings below. -->
       <Border Classes="pane" Grid.Column="0">
         <DockPanel>
           <!-- Wraps onto a second row while the pane is too narrow for one. -->

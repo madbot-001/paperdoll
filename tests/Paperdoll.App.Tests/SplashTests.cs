@@ -164,7 +164,7 @@ public class SplashTests
             Assert.StartsWith("No fork downloaded yet.", Status(window));
             Assert.Empty(window.OwnedWindows.OfType<ForksWindow>());
 
-            // Download goes on to the Forks window, as before.
+            // Download goes on to the Forks window.
             var ask = window.OwnedWindows.OfType<SourceWindow>().Single();
             Assert.True(Find<RadioButton>(ask, "DownloadChoice").IsChecked);
             Click(Find<Button>(ask, "ContinueButton"));
